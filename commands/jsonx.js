@@ -34,6 +34,8 @@ const TREE = {
 	},
 	Commands: [
 		require( './validate.js' ),
+		require( './run.js' ),
+		require( './trigger.js' ),
 	],
 };
 

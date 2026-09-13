@@ -528,7 +528,7 @@ function check_process( Entry, Base, jsongin, jsonproc, error )
 		error( path_of( Base, 'Steps' ), 'A Process must carry Steps, an array of jsonproc steps (12.2).' );
 		return;
 	}
-	check_steps( Entry.Steps, path_of( Base, 'Steps' ), jsonproc, error );
+	check_steps( Entry.Steps, path_of( Base, 'Steps' ), jsongin, jsonproc, error );
 	return;
 }
 
@@ -536,7 +536,7 @@ function check_process( Entry, Base, jsongin, jsonproc, error )
 //---------------------------------------------------------------------
 // Each step, and the steps nested inside it (12.2, 12.7, 12.8).
 
-function check_steps( Steps, Path, jsonproc, error )
+function check_steps( Steps, Path, jsongin, jsonproc, error )
 {
 	let operators = Object.keys( jsonproc.StepOperators );
 
@@ -559,7 +559,7 @@ function check_steps( Steps, Path, jsonproc, error )
 		}
 
 		let body = step[ operator ];
-		if ( operator === '$call' ) { check_call( body, path_of( step_path, '$call' ), error ); }
+		if ( operator === '$call' ) { check_call( body, path_of( step_path, '$call' ), jsongin, error ); }
 
 		let nested = Names.NESTED_STEPS[ operator ];
 		if ( !nested || !is_object( body ) ) { continue; }
@@ -573,7 +573,7 @@ function check_steps( Steps, Path, jsonproc, error )
 				error( nested_path, operator + '.' + field + ' must be an array of steps (12.2).' );
 				continue;
 			}
-			check_steps( body[ field ], nested_path, jsonproc, error );
+			check_steps( body[ field ], nested_path, jsongin, jsonproc, error );
 		}
 	}
 	return;
@@ -581,7 +581,37 @@ function check_steps( Steps, Path, jsonproc, error )
 
 
 //---------------------------------------------------------------------
-function check_call( Call, Path, error )
+// The first query or update operator a value holds outside `$literal`, as { Operator, Path }, or
+// null.
+
+function bare_operator( Value, Operators, Path )
+{
+	if ( Array.isArray( Value ) )
+	{
+		for ( let index = 0; index < Value.length; index++ )
+		{
+			let found = bare_operator( Value[ index ], Operators, path_of( Path, index ) );
+			if ( found !== null ) { return found; }
+		}
+		return null;
+	}
+	if ( !is_object( Value ) ) { return null; }
+	if ( Object.prototype.hasOwnProperty.call( Value, '$literal' ) ) { return null; }
+
+	let keys = Object.keys( Value );
+	for ( let index = 0; index < keys.length; index++ )
+	{
+		let key = keys[ index ];
+		if ( Operators.includes( key ) ) { return { Operator: key, Path: path_of( Path, key ) }; }
+		let found = bare_operator( Value[ key ], Operators, path_of( Path, key ) );
+		if ( found !== null ) { return found; }
+	}
+	return null;
+}
+
+
+//---------------------------------------------------------------------
+function check_call( Call, Path, jsongin, error )
 {
 	if ( !is_object( Call ) )
 	{
@@ -599,10 +629,26 @@ function check_call( Call, Path, error )
 		if ( !is_object( Call.With ) || typeof Call.With.DataSource === 'undefined' )
 		{
 			error( path_of( Path, 'With' ), 'A call to ' + Call.Name + ' must carry With.DataSource naming a data source (12.7).' );
+			return;
 		}
-		else if ( !is_name( Call.With.DataSource ) )
+		if ( !is_name( Call.With.DataSource ) )
 		{
 			error( path_of( Path, 'With.DataSource' ), 'With.DataSource must be a non-empty string (12.7).' );
+		}
+
+		// ***With is an expression document***, so jsonproc reads a query or update operator inside
+		// it as an expression operator: one fails, and `$gt` over an array silently becomes a
+		// boolean (measured 2026-09-13). `$literal` passes the document through (user, 2026-09-13).
+		let kinds = [
+			{ Field: 'Criteria', Operators: Object.keys( jsongin.QueryOperators ), Sort: 'a query operator', What: 'the criteria' },
+			{ Field: 'Updates', Operators: Object.keys( jsongin.UpdateOperators ), Sort: 'an update operator', What: 'the update document' },
+		];
+		for ( let index = 0; index < kinds.length; index++ )
+		{
+			let kind = kinds[ index ];
+			let found = bare_operator( Call.With[ kind.Field ], kind.Operators, path_of( Path, 'With.' + kind.Field ) );
+			if ( found === null ) { continue; }
+			error( found.Path, '[' + found.Operator + '] is ' + kind.Sort + ', but With is an expression document, so jsonproc would read it as an expression; wrap ' + kind.What + ' in $literal (12.7).' );
 		}
 		return;
 	}

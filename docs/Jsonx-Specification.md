@@ -621,6 +621,25 @@ Example:
              "Into": "Telescope" } }
 ```
 
+  ***`With` is a jsonproc expression document, and so is everything inside it.*** A field
+  reference such as `$Document.Telescope` is replaced by its value, which is what makes the call
+  above work - and an operator is evaluated as an expression operator, which is what breaks a
+  criteria or an update document written there as it would be written on an object. `$gt` in a
+  criteria is jsongin's comparison expression inside `With`, not the query operator: written
+  `{ "Hours": { "$gt": 4 } }` it fails, and written over an array it silently becomes `true` or
+  `false`. ***A criteria or an update document holding an operator is wrapped in `$literal`***,
+  which passes it to the host function unevaluated. Nothing inside `$literal` is evaluated, so an
+  operator whose value comes from the state is built with `$arrayToObject`, the operator's name
+  held in `$literal`: `{ "Hours": { "$arrayToObject": [ [ [ { "$literal": "$gt" }, "$Document.Hours" ] ] ] } }`
+  reaches the host function as `{ "Hours": { "$gt": 6 } }` for a document of six hours.
+
+```
+{ "$call": { "Name": "UpdateMany",
+             "With": { "DataSource": "Bookings",
+                       "Criteria": { "$literal": { "Hours": { "$gt": 6 } } },
+                       "Updates": { "$literal": { "$set": { "Long": true } } } } } }
+```
+
 ***12.8*** ***Calling an object.*** A `$call` whose `Name` is the name of an object in the file
   runs that object, as section 6 says, and the call's `Into` receives the object's result
   (6.3). ***This is how a file says to run several things in order***: a Process whose steps
@@ -813,7 +832,9 @@ A reader which validates reports ***findings***, each with a severity, a path to
     (12.2). A Process which carries `Criteria` and no `DataSource` (12.3).
 15. A `$call` whose `Name` is neither a host function nor an object of the file (12.9); a
     `$call` which names an object and carries `With` (12.8); a host function call whose
-    `With.DataSource` is a literal string naming no data source the file defines (3.8).
+    `With.DataSource` is a literal string naming no data source the file defines (3.8); a host
+    function call whose `With.Criteria` holds a query operator, or whose `With.Updates` holds an
+    update operator, outside `$literal` (12.7).
 16. A Process which calls itself, directly or through the objects it calls (12.8).
 17. A trigger whose `On` is present and is not an array, is empty, or holds a name which is not
     one of the functions in 13.3; whose `When` is present and is neither `"Before"` nor

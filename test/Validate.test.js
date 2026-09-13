@@ -249,6 +249,25 @@ describe( 'Validate 14.1.14-16: Process, $call and cycles', function ()
 		absent( computed, 'Objects.4.Steps.0.$call.With.DataSource' );
 	} );
 
+	it( '14.1.15 a query or update operator outside $literal in a host function call\'s With', function ()
+	{
+		let bare = validate( function ( D )
+		{
+			D.Objects[ 4 ].Steps[ 0 ].$call.With.Criteria = { Name: '$Document.Telescope', Aperture: { $gt: 300 } };
+			D.Objects[ 4 ].Steps.unshift( { $call: { Name: 'UpdateMany', With: { DataSource: 'Bookings', Criteria: {}, Updates: { $set: { Seen: true } } } } } );
+		} );
+		expect( bare, 'error', 'Objects.4.Steps.1.$call.With.Criteria.Aperture.$gt', /\[\$gt\] is a query operator.*wrap the criteria in \$literal \(12\.7\)/ );
+		expect( bare, 'error', 'Objects.4.Steps.0.$call.With.Updates.$set', /\[\$set\] is an update operator.*wrap the update document in \$literal/ );
+
+		let wrapped = validate( function ( D )
+		{
+			D.Objects[ 4 ].Steps[ 0 ].$call.With.Criteria = { $literal: { Aperture: { $gt: 300 } } };
+			D.Objects[ 4 ].Steps.unshift( { $call: { Name: 'UpdateMany', With: { DataSource: 'Bookings', Criteria: { Hours: { $arrayToObject: [ [ [ { $literal: '$gt' }, '$Document.Hours' ] ] ] } }, Updates: { $literal: { $set: { Seen: true } } } } } } );
+			D.Objects[ 5 ].Steps.unshift( { $call: { Name: 'Count', With: { DataSource: 'Notes', Criteria: { Note: { $concat: [ 'Long booking on ', '$Document.Telescope' ] } } } } } );
+		} );
+		LIB_ASSERT.deepStrictEqual( wrapped.filter( function ( Finding ) { return /\$literal/.test( Finding.Message ); } ), [] );
+	} );
+
 	it( '14.1.16 a Process calling itself, directly and through another, reported once', function ()
 	{
 		expect( validate( function ( D ) { D.Objects[ 6 ].Steps.push( { $call: { Name: 'Prepare the season' } } ); } ),
