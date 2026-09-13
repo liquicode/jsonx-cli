@@ -95,10 +95,72 @@ function FormatRunReport( RunReport, Depth )
 
 
 //---------------------------------------------------------------------
+// A plan as lines: the call tree, the data sources it would open, the triggers it could fire, and
+// the entry's findings.
+
+function FormatPlan( Plan )
+{
+	let lines = '';
+
+	function node_lines( Node, Depth )
+	{
+		let indent = '  '.repeat( Depth );
+		let note = Node.Missing ? '  (no such object)' : ( Node.Repeats ? '  (calls itself; stopped here)' : '' );
+		lines += indent + Node.Name + '  ' + ( Node.Kind || '' ) + note + '\n';
+		for ( let index = 0; index < Node.Does.length; index++ )
+		{
+			let item = Node.Does[ index ];
+			if ( item.Object ) { node_lines( item.Object, Depth + 1 ); continue; }
+			let where = ( item.DataSource === null ) ? ( item.Computed ? 'a data source computed from ' + item.Computed : '(no data source)' ) : item.DataSource;
+			lines += indent + '  ' + item.Function + ' on ' + where + ( item.Into ? '  (Into)' : '' ) + '\n';
+		}
+		return;
+	}
+	node_lines( Plan.Tree, 0 );
+
+	if ( Plan.DataSources.length > 0 )
+	{
+		lines += '\nData sources:\n';
+		for ( let index = 0; index < Plan.DataSources.length; index++ )
+		{
+			let source = Plan.DataSources[ index ];
+			if ( !source.Defined ) { lines += '  ' + source.Name + '  (not defined)\n'; continue; }
+			let installed = ( source.Installed === false ) ? '  NOT INSTALLED' : '';
+			lines += '  ' + source.Name + '  ' + source.AdapterName + installed + '\n';
+			for ( let variable = 0; variable < source.Environment.length; variable++ )
+			{
+				let item = source.Environment[ variable ];
+				lines += '    ${env:' + item.Name + '}  ' + ( item.Set ? 'set' : 'NOT SET' ) + '\n';
+			}
+		}
+	}
+
+	if ( Plan.Triggers.length > 0 )
+	{
+		lines += '\nTriggers it could fire:\n';
+		for ( let index = 0; index < Plan.Triggers.length; index++ )
+		{
+			let trigger = Plan.Triggers[ index ];
+			lines += '  ' + trigger.Name + '  -> ' + trigger.Process + '  on ' + trigger.On.join( ', ' ) + ' of ' + trigger.DataSource + '\n';
+		}
+	}
+
+	if ( Plan.Findings.length > 0 )
+	{
+		lines += '\nFindings:\n';
+		for ( let index = 0; index < Plan.Findings.length; index++ ) { lines += FormatFinding( Plan.Findings[ index ] ); }
+	}
+	lines += '\nNothing was opened.\n';
+	return lines;
+}
+
+
+//---------------------------------------------------------------------
 module.exports = {
 	FormatResult: FormatResult,
 	WriteResult: WriteResult,
 	FormatFinding: FormatFinding,
 	FormatSummary: FormatSummary,
 	FormatRunReport: FormatRunReport,
+	FormatPlan: FormatPlan,
 };

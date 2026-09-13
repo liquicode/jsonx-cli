@@ -34,9 +34,9 @@ const TREE = {
 	},
 	Commands: [
 		require( './validate.js' ),
+		require( './plan.js' ),
 		require( './run.js' ),
-		require( './trigger.js' ),
-	],
+	].concat( require( './manage.js' ).Groups ),
 };
 
 

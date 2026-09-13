@@ -1,10 +1,10 @@
 'use strict';
 
 /*
-	jsonx trigger <command>
+	jsonx trigger run <name>
 
-	Cut 1 step 5 holds `run`: a trigger run by hand, which runs its Process over its data source
-	(spec 13.3). The manage verbs join in step 6.
+	A trigger run by hand, which runs its Process over its data source (spec 13.3). The trigger
+	group itself - with the manage verbs beside this command - is built in manage.js.
 */
 
 const SessionCommand = require( './session.js' );
@@ -37,17 +37,13 @@ async function run_handler( Parsed, Context )
 
 //---------------------------------------------------------------------
 module.exports = {
-	Command: 'trigger',
-	Describe: 'Work with the file\'s triggers.',
-	Commands: [
-		{
-			Command: 'run',
-			Describe: 'Run a trigger by hand: its Process over its data source.',
-			Positionals: [
-				{ Name: 'name', Type: 'string', Required: true, Describe: 'The trigger to run.' },
-			],
-			Options: Object.assign( {}, SessionCommand.SESSION_OPTIONS ),
-			Handler: run_handler,
-		},
-	],
+	RunCommand: {
+		Command: 'run',
+		Describe: 'Run a trigger by hand: its Process over its data source.',
+		Positionals: [
+			{ Name: 'name', Type: 'string', Required: true, Describe: 'The trigger to run.' },
+		],
+		Options: Object.assign( {}, SessionCommand.SESSION_OPTIONS ),
+		Handler: run_handler,
+	},
 };

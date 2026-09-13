@@ -30,6 +30,7 @@ module.exports = {
 			Writer: require( './File/Writer.js' ),
 			Names: require( './File/Names.js' ),
 			Schema: require( './File/Schema.js' ),
+			Edit: require( './File/Edit.js' ),
 		},
 		Validate: require( './Validate/Validate.js' ),
 		Session: {
@@ -41,6 +42,8 @@ module.exports = {
 			Triggers: require( './Session/Triggers.js' ),
 			Runner: require( './Session/Runner.js' ),
 			Session: require( './Session/Session.js' ),
+			Plan: require( './Session/Plan.js' ),
+			Inspect: require( './Session/Inspect.js' ),
 		},
 		Report: require( './Report.js' ),
 	},
