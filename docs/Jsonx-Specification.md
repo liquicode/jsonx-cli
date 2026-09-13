@@ -743,8 +743,10 @@ DeleteOne  DeleteMany
   which is to run outside a trigger as well MUST NOT depend on it.
 
 ***13.7*** When the Process carries an `Into`, each run's return value which is an object is
-  inserted there (6.5). A programmatic trigger whose Process's `Into` is the data source it
-  watches will fire itself, and a reader SHOULD warn about that.
+  inserted there (6.5). ***A trigger does not fire for the calls its own Process causes while
+  that Process is running*** - through `Into`, a host function or an object it calls - so a
+  trigger whose Process writes to the data source it watches does not fire itself again. Every
+  other trigger on that data source fires for those calls as 13.4 says.
 
 Example, programmatic:
 
@@ -826,9 +828,8 @@ A reader which validates reports ***findings***, each with a severity, a path to
 3. A Delete whose `Criteria` is `{}` (11.1).
 4. A Query with a `SkipCount` and no `Sort` (9.4).
 5. A data source setting the adapter does not describe (4.1).
-6. A programmatic trigger whose Process's `Into` is the data source the trigger watches (13.7).
-7. An environment reference whose variable is not set where the reader is running (4.6).
-8. A `Jsonx` which names a version of this document later than the one the reader was written
+6. An environment reference whose variable is not set where the reader is running (4.6).
+7. A `Jsonx` which names a version of this document later than the one the reader was written
    to (15.1).
 
 ***14.3*** A reader MAY report each of the following as a note.

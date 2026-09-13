@@ -1,0 +1,61 @@
+{
+	"name": "@liquicode/jsonx-cli",
+	"version": "0.1.0",
+	"description": "The jsonx application: read, validate, run and edit jsonx files over jsongin, jsonstor and jsonproc.",
+	"license": "MIT",
+	"engines": {
+		"node": ">=20.0.0"
+	},
+	"homepage": "http://jsonx.liquicode.com",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/liquicode/jsonx-cli.git"
+	},
+	"authors": [
+		{
+			"name": "Andre' G. Bowlin",
+			"email": "agbowlin@gmail.com",
+			"homepage": "http://liquicode.com"
+		}
+	],
+	"bin": {
+		"jsonx": "bin/jsonx.js"
+	},
+	"main": "src/jsonx-cli.js",
+	"types": "./types/jsonx-cli.d.ts",
+	"exports": {
+		".": {
+			"types": "./types/jsonx-cli.d.ts",
+			"import": "./src/jsonx-cli.mjs",
+			"require": "./src/jsonx-cli.js",
+			"default": "./src/jsonx-cli.js"
+		},
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"bin",
+		"commands",
+		"modes",
+		"src",
+		"types",
+		"docs",
+		"readme.md"
+	],
+	"scripts": {
+		"test": "node --test \"test/**/*.test.js\"",
+		"types-check": "node build/types-check.js"
+	},
+	"keywords": [
+		"json",
+		"jsonx",
+		"cli",
+		"jsongin",
+		"jsonstor",
+		"jsonproc"
+	],
+	"dependencies": {
+		"@liquicode/jsongin": "^0.2.0",
+		"@liquicode/jsonproc": "^0.2.0",
+		"@liquicode/jsonstor": "^0.2.0"
+	}
+}

@@ -1,0 +1,364 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "http://jsonstor.liquicode.com/guides/Jsonx-Specification.md",
+	"title": "jsonx file",
+	"type": "object",
+	"properties": {
+		"Jsonx": {
+			"type": "string"
+		},
+		"Name": {
+			"type": "string",
+			"minLength": 1
+		},
+		"Description": {
+			"type": "string"
+		},
+		"DataSources": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/DataSource"
+			}
+		},
+		"Objects": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/Object"
+			}
+		},
+		"Triggers": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/Trigger"
+			}
+		}
+	},
+	"$defs": {
+		"Name": {
+			"type": "string",
+			"minLength": 1,
+			"not": {
+				"enum": [
+					"Count",
+					"FindOne",
+					"FindMany",
+					"FindMany2",
+					"InsertOne",
+					"InsertMany",
+					"UpdateOne",
+					"UpdateMany",
+					"ReplaceOne",
+					"DeleteOne",
+					"DeleteMany"
+				]
+			}
+		},
+		"Reference": {
+			"type": "string",
+			"minLength": 1
+		},
+		"DataSource": {
+			"type": "object",
+			"required": [
+				"Name",
+				"AdapterName"
+			],
+			"properties": {
+				"Name": {
+					"$ref": "#/$defs/Name"
+				},
+				"AdapterName": {
+					"type": "string",
+					"minLength": 1
+				},
+				"Settings": {
+					"type": "object"
+				},
+				"Filters": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": [
+							"FilterName"
+						],
+						"properties": {
+							"FilterName": {
+								"type": "string",
+								"minLength": 1
+							},
+							"Settings": {
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"Object": {
+			"type": "object",
+			"required": [
+				"Kind",
+				"Name"
+			],
+			"properties": {
+				"Kind": {
+					"enum": [
+						"Insert",
+						"Query",
+						"Update",
+						"Delete",
+						"Process"
+					]
+				},
+				"Name": {
+					"$ref": "#/$defs/Name"
+				}
+			},
+			"oneOf": [
+				{
+					"$ref": "#/$defs/Insert"
+				},
+				{
+					"$ref": "#/$defs/Query"
+				},
+				{
+					"$ref": "#/$defs/Update"
+				},
+				{
+					"$ref": "#/$defs/Delete"
+				},
+				{
+					"$ref": "#/$defs/Process"
+				}
+			]
+		},
+		"Criteria": {
+			"type": "object"
+		},
+		"UpdateDocument": {
+			"type": "object",
+			"propertyNames": {
+				"pattern": "^\\$"
+			}
+		},
+		"Sort": {
+			"type": "object",
+			"additionalProperties": {
+				"enum": [
+					1,
+					-1
+				]
+			}
+		},
+		"Projection": {
+			"type": "object"
+		},
+		"Steps": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"minProperties": 1,
+				"maxProperties": 1
+			}
+		},
+		"Insert": {
+			"type": "object",
+			"required": [
+				"Kind",
+				"Name",
+				"DataSource",
+				"Documents"
+			],
+			"properties": {
+				"Kind": {
+					"const": "Insert"
+				},
+				"DataSource": {
+					"$ref": "#/$defs/Reference"
+				},
+				"Documents": {
+					"type": "array",
+					"items": {
+						"type": "object"
+					}
+				}
+			},
+			"not": {
+				"required": [
+					"Into"
+				]
+			}
+		},
+		"Query": {
+			"type": "object",
+			"required": [
+				"Kind",
+				"Name",
+				"DataSource",
+				"Criteria"
+			],
+			"properties": {
+				"Kind": {
+					"const": "Query"
+				},
+				"DataSource": {
+					"$ref": "#/$defs/Reference"
+				},
+				"Criteria": {
+					"$ref": "#/$defs/Criteria"
+				},
+				"Projection": {
+					"$ref": "#/$defs/Projection"
+				},
+				"Sort": {
+					"$ref": "#/$defs/Sort"
+				},
+				"SkipCount": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"MaxCount": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"Into": {
+					"$ref": "#/$defs/Reference"
+				}
+			}
+		},
+		"Update": {
+			"type": "object",
+			"required": [
+				"Kind",
+				"Name",
+				"DataSource",
+				"Criteria",
+				"Update"
+			],
+			"properties": {
+				"Kind": {
+					"const": "Update"
+				},
+				"DataSource": {
+					"$ref": "#/$defs/Reference"
+				},
+				"Criteria": {
+					"$ref": "#/$defs/Criteria"
+				},
+				"Update": {
+					"$ref": "#/$defs/UpdateDocument"
+				},
+				"FirstOnly": {
+					"type": "boolean"
+				}
+			},
+			"not": {
+				"required": [
+					"Into"
+				]
+			}
+		},
+		"Delete": {
+			"type": "object",
+			"required": [
+				"Kind",
+				"Name",
+				"DataSource",
+				"Criteria"
+			],
+			"properties": {
+				"Kind": {
+					"const": "Delete"
+				},
+				"DataSource": {
+					"$ref": "#/$defs/Reference"
+				},
+				"Criteria": {
+					"$ref": "#/$defs/Criteria"
+				},
+				"FirstOnly": {
+					"type": "boolean"
+				}
+			},
+			"not": {
+				"required": [
+					"Into"
+				]
+			}
+		},
+		"Process": {
+			"type": "object",
+			"required": [
+				"Kind",
+				"Name",
+				"Steps"
+			],
+			"properties": {
+				"Kind": {
+					"const": "Process"
+				},
+				"DataSource": {
+					"$ref": "#/$defs/Reference"
+				},
+				"Criteria": {
+					"$ref": "#/$defs/Criteria"
+				},
+				"Steps": {
+					"$ref": "#/$defs/Steps"
+				},
+				"Into": {
+					"$ref": "#/$defs/Reference"
+				}
+			},
+			"dependentRequired": {
+				"Criteria": [
+					"DataSource"
+				]
+			}
+		},
+		"Trigger": {
+			"type": "object",
+			"required": [
+				"Name",
+				"Process"
+			],
+			"properties": {
+				"Name": {
+					"$ref": "#/$defs/Name"
+				},
+				"On": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"enum": [
+							"InsertOne",
+							"InsertMany",
+							"FindOne",
+							"FindMany",
+							"FindMany2",
+							"UpdateOne",
+							"UpdateMany",
+							"ReplaceOne",
+							"DeleteOne",
+							"DeleteMany"
+						]
+					}
+				},
+				"When": {
+					"enum": [
+						"Before",
+						"After"
+					]
+				},
+				"Process": {
+					"$ref": "#/$defs/Reference"
+				}
+			},
+			"dependentRequired": {
+				"When": [
+					"On"
+				]
+			}
+		}
+	}
+}
