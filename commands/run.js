@@ -18,7 +18,7 @@ const Names = require( '../src/File/Names.js' );
 //---------------------------------------------------------------------
 async function handler( Parsed, Context )
 {
-	let opened = await SessionCommand.OpenSession( Parsed, Context );
+	let opened = await SessionCommand.OpenSession( Parsed, Context, { Statistics: Context.Parser.Value( Context.Tree, Parsed, 'verbose' ) } );
 	if ( typeof opened.ExitCode === 'number' ) { return opened.ExitCode; }
 
 	let name = Context.Parser.Value( Context.Tree, Parsed, 'name' );
@@ -58,6 +58,6 @@ module.exports = {
 	],
 	Options: Object.assign( {
 		'input': { Type: 'json', Describe: 'The starting document of a Process with no DataSource.' },
-	}, SessionCommand.SESSION_OPTIONS ),
+	}, SessionCommand.RUN_OPTIONS ),
 	Handler: handler,
 };

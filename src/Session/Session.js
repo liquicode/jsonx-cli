@@ -123,7 +123,9 @@ function NewSession( Options )
 		},
 	} );
 
-	session.Runner = Runner.NewRunner( { Document: session.Document, DataSources: session.DataSources, Host: session.Host } );
+	session.Runner = Runner.NewRunner( {
+		Document: session.Document, DataSources: session.DataSources, Host: session.Host, Statistics: ( options.Statistics === true ),
+	} );
 
 
 	//---------------------------------------------------------------------

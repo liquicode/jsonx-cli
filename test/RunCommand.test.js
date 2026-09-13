@@ -81,6 +81,19 @@ describe( 'jsonx run and jsonx trigger run', function ()
 		LIB_ASSERT.strictEqual( result.Stdout, '{"_id":"a"}\n{"_id":"b"}\n' );
 	} );
 
+	it( 'adds what each storage call measured with --verbose, leaving stdout unchanged', function ()
+	{
+		let plain = run( [ 'run', 'Seed and read' ], scratch );
+		let verbose = run( [ 'run', 'Seed and read', '--verbose' ], scratch );
+		LIB_ASSERT.strictEqual( verbose.Code, 0, verbose.Stderr );
+		LIB_ASSERT.strictEqual( verbose.Stdout, plain.Stdout );
+		LIB_ASSERT.ok( /\| FindMany2 on Scratch: backend 2 rows, kept 2/.test( verbose.Stderr ), verbose.Stderr );
+		LIB_ASSERT.ok( !/InsertMany on/.test( verbose.Stderr ), 'an insert has nothing to measure' );
+		LIB_ASSERT.ok( !plain.Stderr.includes( '|' ) );
+
+		LIB_ASSERT.strictEqual( run( [ 'validate', '--verbose' ], scratch ).Code, 2, '--verbose belongs to the commands which run' );
+	} );
+
 	it( 'starts a Process with no DataSource from --input', function ()
 	{
 		let result = run( [ 'run', 'Echo', '--input', '{"Seed":42}', '-q' ], scratch );

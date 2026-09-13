@@ -246,6 +246,30 @@ describe( 'Runner: calls', function ()
 		LIB_ASSERT.deepStrictEqual( await all( careless, 'S' ), [ { _id: 1 } ], 'the earlier insert stands' );
 	} );
 
+	it( 'records what each storage call measured under the object which made it, with Statistics on', async function ()
+	{
+		let objects = [
+			{ Kind: 'Insert', Name: 'Seed', DataSource: 'S', Documents: [ { _id: 1, n: 1 }, { _id: 2, n: 5 }, { _id: 3, n: 9 } ] },
+			{ Kind: 'Query', Name: 'Big', DataSource: 'S', Criteria: { n: { $gt: 4 } } },
+			{ Kind: 'Process', Name: 'Both', Steps: [ { $call: { Name: 'Seed' } }, { $call: { Name: 'Big', Into: 'Rows' } }, { $return: '$Rows' } ] },
+		];
+
+		let measured = session_for( objects, null, { Statistics: true } );
+		let report = await measured.Run( 'Both' );
+		LIB_ASSERT.strictEqual( report.Ok, true, JSON.stringify( report.Error ) );
+		LIB_ASSERT.strictEqual( report.Result.length, 2, 'the result is unwrapped, not { Result, Statistics }' );
+
+		let query = report.Calls[ 1 ].Statistics;
+		LIB_ASSERT.strictEqual( query.length, 1 );
+		LIB_ASSERT.strictEqual( query[ 0 ].Function, 'FindMany2' );
+		LIB_ASSERT.strictEqual( query[ 0 ].DataSource, 'S' );
+		LIB_ASSERT.strictEqual( query[ 0 ].Measured, true );
+		LIB_ASSERT.strictEqual( query[ 0 ].ResidualRows, 2 );
+
+		let plain = session_for( objects );
+		LIB_ASSERT.deepStrictEqual( ( await plain.Run( 'Both' ) ).Calls[ 1 ].Statistics, [], 'nothing is measured by default' );
+	} );
+
 	it( 'reports an object nothing names as a failed run', async function ()
 	{
 		let report = await session_for( [] ).Run( 'Nobody' );

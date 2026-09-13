@@ -14,7 +14,7 @@ const Session = require( '../src/Session/Session.js' );
 //---------------------------------------------------------------------
 async function run_handler( Parsed, Context )
 {
-	let opened = await SessionCommand.OpenSession( Parsed, Context );
+	let opened = await SessionCommand.OpenSession( Parsed, Context, { Statistics: Context.Parser.Value( Context.Tree, Parsed, 'verbose' ) } );
 	if ( typeof opened.ExitCode === 'number' ) { return opened.ExitCode; }
 
 	let name = Context.Parser.Value( Context.Tree, Parsed, 'name' );
@@ -43,7 +43,7 @@ module.exports = {
 		Positionals: [
 			{ Name: 'name', Type: 'string', Required: true, Describe: 'The trigger to run.' },
 		],
-		Options: Object.assign( {}, SessionCommand.SESSION_OPTIONS ),
+		Options: Object.assign( {}, SessionCommand.RUN_OPTIONS ),
 		Handler: run_handler,
 	},
 };

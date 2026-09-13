@@ -19,7 +19,6 @@ const GLOBAL_OPTIONS = {
 	'file': { Type: 'string', Alias: 'f', Describe: 'The jsonx file. Absent: JSONX_FILE, then the one .jsonx file in the current directory.' },
 	'output': { Type: 'string', Alias: 'o', Choices: [ 'json', 'jsonl' ], Default: 'json', Describe: 'How the result is written to standard output.' },
 	'quiet': { Type: 'boolean', Alias: 'q', Describe: 'Write no report to standard error.' },
-	'verbose': { Type: 'boolean', Alias: 'v', Describe: 'Add statistics to the report.' },
 	'input-json': { Type: 'string', Describe: 'Read the whole invocation from a JSON file, or - for standard input. Must be the only argument.' },
 };
 

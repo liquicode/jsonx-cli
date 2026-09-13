@@ -72,9 +72,10 @@ function FormatSummary( Label, Summary )
 //		  Three bookings  Insert  inserted 3  2 ms
 //		    trigger [Note every long booking as it arrives] Note a long booking  Process  ran once ...
 
-function FormatRunReport( RunReport, Depth )
+function FormatRunReport( RunReport, Depth, Options )
 {
 	let depth = ( typeof Depth === 'number' ) ? Depth : 0;
+	let options = ( Options && typeof Options === 'object' ) ? Options : {};
 	let indent = '  '.repeat( depth );
 	let lines = '';
 
@@ -83,8 +84,24 @@ function FormatRunReport( RunReport, Depth )
 	let outcome = RunReport.Ok ? RunReport.Summary : 'FAILED';
 	lines += indent + head + RunReport.Name + '  ' + kind + '  ' + outcome + '  ' + RunReport.Ms + ' ms\n';
 
-	for ( let index = 0; index < RunReport.Calls.length; index++ ) { lines += FormatRunReport( RunReport.Calls[ index ], depth + 1 ); }
-	for ( let index = 0; index < RunReport.Fired.length; index++ ) { lines += FormatRunReport( RunReport.Fired[ index ], depth + 1 ); }
+	// ***What each storage call measured***, with --verbose: the rows the backend returned for the
+	// part of the criteria it was asked, and the rows jsongin kept of those.
+	if ( options.Statistics === true && Array.isArray( RunReport.Statistics ) )
+	{
+		for ( let index = 0; index < RunReport.Statistics.length; index++ )
+		{
+			let measured = RunReport.Statistics[ index ];
+			// An insert carries no criteria, so there is nothing to measure and no line to show.
+			if ( measured.Function === 'InsertOne' || measured.Function === 'InsertMany' ) { continue; }
+			let detail = measured.Measured
+				? 'backend ' + measured.PushdownRows + ' rows, kept ' + measured.ResidualRows + ( measured.Translator ? ' (' + measured.Translator + ')' : '' )
+				: 'not measured';
+			lines += indent + '  | ' + measured.Function + ' on ' + measured.DataSource + ': ' + detail + '\n';
+		}
+	}
+
+	for ( let index = 0; index < RunReport.Calls.length; index++ ) { lines += FormatRunReport( RunReport.Calls[ index ], depth + 1, options ); }
+	for ( let index = 0; index < RunReport.Fired.length; index++ ) { lines += FormatRunReport( RunReport.Fired[ index ], depth + 1, options ); }
 
 	if ( !RunReport.Ok && RunReport.Error )
 	{

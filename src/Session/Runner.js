@@ -5,7 +5,7 @@
 
 	***Each run returns a report, and an object failing is a report, not an exception.***
 
-		{ Name, Kind, Ok, Result, Summary, Ms, Error, Calls: [ report ], Fired: [ report ] }
+		{ Name, Kind, Ok, Result, Summary, Ms, Error, Calls: [ report ], Fired: [ report ], Statistics: [ ... ] }
 
 	Calls holds the runs of the objects a Process called, in order; Fired holds the runs of the
 	Processes triggers started because of this object's storage calls. A report is built as the
@@ -19,6 +19,10 @@
 
 	***A Process calls an object by naming it in `$call`*** (12.8), and the call's answer is that
 	object's result. A failure of the object is a failure of the step, which a `$try` can catch.
+
+	***Every storage call goes through call_storage.*** With Statistics on, it asks jsonstor for the
+	call's measurement (`Options.Statistics`), unwraps `{ Result, Statistics }`, and records the
+	measurement on the report of the object which made the call.
 */
 
 const jsongin = require( '@liquicode/jsongin' );
@@ -78,6 +82,7 @@ function plural( Count, Word )
 //		Document      the jsonx file
 //		DataSources   the session's data sources (DataSources.js)
 //		Host          the process host (Host.js)
+//		Statistics    true to measure every storage call
 
 function NewRunner( Options )
 {
@@ -87,6 +92,7 @@ function NewRunner( Options )
 		Document: options.Document,
 		DataSources: options.DataSources,
 		Host: options.Host,
+		Statistics: ( options.Statistics === true ),
 
 		// The reports of the objects running now, outermost first.
 		Stack: [],
@@ -111,7 +117,29 @@ function NewRunner( Options )
 	//---------------------------------------------------------------------
 	function new_report( Name, Kind )
 	{
-		return { Name: Name, Kind: Kind, Ok: true, Result: undefined, Summary: '', Ms: 0, Error: null, Calls: [], Fired: [] };
+		return { Name: Name, Kind: Kind, Ok: true, Result: undefined, Summary: '', Ms: 0, Error: null, Calls: [], Fired: [], Statistics: [] };
+	}
+
+
+	//---------------------------------------------------------------------
+	// One storage call on a data source, measured when Statistics is on.
+
+	async function call_storage( DataSourceName, FunctionName, Parameters )
+	{
+		let storage = runner.DataSources.Open( DataSourceName );
+		if ( !runner.Statistics ) { return await storage[ FunctionName ]( ...Parameters ); }
+
+		let options_index = HOST_PARAMETERS[ FunctionName ].length;
+		let parameters = Parameters.slice( 0, options_index );
+		while ( parameters.length < options_index ) { parameters.push( null ); }
+		parameters.push( { Statistics: true } );
+
+		let answer = await storage[ FunctionName ]( ...parameters );
+		if ( !is_object( answer ) || typeof answer.Statistics === 'undefined' || !Object.prototype.hasOwnProperty.call( answer, 'Result' ) ) { return answer; }
+
+		let report = runner.Stack[ runner.Stack.length - 1 ];
+		if ( report ) { report.Statistics.push( Object.assign( { Function: FunctionName, DataSource: DataSourceName }, answer.Statistics ) ); }
+		return answer.Result;
 	}
 
 
@@ -164,7 +192,7 @@ function NewRunner( Options )
 	async function insert_into( Name, Documents )
 	{
 		if ( Documents.length === 0 ) { return 0; }
-		return await runner.DataSources.Open( Name ).InsertMany( clone( Documents ) );
+		return await call_storage( Name, 'InsertMany', [ clone( Documents ) ] );
 	}
 
 
@@ -173,8 +201,7 @@ function NewRunner( Options )
 
 	async function run_insert( Entry, Report )
 	{
-		let storage = runner.DataSources.Open( Entry.DataSource );
-		let inserted = await storage.InsertMany( clone( Entry.Documents ) );
+		let inserted = await call_storage( Entry.DataSource, 'InsertMany', [ clone( Entry.Documents ) ] );
 		Report.Result = inserted;
 		Report.Summary = 'inserted ' + inserted;
 		return;
@@ -186,8 +213,6 @@ function NewRunner( Options )
 
 	async function run_query( Entry, Report )
 	{
-		let storage = runner.DataSources.Open( Entry.DataSource );
-
 		let paging = null;
 		if ( typeof Entry.SkipCount !== 'undefined' || typeof Entry.MaxCount !== 'undefined' )
 		{
@@ -196,7 +221,7 @@ function NewRunner( Options )
 			if ( typeof Entry.MaxCount !== 'undefined' ) { paging.MaxCount = Entry.MaxCount; }
 		}
 
-		let rows = await storage.FindMany2( Entry.Criteria, Entry.Projection || null, Entry.Sort || null, paging );
+		let rows = await call_storage( Entry.DataSource, 'FindMany2', [ Entry.Criteria, Entry.Projection || null, Entry.Sort || null, paging ] );
 		rows = Array.isArray( rows ) ? rows : [];
 
 		Report.Result = rows;
@@ -218,13 +243,11 @@ function NewRunner( Options )
 		let storage = runner.DataSources.Open( Entry.DataSource );
 		let first_only = ( Entry.FirstOnly === true );
 
-		let before = await storage.FindMany( Entry.Criteria, null );
+		let before = await call_storage( Entry.DataSource, 'FindMany', [ Entry.Criteria, null ] );
 		before = Array.isArray( before ) ? before : [];
 		if ( first_only ) { before = before.slice( 0, 1 ); }
 
-		let selected = first_only
-			? await storage.UpdateOne( Entry.Criteria, clone( Entry.Update ) )
-			: await storage.UpdateMany( Entry.Criteria, clone( Entry.Update ) );
+		let selected = await call_storage( Entry.DataSource, first_only ? 'UpdateOne' : 'UpdateMany', [ Entry.Criteria, clone( Entry.Update ) ] );
 
 		let changed = selected;
 		let key_fields = ( is_object( storage.PrimaryKeyInfo ) && Array.isArray( storage.PrimaryKeyInfo.Fields ) && storage.PrimaryKeyInfo.Fields.length > 0 )
@@ -233,7 +256,7 @@ function NewRunner( Options )
 
 		if ( criteria !== null )
 		{
-			let after = await storage.FindMany( criteria, null );
+			let after = await call_storage( Entry.DataSource, 'FindMany', [ criteria, null ] );
 			after = Array.isArray( after ) ? after : [];
 			changed = 0;
 			for ( let index = 0; index < before.length; index++ )
@@ -258,10 +281,7 @@ function NewRunner( Options )
 
 	async function run_delete( Entry, Report )
 	{
-		let storage = runner.DataSources.Open( Entry.DataSource );
-		let removed = ( Entry.FirstOnly === true )
-			? await storage.DeleteOne( Entry.Criteria )
-			: await storage.DeleteMany( Entry.Criteria );
+		let removed = await call_storage( Entry.DataSource, ( Entry.FirstOnly === true ) ? 'DeleteOne' : 'DeleteMany', [ Entry.Criteria ] );
 		Report.Result = removed;
 		Report.Summary = 'removed ' + removed;
 		return;
@@ -287,8 +307,7 @@ function NewRunner( Options )
 			return;
 		}
 
-		let storage = runner.DataSources.Open( Entry.DataSource );
-		let documents = await storage.FindMany2( is_object( Entry.Criteria ) ? Entry.Criteria : {}, null, null, null );
+		let documents = await call_storage( Entry.DataSource, 'FindMany2', [ is_object( Entry.Criteria ) ? Entry.Criteria : {}, null, null, null ] );
 		documents = Array.isArray( documents ) ? documents : [];
 
 		let results = [];
@@ -355,12 +374,11 @@ function NewRunner( Options )
 			{
 				throw new RunError( 'A call to ' + Name + ' must carry With.DataSource naming a data source (12.7).', 'BadCall' );
 			}
-			let storage = runner.DataSources.Open( with_document.DataSource );
 			let parameters = HOST_PARAMETERS[ Name ].map( function ( Parameter )
 			{
 				return ( typeof with_document[ Parameter ] === 'undefined' ) ? null : clone( with_document[ Parameter ] );
 			} );
-			return await storage[ Name ]( ...parameters );
+			return await call_storage( with_document.DataSource, Name, parameters );
 		}
 
 		if ( Object.keys( with_document ).length > 0 )

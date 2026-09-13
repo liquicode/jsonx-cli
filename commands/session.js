@@ -7,9 +7,9 @@
 	validated first and its errors are reported on standard error with exit 3, before a data source
 	opens. Warnings and notes do not stop a run.
 
-	`--bind` and `--set` are declared here rather than as global options, because only these
-	commands read them, and an option a command accepts and ignores is the defect the parser
-	exists to prevent.
+	`--bind`, `--set` and `--verbose` are declared on the commands which read them rather than as
+	global options, because an option a command accepts and ignores is the defect the parser exists
+	to prevent.
 */
 
 const jsongin = require( '@liquicode/jsongin' );
@@ -23,18 +23,27 @@ const Report = require( '../src/Report.js' );
 
 
 //---------------------------------------------------------------------
+// Every command which opens data sources.
 const SESSION_OPTIONS = {
 	'bind': { Type: 'string', Repeat: true, Describe: 'Point a data source at another adapter for this run: Name=adapter or Name=adapter:{settings}.' },
 	'set': { Type: 'string', Repeat: true, Describe: 'Change one setting of a data source for this run: Name.Settings.Key=value.' },
 };
 
+// The commands which run objects.
+const RUN_OPTIONS = Object.assign( {
+	'verbose': { Type: 'boolean', Alias: 'v', Describe: 'Add what each storage call measured to the report.' },
+}, SESSION_OPTIONS );
+
 
 //---------------------------------------------------------------------
 // Opens a session for a command. Returns { Session, Path } or { ExitCode } when it cannot.
+//
+// Extra.Statistics measures every storage call the session's runner makes.
 
-async function OpenSession( Parsed, Context )
+async function OpenSession( Parsed, Context, Extra )
 {
 	let io = Context.Io;
+	let extra = ( Extra && typeof Extra === 'object' ) ? Extra : {};
 	let value = function ( Name ) { return Context.Parser.Value( Context.Tree, Parsed, Name ); };
 
 	let resolved = null;
@@ -69,6 +78,7 @@ async function OpenSession( Parsed, Context )
 			Sets: value( 'set' ),
 			Env: io.Env,
 			Cwd: io.Cwd,
+			Statistics: ( extra.Statistics === true ),
 		} );
 	}
 	catch ( error )
@@ -111,7 +121,7 @@ async function FinishRun( RunReport, Session_, Parsed, Context )
 
 	try
 	{
-		if ( !value( 'quiet' ) ) { io.Stderr( Report.FormatRunReport( RunReport ) ); }
+		if ( !value( 'quiet' ) ) { io.Stderr( Report.FormatRunReport( RunReport, 0, { Statistics: value( 'verbose' ) } ) ); }
 		if ( RunReport.Ok ) { Report.WriteResult( io, value( 'output' ), RunReport.Result ); }
 	}
 	finally
@@ -125,6 +135,7 @@ async function FinishRun( RunReport, Session_, Parsed, Context )
 //---------------------------------------------------------------------
 module.exports = {
 	SESSION_OPTIONS: SESSION_OPTIONS,
+	RUN_OPTIONS: RUN_OPTIONS,
 	OpenSession: OpenSession,
 	FinishRun: FinishRun,
 };
