@@ -43,7 +43,8 @@
 	],
 	"scripts": {
 		"test": "node --test \"test/**/*.test.js\"",
-		"types-check": "node build/types-check.js"
+		"types-check": "node build/types-check.js",
+		"build-adapter-catalog": "node build/build-adapter-catalog.js"
 	},
 	"keywords": [
 		"json",

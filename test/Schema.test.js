@@ -42,4 +42,15 @@ describe( 'Appendix B', function ()
 		LIB_ASSERT.deepStrictEqual( Validate.ValidateFile( Spec.AppendixB(), { Env: {} } ), [] );
 	} );
 
+	it( 'has no findings with its settings checked against the real adapter catalog', function ()
+	{
+		let catalog = require( '../src/Session/AdapterCatalog.js' ).NewAdapterCatalog( { jsonstor: require( '@liquicode/jsonstor' )() } );
+		LIB_ASSERT.deepStrictEqual( Validate.ValidateFile( Spec.AppendixB(), { Env: {}, CheckSettings: catalog.ValidateSettings } ), [] );
+
+		let jsonfile = Spec.AppendixB();
+		jsonfile.DataSources[ 1 ].AdapterName = 'jsonstor-jsonfile';
+		let findings = Validate.ValidateFile( jsonfile, { Env: {}, CheckSettings: catalog.ValidateSettings } );
+		LIB_ASSERT.deepStrictEqual( findings.map( function ( Finding ) { return Finding.Severity + ' ' + Finding.Path; } ), [ 'error DataSources.1.Settings.Path' ] );
+	} );
+
 } );

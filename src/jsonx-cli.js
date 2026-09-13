@@ -34,6 +34,9 @@ module.exports = {
 		Validate: require( './Validate/Validate.js' ),
 		Session: {
 			Environment: require( './Session/Environment.js' ),
+			AdapterCatalog: require( './Session/AdapterCatalog.js' ),
+			Overrides: require( './Session/Overrides.js' ),
+			DataSources: require( './Session/DataSources.js' ),
 		},
 		Report: require( './Report.js' ),
 	},

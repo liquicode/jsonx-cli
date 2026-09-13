@@ -15,6 +15,7 @@ const jsongin = require( '@liquicode/jsongin' );
 const jsonproc = require( '@liquicode/jsonproc' );
 
 const Reader = require( '../src/File/Reader.js' );
+const AdapterCatalog = require( '../src/Session/AdapterCatalog.js' );
 const Validate = require( '../src/Validate/Validate.js' );
 const Report = require( '../src/Report.js' );
 
@@ -49,7 +50,10 @@ async function handler( Parsed, Context )
 
 	if ( typeof read.Document !== 'undefined' )
 	{
-		let options = { jsongin: jsongin, jsonproc: jsonproc, Env: io.Env };
+		// ***Settings are checked against the adapters***, which loads an external adapter package
+		// only when a data source names it (AdapterCatalog.js).
+		let catalog = AdapterCatalog.NewAdapterCatalog( { jsonstor: require( '@liquicode/jsonstor' )() } );
+		let options = { jsongin: jsongin, jsonproc: jsonproc, Env: io.Env, CheckSettings: catalog.ValidateSettings };
 		if ( typeof name === 'string' )
 		{
 			findings = Validate.ValidateEntry( read.Document, name, options );
