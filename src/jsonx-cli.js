@@ -60,6 +60,12 @@ module.exports = {
 		Adapters: require( './Adapters/Adapters.js' ),
 		Report: require( './Report.js' ),
 		Envelope: require( './Envelope.js' ),
+		Front: {
+			Inventory: require( './Front/Inventory.js' ),
+			Entry: require( './Front/Entry.js' ),
+			Line: require( './Front/Line.js' ),
+			Completion: require( './Front/Completion.js' ),
+		},
 	},
 
 };

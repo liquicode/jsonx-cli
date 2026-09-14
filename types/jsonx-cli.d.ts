@@ -705,6 +705,85 @@ declare module '@liquicode/jsonx-cli'
 	}
 
 
+	/** An entry of the inventory a front end shows. */
+	export interface InventoryItem
+	{
+		Section: 'DataSources' | 'Objects' | 'Triggers';
+		Index: number;
+		Kind: string | null;
+		Name: string;
+		Label: string;
+		Severity: 'error' | 'warning' | 'note' | null;
+	}
+
+	/** A command an entry's menu offers. Sends: chosen, it is sent at once rather than put in Input. */
+	export interface EntryAction
+	{
+		Command: string;
+		Path: string[];
+		Label: string;
+		Describe: string;
+		Sends: boolean;
+	}
+
+	export interface FrontInventoryModule
+	{
+		SEVERITY_RANK: { [ Severity: string ]: number };
+		/** Commands no front end sends: front ends and shells of their own. */
+		NOT_SENT: string[];
+		FIRST_ACTIONS: string[];
+		RUN_ACTIONS: string[];
+		/** Commands which may change or remove what is there. */
+		DESTRUCTIVE_WORDS: string[];
+		/** Every entry in file order, with the worst severity found in it. */
+		InventoryOf( Document: any, Findings?: Finding[] ): InventoryItem[];
+		/** The commands whose first positional completes to this kind of entry, run and debug first. */
+		ActionsFor( Tree: CommandNode, Item: InventoryItem ): EntryAction[];
+		/** The noun an entry typed as JSON saves as, or null. */
+		NounOf( Entry: any ): string | null;
+		/** A set body making the current entry exactly the typed one. */
+		ReplacementBody( Current: JsonDocument | null, Typed: JsonDocument ): JsonDocument;
+	}
+
+	/** What a typed entry saves as. Exists and Current are as the document read had them. */
+	export interface EntryTarget
+	{
+		Noun: string;
+		Name: string;
+		Exists: boolean;
+		Entry: JsonDocument;
+		Current: JsonDocument | null;
+	}
+
+	export interface FrontEntryModule
+	{
+		ReadEntry( Text: string, Document?: any ): { Mode: 'empty' | 'command' | 'json'; Syntax: { Message: string } | null; Target: EntryTarget | null };
+		/** add, or set when the entry exists; with Check, the same with check: true. */
+		EditInvocation( Target: EntryTarget, Check?: boolean ): JsonDocument;
+	}
+
+	/** What sending a typed line would do. */
+	export type LineReading =
+		| { Outcome: 'usage' | 'refused'; Findings: Finding[] }
+		| { Outcome: 'help'; Text: string }
+		| { Outcome: 'debug' | 'invoke'; Document: JsonDocument; Label: string }
+		| { Outcome: 'confirm'; Message: string; Document: JsonDocument; Label: string };
+
+	export interface FrontLineModule
+	{
+		SERVED_REFUSAL: string;
+		/** An Io which reads no file, no standard input and lists no directory: a line read for a process. */
+		ServedIo(): Io;
+		ReadLine( Tree: CommandNode, Text: string, Io?: Io, Options?: { Front?: string } ): LineReading;
+	}
+
+	export interface FrontCompletionModule
+	{
+		JsonContext( Text: string ): { In: 'string'; Prefix: string; Key: string | null; IsKey: boolean } | { In: 'none' };
+		CompleteText( Tree: CommandNode, Text: string, Io?: Io, Options?: { Document?: any; Operators?: string[] | null; Fields?: ( DataSource: string ) => string[] | null } ): { Prefix: string; Candidates: string[]; Json: boolean };
+	}
+
+
 	//---------------------------------------------------------------------
 	// The library's components, by group.
 
@@ -750,6 +829,12 @@ declare module '@liquicode/jsonx-cli'
 		Adapters: AdaptersModule;
 		Report: ReportModule;
 		Envelope: EnvelopeModule;
+		Front: {
+			Inventory: FrontInventoryModule;
+			Entry: FrontEntryModule;
+			Line: FrontLineModule;
+			Completion: FrontCompletionModule;
+		};
 	}
 
 

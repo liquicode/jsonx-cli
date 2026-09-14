@@ -48,9 +48,9 @@ const INVALID_PARAMS = -32602;
 const INTERNAL_ERROR = -32603;
 const RESOURCE_NOT_FOUND = -32002;
 
-// Commands which may change or remove what is there. Every other command which is not read-only is
-// additive: it inserts, adds or saves.
-const DESTRUCTIVE_WORDS = [ 'run', 'update', 'delete', 'replace', 'drop', 'remove', 'rename', 'set', 'format', 'flush', 'refresh-index' ];
+// Commands which may change or remove what is there, as a front end's action menu judges them too.
+// Every other command which is not read-only is additive: it inserts, adds or saves.
+const DESTRUCTIVE_WORDS = require( '../../src/Front/Inventory.js' ).DESTRUCTIVE_WORDS;
 
 // Commands which open a data source only to read it. A Concurrent command reads by declaration.
 const READ_ONLY_COMMANDS = [ 'datasource count', 'datasource find-one', 'datasource info', 'datasource describe', 'datasource ping' ];
