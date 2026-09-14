@@ -18,7 +18,7 @@ module.exports = {
 	// The version of this package.
 	Version: PACKAGE.version,
 
-	// The components, by name. Filled in as cut 1 builds them.
+	// The components, by name. Filled in as each cut builds them.
 	Library: {
 		CommandLine: {
 			Parser: require( './CommandLine/Parser.js' ),
@@ -33,6 +33,7 @@ module.exports = {
 			Edit: require( './File/Edit.js' ),
 		},
 		Validate: require( './Validate/Validate.js' ),
+		Explain: require( './Explain/Explain.js' ),
 		Session: {
 			Environment: require( './Session/Environment.js' ),
 			AdapterCatalog: require( './Session/AdapterCatalog.js' ),

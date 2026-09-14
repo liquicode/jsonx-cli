@@ -133,6 +133,10 @@ declare module '@liquicode/jsonx-cli'
 	export interface CommandNode
 	{
 		Command: string;
+		/** Other words which reach this node; a parse names the node by Command. */
+		Aliases?: string[];
+		/** True keeps the node out of help; it still parses. */
+		Hidden?: boolean;
 		Describe?: string;
 		Commands?: CommandNode[];
 		Positionals?: PositionalDeclaration[];
@@ -204,6 +208,8 @@ declare module '@liquicode/jsonx-cli'
 		TYPES: string[];
 		UsageError: new ( Message: string, Path?: string[] ) => Error;
 		DefaultIo(): Io;
+		CheckTree( Tree: CommandNode ): void;
+		CanonicalPath( Tree: CommandNode, Path: string[] ): string[];
 		OptionsAt( Tree: CommandNode, Path: string[] ): { [ Name: string ]: OptionDeclaration };
 		NodesOnPath( Tree: CommandNode, Path: string[] ): CommandNode[];
 		NodeAt( Tree: CommandNode, Path: string[] ): CommandNode;
@@ -277,6 +283,27 @@ declare module '@liquicode/jsonx-cli'
 		SortFindings( Findings: Finding[] ): Finding[];
 		Summarize( Findings: Finding[] ): { Errors: number; Warnings: number; Notes: number };
 		PointerToPath( Pointer: string ): string;
+	}
+
+	/** An entry of a file in English. Kind is the object's Kind, or 'DataSource' or 'Trigger'. */
+	export interface Explanation
+	{
+		Name: string;
+		Kind: string | null;
+		Lines: string[];
+	}
+
+	export interface ExplainModule
+	{
+		QUERY_PHRASES: { [ Operator: string ]: ( Operand: any ) => string };
+		JOIN_PHRASES: { [ Operator: string ]: string };
+		STANDALONE_PHRASES: { [ Operator: string ]: ( Operand: any ) => string };
+		UPDATE_PHRASES: { [ Operator: string ]: ( Operand: any ) => string };
+		STEP_PHRASES: { [ Operator: string ]: ( Operand: any, Document?: JsonDocument ) => string };
+		ExplainCriteria( Criteria: any ): string;
+		ExplainUpdateDocument( Update: any ): string;
+		ExplainStep( Step: any, Document?: JsonDocument ): string;
+		ExplainEntry( Document: JsonDocument, Name: string ): Explanation | null;
 	}
 
 	export interface EnvironmentModule
@@ -377,6 +404,7 @@ declare module '@liquicode/jsonx-cli'
 			Edit: EditModule;
 		};
 		Validate: ValidateModule;
+		Explain: ExplainModule;
 		Session: {
 			Environment: EnvironmentModule;
 			AdapterCatalog: AdapterCatalogModule;

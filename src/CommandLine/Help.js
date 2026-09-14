@@ -68,7 +68,12 @@ function HelpText( Tree, Path )
 
 	// Usage.
 	let usage = [ program ].concat( path );
-	let has_commands = Array.isArray( node.Commands ) && node.Commands.length > 0;
+
+	// ***A hidden command parses but is never offered***, such as the completion callback.
+	let shown = Array.isArray( node.Commands )
+		? node.Commands.filter( function ( Child ) { return Child.Hidden !== true; } )
+		: [];
+	let has_commands = shown.length > 0;
 	if ( has_commands ) { usage.push( '<command>' ); }
 	let positionals = Array.isArray( node.Positionals ) ? node.Positionals : [];
 	for ( let index = 0; index < positionals.length; index++ )
@@ -90,10 +95,11 @@ function HelpText( Tree, Path )
 	{
 		lines.push( '' );
 		lines.push( 'Commands:' );
-		for ( let index = 0; index < node.Commands.length; index++ )
+		for ( let index = 0; index < shown.length; index++ )
 		{
-			let child = node.Commands[ index ];
-			lines.push( row( child.Command, child.Describe || '' ) );
+			let child = shown[ index ];
+			let words = [ child.Command ].concat( Array.isArray( child.Aliases ) ? child.Aliases : [] );
+			lines.push( row( words.join( ', ' ), child.Describe || '' ) );
 		}
 	}
 

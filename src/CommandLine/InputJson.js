@@ -87,6 +87,9 @@ function ParseDocument( Tree, Document )
 		throw new Parser.UsageError( 'The input document\'s Command must be a string or an array of words.' );
 	}
 
+	Parser.CheckTree( Tree );
+	path = Parser.CanonicalPath( Tree, path );
+
 	let node = Parser.NodeAt( Tree, path );
 	let options = Parser.OptionsAt( Tree, path );
 	let positionals = Array.isArray( node.Positionals ) ? node.Positionals : [];

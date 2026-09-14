@@ -150,6 +150,8 @@ function noun_group( Noun )
 
 	if ( Noun === 'datasource' )
 	{
+		// ***`data` reaches the same group*** (user, 2026-09-13), for the storage verbs of cut 2.
+		group.Aliases = [ 'data' ];
 		group.Commands.push( {
 			Command: 'info', Describe: 'What the data source says about itself: StorageInfo and the dialect boundary check.',
 			Positionals: [ name_positional ], Options: Object.assign( {}, SessionCommand.SESSION_OPTIONS ), Handler: inspect_handler( 'info' ),

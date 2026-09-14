@@ -16,7 +16,7 @@ describe( 'Help', function ()
 		let text = Help.HelpText( Fixture.Tree(), [] );
 		LIB_ASSERT.ok( text.startsWith( 'Usage: jsonx <command> [options]' ) );
 		LIB_ASSERT.ok( /\n  run\s+Run an object\./.test( text ) );
-		LIB_ASSERT.ok( /\n  datasource\s+Data sources\./.test( text ) );
+		LIB_ASSERT.ok( /\n  datasource, data\s+Data sources\./.test( text ) );
 		LIB_ASSERT.ok( text.includes( 'Global options:' ) );
 		LIB_ASSERT.ok( text.includes( '-o, --output <string>' ) );
 		LIB_ASSERT.ok( text.includes( '(json | jsonl, default "json")' ) );
@@ -44,6 +44,13 @@ describe( 'Help', function ()
 		let deeper = Help.HelpText( Fixture.Tree(), [ 'datasource', 'describe' ] );
 		LIB_ASSERT.ok( deeper.includes( '--strict' ) );
 		LIB_ASSERT.ok( deeper.includes( '--rows <integer>' ) );
+	} );
+
+	it( 'lists a command\'s aliases beside it and leaves out a hidden command', function ()
+	{
+		let text = Help.HelpText( Fixture.Tree(), [] );
+		LIB_ASSERT.ok( /\n  datasource, data\s+Data sources\./.test( text ) );
+		LIB_ASSERT.ok( !text.includes( '__hidden' ) );
 	} );
 
 	it( 'marks optional and repeatable positionals', function ()

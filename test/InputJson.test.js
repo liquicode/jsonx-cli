@@ -45,6 +45,13 @@ describe( '--input-json', function ()
 		LIB_ASSERT.strictEqual( invoke( [ '--input-json', '-' ], {}, '{ "Command": "run", "name": "y" }' ).Positionals.name, 'y' );
 	} );
 
+	it( 'names the command by its own words when Command uses an alias', function ()
+	{
+		let parsed = invoke( [ '--input-json', '-' ], {}, '{ "Command": "data describe", "name": "Bookings" }' );
+		LIB_ASSERT.deepStrictEqual( parsed.Path, [ 'datasource', 'describe' ] );
+		LIB_ASSERT.strictEqual( parsed.Options.rows, 10 );
+	} );
+
 	it( 'takes a json option\'s value as the JSON itself', function ()
 	{
 		let parsed = invoke( [ '--input-json', '-' ], {}, '{ "Command": "run", "name": "x", "input": { "Seed": 7 } }' );

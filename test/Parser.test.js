@@ -209,3 +209,46 @@ describe( 'Parser: help and Value', function ()
 	} );
 
 } );
+
+
+//---------------------------------------------------------------------
+describe( 'Parser: aliases and hidden commands', function ()
+{
+
+	it( 'parses an alias exactly as the name it stands for', function ()
+	{
+		let by_name = parse( [ 'datasource', 'describe', 'Bookings', '--rows', '3' ] );
+		let by_alias = parse( [ 'data', 'describe', 'Bookings', '--rows', '3' ] );
+		LIB_ASSERT.deepStrictEqual( by_alias, by_name );
+		LIB_ASSERT.deepStrictEqual( by_alias.Path, [ 'datasource', 'describe' ] );
+	} );
+
+	it( 'reads a value through a path reached by an alias', function ()
+	{
+		let tree = Fixture.Tree();
+		let parsed = Parser.ParseArgs( tree, [ 'data', 'describe', 'Bookings' ], Fixture.MemoryIo() );
+		LIB_ASSERT.strictEqual( Parser.Value( tree, parsed, 'name' ), 'Bookings' );
+	} );
+
+	it( 'gives the canonical path for a typed one', function ()
+	{
+		LIB_ASSERT.deepStrictEqual( Parser.CanonicalPath( Fixture.Tree(), [ 'data', 'rename' ] ), [ 'datasource', 'rename' ] );
+	} );
+
+	it( 'throws on two siblings answering to one word, by name or by alias', function ()
+	{
+		let alias_clash = Fixture.Tree();
+		alias_clash.Commands[ 0 ].Aliases = [ 'data' ];
+		LIB_ASSERT.throws( function () { Parser.ParseArgs( alias_clash, [ 'run', 'x' ] ); }, /two commands answering to \[jsonx data\]: \[run\] and \[datasource\]/ );
+
+		let name_clash = Fixture.Tree();
+		name_clash.Commands[ 1 ].Commands[ 0 ].Aliases = [ 'rename' ];
+		LIB_ASSERT.throws( function () { Parser.CheckTree( name_clash ); }, /\[jsonx datasource rename\]/ );
+	} );
+
+	it( 'parses a hidden command', function ()
+	{
+		LIB_ASSERT.deepStrictEqual( parse( [ '__hidden' ] ).Path, [ '__hidden' ] );
+	} );
+
+} );

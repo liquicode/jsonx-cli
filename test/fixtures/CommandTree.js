@@ -38,6 +38,7 @@ function Tree( Calls )
 			},
 			{
 				Command: 'datasource',
+				Aliases: [ 'data' ],
 				Describe: 'Data sources.',
 				Options: {
 					'strict': { Type: 'boolean', Describe: 'Inherited by the group\'s commands.' },
@@ -67,6 +68,12 @@ function Tree( Calls )
 				Positionals: [ { Name: 'names', Type: 'string', Repeat: true } ],
 				Options: { 'mode': { Type: 'string', Required: true, Describe: 'Required option.' } },
 				Handler: handler( 'touch' ),
+			},
+			{
+				Command: '__hidden',
+				Hidden: true,
+				Describe: 'Parses, and is never offered.',
+				Handler: handler( '__hidden' ),
 			},
 		],
 	};

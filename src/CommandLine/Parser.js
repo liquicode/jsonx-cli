@@ -16,6 +16,8 @@
 
 		{
 			Command: 'info',                      // the word typed; the root's is the program name
+			Aliases: [ 'i' ],                     // other words which reach the same node
+			Hidden: false,                        // true keeps the node out of help
 			Describe: 'What a data source says about itself.',
 			Commands: [ node, ... ],              // children, for a group
 			Positionals: [ { Name, Type, Required, Repeat, Choices, Describe } ],
@@ -31,6 +33,11 @@
 	***An option declared on a node applies to that node and every node below it***, unless it
 	carries `Inherit: false`. That is how `--version` belongs to the program and not to its
 	commands.
+
+	***An alias reaches a node, and the parse names the node by its own word.*** `jsonx data find`
+	parses to the path `[ 'datasource', 'find' ]`, so a handler, help and `Value` never have to know
+	which spelling was typed. Two siblings answering to one word is a defect in the tree, and
+	`CheckTree` throws on it before anything is parsed.
 */
 
 const LIB_FS = require( 'fs' );
@@ -66,14 +73,65 @@ function DefaultIo()
 
 
 //---------------------------------------------------------------------
+// The words a node answers to: its own, then its aliases.
+
+function spellings( Node )
+{
+	let words = [ Node.Command ];
+	if ( Array.isArray( Node.Aliases ) ) { words = words.concat( Node.Aliases ); }
+	return words;
+}
+
+
+//---------------------------------------------------------------------
 function child_named( Node, Word )
 {
 	if ( !Array.isArray( Node.Commands ) ) { return null; }
 	for ( let index = 0; index < Node.Commands.length; index++ )
 	{
-		if ( Node.Commands[ index ].Command === Word ) { return Node.Commands[ index ]; }
+		if ( spellings( Node.Commands[ index ] ).includes( Word ) ) { return Node.Commands[ index ]; }
 	}
 	return null;
+}
+
+
+//---------------------------------------------------------------------
+// Throws when two siblings anywhere in the tree answer to the same word, by name or by alias.
+
+function CheckTree( Tree )
+{
+	function check( Node, Path )
+	{
+		if ( !Array.isArray( Node.Commands ) ) { return; }
+		let seen = {};
+		for ( let index = 0; index < Node.Commands.length; index++ )
+		{
+			let child = Node.Commands[ index ];
+			let words = spellings( child );
+			for ( let word_index = 0; word_index < words.length; word_index++ )
+			{
+				let word = words[ word_index ];
+				if ( Object.prototype.hasOwnProperty.call( seen, word ) )
+				{
+					throw new Error( 'The command tree has two commands answering to [' + Path.concat( [ word ] ).join( ' ' ) + ']: [' + seen[ word ] + '] and [' + child.Command + '].' );
+				}
+				seen[ word ] = child.Command;
+			}
+			check( child, Path.concat( [ child.Command ] ) );
+		}
+		return;
+	}
+	check( Tree, [ Tree.Command || 'jsonx' ] );
+	return;
+}
+
+
+//---------------------------------------------------------------------
+// A path typed with aliases, as the nodes' own words.
+
+function CanonicalPath( Tree, Path )
+{
+	return NodesOnPath( Tree, Path ).slice( 1 ).map( function ( Node ) { return Node.Command; } );
 }
 
 
@@ -270,6 +328,8 @@ function store_option( Parsed, Name, Declaration, Value, Path )
 
 function ParseArgs( Tree, Argv, Io )
 {
+	CheckTree( Tree );
+
 	let io = Io || DefaultIo();
 	let argv = Array.isArray( Argv ) ? Argv : [];
 	let state = { StdinRead: false };
@@ -302,7 +362,7 @@ function ParseArgs( Tree, Argv, Io )
 				if ( child !== null )
 				{
 					node = child;
-					parsed.Path.push( token );
+					parsed.Path.push( child.Command );
 					continue;
 				}
 				if ( !Array.isArray( node.Positionals ) )
@@ -513,6 +573,8 @@ module.exports = {
 	TYPES: TYPES,
 	UsageError: UsageError,
 	DefaultIo: DefaultIo,
+	CheckTree: CheckTree,
+	CanonicalPath: CanonicalPath,
 	OptionsAt: OptionsAt,
 	NodesOnPath: NodesOnPath,
 	NodeAt: NodeAt,
