@@ -17,6 +17,8 @@
 		Log( Text )         report text; the envelope holds it as lines
 		Text( Text )        text for a shell (completion), written as it is
 		Line( Value )       one JSON Lines record (debug); the envelope's Result is the array of them
+		Stream( Text )      standard output which is a protocol, not a result (jsonx mcp over stdio):
+		                    written as it is and never recorded, since it runs for as long as the mode does
 */
 
 const Report = require( './Report.js' );
@@ -85,6 +87,14 @@ function NewOut( Options )
 		recorded.Lines.push( Value );
 		recorded.Result = recorded.Lines;
 		if ( stdout ) { stdout( JSON.stringify( Value ) + '\n' ); }
+		return;
+	};
+
+
+	//---------------------------------------------------------------------
+	out.Stream = function ( Text )
+	{
+		if ( stdout ) { stdout( Text ); }
 		return;
 	};
 

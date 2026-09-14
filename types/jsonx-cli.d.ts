@@ -619,6 +619,8 @@ declare module '@liquicode/jsonx-cli'
 		Text( Text: string ): void;
 		/** One JSON Lines record. */
 		Line( Value: any ): void;
+		/** Standard output which is a protocol, not a result: written, never recorded. */
+		Stream( Text: string ): void;
 		Envelope( ExitCode: number ): ResultEnvelope;
 	}
 

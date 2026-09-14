@@ -43,6 +43,7 @@ const TREE = {
 		require( './engine.js' ),
 		require( './adapters.js' ),
 		require( './serve.js' ),
+		require( './mcp.js' ),
 	], require( './completion.js' ).Commands ),
 };
 

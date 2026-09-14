@@ -87,47 +87,48 @@ function same_token( Given, Expected )
 
 
 //---------------------------------------------------------------------
-// Options:
+// Who may call, for any app a served mode builds (the Web API, MCP over HTTP):
+//
 //		Host      the host it will be bound to; decides the checks (default 127.0.0.1)
 //		Token     the bearer token every request must carry; required for a host which is not loopback
-//		Version   reported by GET /
+//		Refuse    function ( Status, Message, Response ): how a refusal is answered; an envelope when absent
 //
-// The port is read from app.locals.Port, which Listen sets once the server is bound.
+// Throws ApiError for a host which is not loopback and no token. The port is read from
+// app.locals.Port, which Listen sets once the server is bound.
 
-function NewApi( HeldSession, Options )
+function UseGuards( App, Options )
 {
 	let options = ( Options && typeof Options === 'object' ) ? Options : {};
 	let host = options.Host || '127.0.0.1';
 	let token = ( typeof options.Token === 'string' && options.Token !== '' ) ? options.Token : null;
 	let loopback = IsLoopback( host );
+	let refuse = ( typeof options.Refuse === 'function' )
+		? options.Refuse
+		: function ( Status, Message, Response ) { Response.status( Status ).json( refusal( Message ) ); return; };
 
 	if ( !loopback && token === null )
 	{
 		throw new ApiError( 'Serving on [' + host + '] needs a token: pass --token or set JSONX_TOKEN. Without one, bind to 127.0.0.1.' );
 	}
 
-	let app = LIB_EXPRESS();
-	app.disable( 'x-powered-by' );
-	app.locals.Host = host;
-	app.locals.Port = null;
-
-	let commands = Held.ServedCommands( HeldSession.Tree );
+	App.locals.Host = host;
+	App.locals.Port = null;
 
 
 	//---------------------------------------------------------------------
 	// A browser's request to a loopback server: the Host it asked for, and the Origin it came from.
 
-	app.use( function ( Request, Response, Next )
+	App.use( function ( Request, Response, Next )
 	{
 		if ( !loopback ) { return Next(); }
 
-		let port = app.locals.Port;
+		let port = App.locals.Port;
 		let addresses = [ 'localhost', '127.0.0.1', '[::1]' ].map( function ( Name ) { return ( port === null ) ? Name : Name + ':' + port; } );
 
 		let asked = String( Request.get( 'Host' ) || '' ).toLowerCase();
 		if ( !addresses.includes( asked ) )
 		{
-			return Response.status( 403 ).json( refusal( 'Refused: the Host header [' + asked + '] is not this server\'s address.' ) );
+			return refuse( 403, 'Refused: the Host header [' + asked + '] is not this server\'s address.', Response );
 		}
 
 		let origin = Request.get( 'Origin' );
@@ -136,7 +137,7 @@ function NewApi( HeldSession, Options )
 			let allowed = addresses.map( function ( Address ) { return 'http://' + Address; } );
 			if ( !allowed.includes( origin.toLowerCase() ) )
 			{
-				return Response.status( 403 ).json( refusal( 'Refused: a request from [' + origin + '] cannot reach this server.' ) );
+				return refuse( 403, 'Refused: a request from [' + origin + '] cannot reach this server.', Response );
 			}
 		}
 		return Next();
@@ -146,7 +147,7 @@ function NewApi( HeldSession, Options )
 	//---------------------------------------------------------------------
 	// The token.
 
-	app.use( function ( Request, Response, Next )
+	App.use( function ( Request, Response, Next )
 	{
 		if ( token === null ) { return Next(); }
 		let header = String( Request.get( 'Authorization' ) || '' );
@@ -154,11 +155,27 @@ function NewApi( HeldSession, Options )
 		if ( match === null || !same_token( match[ 1 ].trim(), token ) )
 		{
 			Response.set( 'WWW-Authenticate', 'Bearer' );
-			return Response.status( 401 ).json( refusal( 'Refused: this server needs Authorization: Bearer <token>.' ) );
+			return refuse( 401, 'Refused: this server needs Authorization: Bearer <token>.', Response );
 		}
 		return Next();
 	} );
 
+	return;
+}
+
+
+//---------------------------------------------------------------------
+// Options: Host, Token (as UseGuards), and Version, reported by GET /.
+
+function NewApi( HeldSession, Options )
+{
+	let options = ( Options && typeof Options === 'object' ) ? Options : {};
+
+	let app = LIB_EXPRESS();
+	app.disable( 'x-powered-by' );
+	UseGuards( app, options );
+
+	let commands = Held.ServedCommands( HeldSession.Tree );
 
 	app.use( LIB_EXPRESS.json( { limit: BODY_LIMIT } ) );
 
@@ -308,6 +325,7 @@ module.exports = {
 	ApiError: ApiError,
 	IsLoopback: IsLoopback,
 	StatusFor: StatusFor,
+	UseGuards: UseGuards,
 	NewApi: NewApi,
 	Listen: Listen,
 	Close: Close,
