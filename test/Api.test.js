@@ -411,10 +411,11 @@ describe( 'jsonx serve', function ()
 	it( 'refuses to start without --api, without a token for a wide host, or with --output', async function ()
 	{
 		let cases = [
-			[ [ 'serve', '--file', scratch ], /Name what to serve: --api/ ],
+			[ [ 'serve', '--file', scratch ], /Name what to serve: --api for the Web API, or --ui/ ],
 			[ [ 'serve', '--api', '--host', '0.0.0.0', '--file', scratch ], /needs a token/ ],
 			[ [ 'serve', '--api', '--output', 'json', '--file', scratch ], /does not apply to jsonx serve/ ],
-			[ [ 'serve', '--api', '--ui', '--file', scratch ], /--ui/ ],
+			// --ui joined in cut 5 (test/WebServe.test.js); an option serve does not have is still refused.
+			[ [ 'serve', '--api', '--ws', '--file', scratch ], /--ws/ ],
 		];
 		for ( let index = 0; index < cases.length; index++ )
 		{

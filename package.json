@@ -58,7 +58,10 @@
 		"@liquicode/jsongin": "^0.2.0",
 		"@liquicode/jsonproc": "^0.2.0",
 		"@liquicode/jsonstor": "^0.2.0",
+		"angular": "^1.8.3",
+		"bootstrap": "^5.3.8",
 		"express": "^4.21.2",
+		"monaco-editor": "^0.52.2",
 		"neo-blessed": "^0.2.0"
 	},
 	"devDependencies": {

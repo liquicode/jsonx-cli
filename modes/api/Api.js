@@ -45,6 +45,7 @@ const LIB_EXPRESS = require( 'express' );
 
 const Held = require( '../../src/Session/Held.js' );
 const Ws = require( '../ws/Ws.js' );
+const Web = require( '../web/Web.js' );
 
 
 const LOOPBACK_HOSTS = [ '127.0.0.1', 'localhost', '::1' ];
@@ -150,7 +151,8 @@ function NewTickets( Options )
 //		Token     the bearer token every request must carry; required for a host which is not loopback
 //		Refuse    function ( Status, Message, Response ): how a refusal is answered; an envelope when absent
 //		Tickets   a NewTickets store: `GET /ws?ticket=` is accepted in place of the token
-//		Public    paths a GET reaches without the token (the Host and Origin checks still apply)
+//		Public    paths a GET reaches without the token, a trailing / for a folder (the Host and Origin
+//		          checks still apply)
 //
 // Throws ApiError for a host which is not loopback and no token. The port is read from
 // app.locals.Port, which Listen sets once the server is bound.
@@ -163,6 +165,11 @@ function UseGuards( App, Options )
 	let loopback = IsLoopback( host );
 	let tickets = ( options.Tickets && typeof options.Tickets.Take === 'function' ) ? options.Tickets : null;
 	let public_paths = Array.isArray( options.Public ) ? options.Public : [];
+	// A path ending in / is a folder: everything under it is public, and nothing above it.
+	let is_public = function ( Path )
+	{
+		return public_paths.some( function ( Each ) { return Each.endsWith( '/' ) ? Path.startsWith( Each ) : ( Path === Each ); } );
+	};
 	let refuse = ( typeof options.Refuse === 'function' )
 		? options.Refuse
 		: function ( Status, Message, Response ) { Response.status( Status ).json( refusal( Message ) ); return; };
@@ -211,7 +218,7 @@ function UseGuards( App, Options )
 	App.use( function ( Request, Response, Next )
 	{
 		if ( token === null ) { return Next(); }
-		if ( ( Request.method === 'GET' || Request.method === 'HEAD' ) && public_paths.includes( Request.path ) ) { return Next(); }
+		if ( ( Request.method === 'GET' || Request.method === 'HEAD' ) && is_public( Request.path ) ) { return Next(); }
 		let header = String( Request.get( 'Authorization' ) || '' );
 		let match = /^Bearer\s+(.+)$/i.exec( header );
 		if ( match === null && tickets !== null && Request.method === 'GET' && Request.path === Ws.ROUTE && typeof Request.query.ticket === 'string' )
@@ -233,7 +240,8 @@ function UseGuards( App, Options )
 
 
 //---------------------------------------------------------------------
-// Options: Host, Token (as UseGuards), and Version, reported by GET /.
+// Options: Host, Token (as UseGuards), Version, reported by GET /, and Ui: serve the Web UI's page under
+// /ui/ (modes/web/Web.js), and send a browser's GET / there.
 
 function NewApi( HeldSession, Options )
 {
@@ -242,7 +250,7 @@ function NewApi( HeldSession, Options )
 	let app = LIB_EXPRESS();
 	app.disable( 'x-powered-by' );
 	let tickets = NewTickets( { LifetimeMs: options.TicketMs } );
-	let public_paths = [ CONFIG_ROUTE ].concat( Array.isArray( options.Public ) ? options.Public : [] );
+	let public_paths = [ CONFIG_ROUTE ].concat( options.Ui === true ? [ Web.ROUTE ] : [] ).concat( Array.isArray( options.Public ) ? options.Public : [] );
 	UseGuards( app, Object.assign( {}, options, { Tickets: tickets, Public: public_paths } ) );
 	let token_required = ( typeof options.Token === 'string' && options.Token !== '' );
 
@@ -266,6 +274,7 @@ function NewApi( HeldSession, Options )
 	//---------------------------------------------------------------------
 	app.get( '/', function ( Request, Response )
 	{
+		if ( options.Ui === true && Web.WantsPage( Request ) ) { Response.redirect( 302, Web.ROUTE ); return; }
 		Response.status( 200 ).json( {
 			Version: options.Version || null,
 			File: HeldSession.Path,
@@ -290,6 +299,8 @@ function NewApi( HeldSession, Options )
 		Response.status( 200 ).json( tickets.Issue() );
 		return;
 	} );
+
+	if ( options.Ui === true ) { Web.AttachUi( app ); }
 
 
 	//---------------------------------------------------------------------

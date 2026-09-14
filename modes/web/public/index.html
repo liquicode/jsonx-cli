@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en" ng-app="JsonxWeb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jsonx</title>
+<!-- No favicon request, so the console holds only what the page itself reports. -->
+<link rel="icon" href="data:,">
+
+<link rel="stylesheet" href="vendor/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="css/jsonx.css">
+</head>
+
+<body ng-controller="MainController as Main">
+
+<!-- ===================================================================
+	The header: the file this process holds, and whether the page is connected to it.
+=================================================================== -->
+<header class="jsonx-header">
+	<span class="jsonx-mark">{ }</span>
+	<span class="jsonx-name">jsonx</span>
+	<span class="jsonx-file" id="jsonx-file" ng-bind="Main.Hello.File"></span>
+	<span class="jsonx-spacer"></span>
+	<span class="jsonx-connection" id="jsonx-connection" ng-class="'is-' + Main.Connection" ng-bind="Main.ConnectionText()"></span>
+</header>
+
+
+<!-- ===================================================================
+	The body. Filled in by the panes in later steps.
+=================================================================== -->
+<main class="jsonx-body">
+	<div class="jsonx-message" id="jsonx-message" ng-if="Main.Message" ng-bind="Main.Message"></div>
+
+	<dl class="jsonx-hello" id="jsonx-hello" ng-if="Main.Hello">
+		<dt>Version</dt><dd id="jsonx-version" ng-bind="Main.Hello.Version"></dd>
+		<dt>Commands</dt><dd id="jsonx-commands" ng-bind="Main.Hello.Commands.length"></dd>
+		<dt>Entries</dt><dd id="jsonx-entries" ng-bind="Main.Inventory.Items.length"></dd>
+	</dl>
+</main>
+
+
+<script src="vendor/angular/angular.min.js"></script>
+<script src="js/app.js"></script>
+<script src="js/client.js"></script>
+<script src="js/main-controller.js"></script>
+
+</body>
+</html>
