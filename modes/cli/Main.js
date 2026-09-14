@@ -45,6 +45,15 @@ function ProcessIo()
 	{
 		return require( 'readline' ).createInterface( { input: process.stdin, crlfDelay: Infinity } );
 	};
+	// Resolves when the process is asked to stop, for a command which serves until then (jsonx serve).
+	io.WaitForStop = function ()
+	{
+		return new Promise( function ( Resolve )
+		{
+			process.once( 'SIGINT', Resolve );
+			process.once( 'SIGTERM', Resolve );
+		} );
+	};
 	return io;
 }
 

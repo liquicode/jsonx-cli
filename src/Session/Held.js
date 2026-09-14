@@ -47,13 +47,70 @@ const REFUSED_OPTIONS = {
 
 
 //---------------------------------------------------------------------
+// ExitCode is what the command line answers for it: 2 no file chosen or an override which does not
+// parse, 1 an unreadable file, 3 a file which is not a jsonx file.
 class HeldError extends Error
 {
-	constructor( Message )
+	constructor( Message, ExitCode )
 	{
 		super( Message );
 		this.name = 'HeldError';
+		this.ExitCode = ( typeof ExitCode === 'number' ) ? ExitCode : 1;
 	}
+}
+
+
+//---------------------------------------------------------------------
+// The commands a held session answers, as data, for the modes to route and list: every command
+// with a handler which neither it nor a group above it marks `Served: false`.
+//
+//		{ Path: [ 'datasource', 'find' ], Command: 'datasource find', Describe, Concurrent,
+//		  Positionals: [ ... ], Options: { name: declaration } }
+//
+// Options are those in force at the command, less what a request cannot give (REFUSED_OPTIONS),
+// --output (a served answer is always the JSON envelope), --input-json (the request is the
+// document) and --help. Hidden commands are served when they are not marked otherwise.
+
+const NOT_REQUEST_OPTIONS = [ 'output', 'input-json', 'help' ];
+
+function ServedCommands( Tree )
+{
+	let commands = [];
+
+	function visit( Node, Path, Unserved, Concurrent )
+	{
+		let unserved = Unserved || ( Node.Served === false );
+		let concurrent = Concurrent || ( Node.Concurrent === true );
+		if ( typeof Node.Handler === 'function' && Path.length > 0 && !unserved )
+		{
+			let options = {};
+			let in_force = Parser.OptionsAt( Tree, Path );
+			let names = Object.keys( in_force );
+			for ( let index = 0; index < names.length; index++ )
+			{
+				let name = names[ index ];
+				if ( Object.prototype.hasOwnProperty.call( REFUSED_OPTIONS, name ) || NOT_REQUEST_OPTIONS.includes( name ) ) { continue; }
+				options[ name ] = in_force[ name ];
+			}
+			commands.push( {
+				Path: Path.slice(),
+				Command: Path.join( ' ' ),
+				Describe: Node.Describe || '',
+				Concurrent: concurrent,
+				Positionals: Array.isArray( Node.Positionals ) ? Node.Positionals.slice() : [],
+				Options: options,
+			} );
+		}
+		let children = Array.isArray( Node.Commands ) ? Node.Commands : [];
+		for ( let index = 0; index < children.length; index++ )
+		{
+			visit( children[ index ], Path.concat( [ children[ index ].Command ] ), unserved, concurrent );
+		}
+		return;
+	}
+
+	visit( Tree, [], false, false );
+	return commands;
 }
 
 
@@ -85,14 +142,14 @@ function NewHeld( Options )
 	catch ( error )
 	{
 		if ( !( error instanceof Reader.FileError ) ) { throw error; }
-		throw new HeldError( error.message );
+		throw new HeldError( error.message, error.IsUsage ? 2 : 1 );
 	}
 
 	let read = Reader.ParseText( text );
 	if ( read.Document === null || typeof read.Document !== 'object' || Array.isArray( read.Document ) )
 	{
 		let messages = read.Findings.map( function ( Finding ) { return Finding.Message; } );
-		throw new HeldError( resolved.Path + ' cannot be held: it is not a jsonx file. ' + messages.join( ' ' ) );
+		throw new HeldError( resolved.Path + ' cannot be held: it is not a jsonx file. ' + messages.join( ' ' ), 3 );
 	}
 
 	let session = null;
@@ -115,7 +172,7 @@ function NewHeld( Options )
 	catch ( error )
 	{
 		if ( !( error instanceof Overrides.OverrideError ) ) { throw error; }
-		throw new HeldError( error.message );
+		throw new HeldError( error.message, 2 );
 	}
 
 	let held = {
@@ -250,5 +307,6 @@ function NewHeld( Options )
 module.exports = {
 	REFUSED_OPTIONS: REFUSED_OPTIONS,
 	HeldError: HeldError,
+	ServedCommands: ServedCommands,
 	NewHeld: NewHeld,
 };

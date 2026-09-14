@@ -553,7 +553,10 @@ declare module '@liquicode/jsonx-cli'
 	export interface HeldModule
 	{
 		REFUSED_OPTIONS: { [ Name: string ]: string };
-		HeldError: new ( Message: string ) => Error;
+		/** ExitCode is what the command line answers: 2 usage, 1 unreadable, 3 not a jsonx file. */
+		HeldError: new ( Message: string, ExitCode?: number ) => Error & { ExitCode: number };
+		/** The commands a held session answers, as data, for the served modes to route and list. */
+		ServedCommands( Tree: any ): Array<{ Path: string[]; Command: string; Describe: string; Concurrent: boolean; Positionals: any[]; Options: { [ Name: string ]: any } }>;
 		/** Throws HeldError when there is no file to hold, or it is not a JSON object. */
 		NewHeld( Options: { Tree: any; File?: string; Binds?: string[]; Sets?: string[]; Io?: Io; jsonstor?: any; Require?: ( Name: string ) => any; MaxSteps?: number; MaxCalls?: number } ): HeldSession;
 	}

@@ -42,6 +42,7 @@ const TREE = {
 	].concat( require( './manage.js' ).Groups, [
 		require( './engine.js' ),
 		require( './adapters.js' ),
+		require( './serve.js' ),
 	], require( './completion.js' ).Commands ),
 };
 
