@@ -379,7 +379,7 @@ describe( 'jsonx serve', function ()
 		LIB_ASSERT.ok( io.Err.endsWith( 'Stopped.\n' ), io.Err );
 		// ***Standard output is the ready line and nothing else*** (cut 4), one JSON line a program reads.
 		LIB_ASSERT.strictEqual( io.Out.split( '\n' ).length, 2, io.Out );
-		LIB_ASSERT.deepStrictEqual( JSON.parse( io.Out ), { File: scratch, Url: base, Pid: process.pid } );
+		LIB_ASSERT.deepStrictEqual( JSON.parse( io.Out ), { File: scratch, Url: base, Ws: base.replace( 'http:', 'ws:' ) + '/ws', Pid: process.pid } );
 		await LIB_ASSERT.rejects( fetch( base + '/' ) );
 	} );
 

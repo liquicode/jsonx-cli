@@ -102,6 +102,38 @@ describe( 'What the served modes offer', function ()
 			LIB_ASSERT.deepStrictEqual( routes, table );
 			LIB_ASSERT.deepStrictEqual( tools, table.map( Protocol.ToolName ) );
 
+			// ***The WebSocket offers the same set*** (cut 4): its Hello lists it, and each listed command
+			// answers an Invoke, where one the socket did not serve would be refused.
+			let answers = {};
+			let hello = null;
+			let socket = new WebSocket( base.replace( 'http:', 'ws:' ) + '/ws' );
+			let all_answered = new Promise( function ( Resolve, Reject )
+			{
+				socket.onerror = function () { Reject( new Error( 'The WebSocket failed.' ) ); };
+				socket.onmessage = function ( Event )
+				{
+					let message = JSON.parse( String( Event.data ) );
+					if ( message.Hello )
+					{
+						hello = message.Hello;
+						for ( let command of hello.Commands )
+						{
+							socket.send( JSON.stringify( { Id: command.Command, Invoke: { Command: command.Command, help: true } } ) );
+						}
+						return;
+					}
+					if ( message.Answer ) { answers[ message.Id ] = message.Answer; }
+					if ( hello && Object.keys( answers ).length === hello.Commands.length ) { Resolve(); }
+				};
+			} );
+			await all_answered;
+			socket.close();
+			LIB_ASSERT.deepStrictEqual( hello.Commands.map( function ( Command ) { return Command.Route.slice( 1 ).split( '/' ); } ), table );
+			for ( let command of hello.Commands )
+			{
+				LIB_ASSERT.strictEqual( answers[ command.Command ].ExitCode, 0, command.Command + ': ' + answers[ command.Command ].Log.join( '\n' ) );
+			}
+
 			// A tool's arguments and a route's body are one declaration: the same names.
 			for ( let command of Held.ServedCommands( Commands.TREE ) )
 			{

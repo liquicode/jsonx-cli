@@ -7,7 +7,7 @@
 	stopped (Ctrl+C). What it says for a person goes to standard error: the address, the file's
 	findings when it is held, and that it stopped.
 
-	***Once it listens, it writes one JSON line to standard output***, `{ File, Url, Pid }`, for a
+	***Once it listens, it writes one JSON line to standard output***, `{ File, Url, Ws, Pid }`, for a
 	program which starts it (the TUI, the desktop) to read instead of the prose. It is written as one
 	line whatever the result would be formatted as, because the reader reads a line.
 
@@ -30,6 +30,7 @@ const Held = require( '../src/Session/Held.js' );
 const Validate = require( '../src/Validate/Validate.js' );
 const Report = require( '../src/Report.js' );
 const Api = require( '../modes/api/Api.js' );
+const Ws = require( '../modes/ws/Ws.js' );
 const SessionCommand = require( './session.js' );
 
 
@@ -106,7 +107,7 @@ async function handler( Parsed, Context )
 	let shown_host = ( host.indexOf( ':' ) >= 0 ) ? '[' + host + ']' : host;
 	let url = 'http://' + shown_host + ':' + server.address().port;
 	held.Watch();
-	out.Line( { File: held.Path, Url: url, Pid: process.pid } );
+	out.Line( { File: held.Path, Url: url, Ws: url.replace( /^http:/, 'ws:' ) + Ws.ROUTE, Pid: process.pid } );
 	out.Log( 'Serving ' + held.Path + ' at ' + url + ( token ? ' (token required)' : '' ) + '. ' + ( value( 'attached' ) ? 'The end of standard input, or Ctrl+C, stops it.' : 'Ctrl+C stops it.' ) + '\n' );
 
 	let stops = [ io.WaitForStop() ];

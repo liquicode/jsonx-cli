@@ -5,6 +5,7 @@
 
 		GET  /                    the served commands as data: { Version, File, Commands }
 		POST /<group>/<command>   the command; the body is its --input-json document without Command
+		GET  /ws                  the WebSocket (modes/ws/Ws.js), behind the same guards
 
 	***The body is the `--input-json` shape***, `{ "name": "Bookings", "criteria": { ... } }`, so a
 	program writes the same document to the API as it would pass to `jsonx --input-json`, and a
@@ -30,9 +31,11 @@
 */
 
 const LIB_CRYPTO = require( 'crypto' );
+const LIB_HTTP = require( 'http' );
 const LIB_EXPRESS = require( 'express' );
 
 const Held = require( '../../src/Session/Held.js' );
+const Ws = require( '../ws/Ws.js' );
 
 
 const LOOPBACK_HOSTS = [ '127.0.0.1', 'localhost', '::1' ];
@@ -177,6 +180,18 @@ function NewApi( HeldSession, Options )
 
 	let commands = Held.ServedCommands( HeldSession.Tree );
 
+	// The served commands as a client reads them: GET / and the WebSocket's Hello answer this one list.
+	let listed = commands.map( function ( Command )
+	{
+		return {
+			Command: Command.Command,
+			Route: '/' + Command.Path.join( '/' ),
+			Describe: Command.Describe,
+			Positionals: Command.Positionals,
+			Options: Command.Options,
+		};
+	} );
+
 	app.use( LIB_EXPRESS.json( { limit: BODY_LIMIT } ) );
 
 
@@ -186,18 +201,21 @@ function NewApi( HeldSession, Options )
 		Response.status( 200 ).json( {
 			Version: options.Version || null,
 			File: HeldSession.Path,
-			Commands: commands.map( function ( Command )
-			{
-				return {
-					Command: Command.Command,
-					Route: '/' + Command.Path.join( '/' ),
-					Describe: Command.Describe,
-					Positionals: Command.Positionals,
-					Options: Command.Options,
-				};
-			} ),
+			Commands: listed,
 		} );
 		return;
+	} );
+
+
+	//---------------------------------------------------------------------
+	// The WebSocket, on top of the API (cut 4, decision 4): GET /ws, behind the guards above.
+
+	app.locals.Ws = Ws.AttachWs( app, HeldSession, {
+		Version: options.Version,
+		Commands: function () { return listed; },
+		PingMs: options.PingMs,
+		PongTimeoutMs: options.PongTimeoutMs,
+		CloseWaitMs: options.CloseWaitMs,
 	} );
 
 
@@ -287,14 +305,30 @@ function NewApi( HeldSession, Options )
 //---------------------------------------------------------------------
 // Binds an app. Resolves with the server once it listens, with app.locals.Port set to the port
 // bound (so --port 0 works); rejects when the address cannot be bound.
+//
+// ***Every upgrade request is handed to the app***, with a response on its socket, so it meets the
+// guards and the routes a POST meets (cut 4, decision 4). A route which takes the socket (GET /ws)
+// detaches the response; one which answers - a refusal, a 404 - ends the socket once the answer is
+// written, since an upgrade request's socket is never reused for HTTP.
+
+const APPS = new WeakMap();
 
 function Listen( App, Host, Port )
 {
 	return new Promise( function ( Resolve, Reject )
 	{
-		let server = App.listen( Port, Host );
+		let server = LIB_HTTP.createServer( App );
+		server.on( 'upgrade', function ( Request, Socket, Head )
+		{
+			if ( Head && Head.length > 0 ) { Socket.unshift( Head ); }
+			let response = new LIB_HTTP.ServerResponse( Request );
+			response.assignSocket( Socket );
+			response.on( 'finish', function () { if ( !Socket.destroyed ) { Socket.end(); } } );
+			App( Request, response );
+		} );
+		APPS.set( server, App );
 		server.once( 'error', Reject );
-		server.once( 'listening', function ()
+		server.listen( Port, Host, function ()
 		{
 			server.removeListener( 'error', Reject );
 			App.locals.Port = server.address().port;
@@ -305,11 +339,14 @@ function Listen( App, Host, Port )
 
 
 //---------------------------------------------------------------------
-// Closes a server, ending idle keep-alive connections so it does not wait for them.
+// Closes a server: every WebSocket first (1001), since the server's close does not end an upgraded
+// socket (measured), then the server, ending idle keep-alive connections so it does not wait for them.
 
-function Close( Server )
+async function Close( Server )
 {
-	return new Promise( function ( Resolve )
+	let app = APPS.get( Server );
+	if ( app && app.locals.Ws ) { await app.locals.Ws.CloseAll(); }
+	return await new Promise( function ( Resolve )
 	{
 		Server.close( function () { Resolve(); } );
 		if ( typeof Server.closeIdleConnections === 'function' ) { Server.closeIdleConnections(); }
