@@ -70,7 +70,7 @@ describe( 'What the served modes offer', function ()
 		}
 		LIB_ASSERT.deepStrictEqual( unexplained, [] );
 		LIB_ASSERT.deepStrictEqual( every_command( Commands.TREE ).filter( function ( Command ) { return !served.includes( Command.Command ); } ).map( function ( Command ) { return Command.Command; } ).sort(),
-			[ '__complete', 'completion', 'debug', 'mcp', 'serve' ] );
+			[ '__complete', 'completion', 'debug', 'mcp', 'serve', 'tui' ] );
 	} );
 
 	it( 'routes, lists as tools, and tables the same commands', async function ()

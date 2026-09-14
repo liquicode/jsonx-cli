@@ -22,8 +22,7 @@ const jsonx_cli = require( '../src/jsonx-cli.js' );
 const Spec = require( './fixtures/Spec.js' );
 
 
-// The tree with `tui` in it, as step 6 will register it.
-const TREE = Object.assign( {}, Commands.TREE, { Commands: Commands.TREE.Commands.concat( [ TuiCommand ] ) } );
+const TREE = Commands.TREE;
 
 
 //---------------------------------------------------------------------

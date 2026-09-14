@@ -44,6 +44,7 @@ const TREE = {
 		require( './adapters.js' ),
 		require( './serve.js' ),
 		require( './mcp.js' ),
+		require( './tui.js' ),
 	], require( './completion.js' ).Commands ),
 };
 

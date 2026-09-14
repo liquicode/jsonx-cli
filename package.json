@@ -58,7 +58,8 @@
 		"@liquicode/jsongin": "^0.2.0",
 		"@liquicode/jsonproc": "^0.2.0",
 		"@liquicode/jsonstor": "^0.2.0",
-		"express": "^4.21.2"
+		"express": "^4.21.2",
+		"neo-blessed": "^0.2.0"
 	},
 	"devDependencies": {
 		"@modelcontextprotocol/sdk": "^1.30.0"
