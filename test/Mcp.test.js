@@ -193,6 +193,8 @@ describe( 'MCP, the protocol', function ()
 			let declined = await call( mcp, 'datasource_delete', { name: 'Scratch', criteria: {}, yes: false } );
 			LIB_ASSERT.strictEqual( declined.isError, true );
 			LIB_ASSERT.strictEqual( declined.structuredContent.ExitCode, 2 );
+			// The guard's message names how a served client confirms, not only the command line's flag.
+			LIB_ASSERT.ok( declined.structuredContent.Log[ 0 ].includes( '"yes": true in a Web API or MCP request' ), declined.structuredContent.Log[ 0 ] );
 			LIB_ASSERT.strictEqual( ( await call( mcp, 'datasource_count', { name: 'Scratch' } ) ).structuredContent.Result, 2, 'nothing was removed' );
 
 			let saved = await call( mcp, 'datasource_delete', { name: 'Scratch', criteria: { _id: 'a' }, save: 'Remove a', yes: true } );

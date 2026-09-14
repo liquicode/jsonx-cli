@@ -31,7 +31,7 @@ const jsonproc = require( '@liquicode/jsonproc' );
 
 //---------------------------------------------------------------------
 const CRITERIA_OPTIONAL = { 'criteria': { Type: 'json', Default: {}, Describe: 'The criteria; absent selects every document.' } };
-const CRITERIA_REQUIRED = { 'criteria': { Type: 'json', Required: true, Describe: 'The criteria. One which selects every document needs --yes.' } };
+const CRITERIA_REQUIRED = { 'criteria': { Type: 'json', Required: true, Describe: 'The criteria. One which selects every document must be confirmed with yes.' } };
 const PROJECTION = { 'projection': { Type: 'json', Describe: 'Which fields to keep or drop.' } };
 const FIRST_ONLY = { 'first-only': { Type: 'boolean', Describe: 'Only the first document the criteria selects.' } };
 const YES = { 'yes': { Type: 'boolean', Describe: 'Confirm a call which touches every document, or removes the store.' } };

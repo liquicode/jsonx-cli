@@ -121,6 +121,11 @@ function BuildObject( Verb, DataSource, Values, Name )
 
 //---------------------------------------------------------------------
 // Why a verb is refused without --yes, or null when it is not.
+//
+// ***One message for every mode***: the command line types --yes, and a Web API body or an MCP
+// call sends "yes": true, so the confirmation names both.
+
+const CONFIRM = 'Confirm with --yes on the command line, or "yes": true in a Web API or MCP request.';
 
 function Guard( Verb, Values )
 {
@@ -130,7 +135,7 @@ function Guard( Verb, Values )
 
 	if ( verb.Guard === 'always' )
 	{
-		return 'Refused: [' + Verb + '] removes the whole store. Pass --yes to do it.';
+		return 'Refused: [' + Verb + '] removes the whole store. ' + CONFIRM;
 	}
 	if ( verb.Guard === 'criteria' )
 	{
@@ -138,7 +143,7 @@ function Guard( Verb, Values )
 		let everything = ( typeof criteria === 'undefined' ) || ( criteria === null ) || ( is_object( criteria ) && Object.keys( criteria ).length === 0 );
 		if ( everything )
 		{
-			return 'Refused: [' + Verb + '] with this criteria selects every document in the data source. Pass --yes to do it.';
+			return 'Refused: [' + Verb + '] with this criteria selects every document in the data source. ' + CONFIRM;
 		}
 	}
 	return null;
