@@ -44,6 +44,20 @@ function is_object( Value )
 
 
 //---------------------------------------------------------------------
+// JSON with every object's keys sorted, so two values equal in content compare equal as text.
+
+function stable_json( Value )
+{
+	if ( Array.isArray( Value ) ) { return '[' + Value.map( stable_json ).join( ',' ) + ']'; }
+	if ( is_object( Value ) )
+	{
+		return '{' + Object.keys( Value ).sort().map( function ( Key ) { return JSON.stringify( Key ) + ':' + stable_json( Value[ Key ] ); } ).join( ',' ) + '}';
+	}
+	return ( typeof Value === 'undefined' ) ? 'null' : JSON.stringify( Value );
+}
+
+
+//---------------------------------------------------------------------
 // Options:
 //		Document       the jsonx file, read
 //		Path           where it is
@@ -167,6 +181,59 @@ function NewSession( Options )
 	session.Runner = Runner.NewRunner( {
 		Document: session.Document, DataSources: session.DataSources, Host: session.Host, Statistics: ( options.Statistics === true ),
 	} );
+
+
+	//---------------------------------------------------------------------
+	// ***What an open data source was opened with***: its definition with the overrides applied, and
+	// the programmatic triggers stacked on it. Two equal signatures open the same storage, so a data
+	// source whose signature has not changed can stay open - and an in-memory store keep its rows.
+	// A Process's own steps are not part of it: the trigger filter reads the Process from the file
+	// each time it fires.
+
+	let signatures = {};
+
+	function signature_of( Name )
+	{
+		return stable_json( { Definition: session.DataSources.Definitions[ Name ] || null, Watching: triggers_watching( Name ) } );
+	}
+
+	function all_signatures()
+	{
+		let next = {};
+		let names = Object.keys( session.DataSources.Definitions );
+		for ( let index = 0; index < names.length; index++ ) { next[ names[ index ] ] = signature_of( names[ index ] ); }
+		return next;
+	}
+
+	signatures = all_signatures();
+
+
+	//---------------------------------------------------------------------
+	// Brings the session up to a file which changed: a new document (a reload from disk), or the
+	// same one edited in place (an edit a served request made). Every data source whose signature
+	// changed, or which the file no longer declares, is flushed and closed, to open again from its
+	// new definition on its next use; the others stay open. Answers the names closed or changed.
+	//
+	// Throws OverrideError, changing nothing, when this session's overrides no longer apply.
+
+	session.Reconcile = async function ( Document )
+	{
+		let document = is_object( Document ) ? Document : session.Document;
+		session.DataSources.Redefine( document );
+		session.Document = document;
+		session.Runner.Document = document;
+
+		let next = all_signatures();
+		let names = Object.keys( signatures ).concat( Object.keys( next ).filter( function ( Name ) { return !Object.prototype.hasOwnProperty.call( signatures, Name ); } ) );
+		let changed = names.filter( function ( Name ) { return signatures[ Name ] !== next[ Name ]; } );
+		for ( let index = 0; index < changed.length; index++ )
+		{
+			await session.DataSources.Close( changed[ index ] );
+			delete session.Runner.KeyFields[ changed[ index ] ];
+		}
+		signatures = next;
+		return changed;
+	};
 
 
 	//---------------------------------------------------------------------

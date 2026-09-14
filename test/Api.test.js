@@ -361,6 +361,19 @@ describe( 'jsonx serve', function ()
 		let counted = await post( base, '/datasource/count', { name: 'Scratch' } );
 		LIB_ASSERT.strictEqual( counted.Json.Result, 1 );
 
+		// The file is watched: an edit on disk is reported, and the next request runs it.
+		let document = JSON.parse( LIB_FS.readFileSync( scratch, 'utf8' ) );
+		document.Objects.push( { Kind: 'Query', Name: 'Read scratch', DataSource: 'Scratch', Criteria: {} } );
+		LIB_FS.writeFileSync( scratch, JSON.stringify( document, null, '\t' ) );
+		for ( let waited = 0; waited < 5000 && !io.Err.includes( 'Reloaded ' ); waited += 50 )
+		{
+			await new Promise( function ( Resolve ) { setTimeout( Resolve, 50 ); } );
+		}
+		LIB_ASSERT.ok( io.Err.includes( 'Reloaded ' ), io.Err );
+		let read = await post( base, '/run', { name: 'Read scratch' } );
+		LIB_ASSERT.strictEqual( read.Status, 200, read.Text );
+		LIB_ASSERT.deepStrictEqual( read.Json.Result, [ { _id: 'a' } ] );
+
 		io.Stop();
 		LIB_ASSERT.strictEqual( await running, 0 );
 		LIB_ASSERT.ok( io.Err.endsWith( 'Stopped.\n' ), io.Err );

@@ -193,6 +193,10 @@ declare module '@liquicode/jsonx-cli'
 		Opened(): string[];
 		/** Flushes everything open and keeps it open. Answers how many. */
 		Flush(): Promise<number>;
+		/** The definitions again from a changed file, with the overrides. Throws OverrideError, changing nothing. */
+		Redefine( Document: JsonDocument ): string[];
+		/** One data source flushed and dropped, to open again on its next use. Answers whether it was open. */
+		Close( Name: string ): Promise<boolean>;
 		Release(): Promise<number>;
 	}
 
@@ -210,6 +214,8 @@ declare module '@liquicode/jsonx-cli'
 		Trace: boolean;
 		/** What the next run measures (--verbose) and records (--trace). */
 		SetRunOptions( RunOptions: { Statistics?: boolean; Trace?: boolean } ): void;
+		/** Follows a changed file (a new document, or the same one edited): closes every data source whose definition or watching triggers changed. Answers their names. */
+		Reconcile( Document?: JsonDocument ): Promise<string[]>;
 		Run( Name: string, Input?: JsonDocument ): Promise<RunReport>;
 		RunTrigger( Name: string ): Promise<RunReport>;
 		Release(): Promise<number>;
@@ -546,19 +552,24 @@ declare module '@liquicode/jsonx-cli'
 		Lease(): Session;
 		/** One request, as an --input-json document. Never throws. */
 		Invoke( Invocation: JsonDocument ): Promise<ResultEnvelope>;
+		/** Reads the file and follows it, in the queue. */
+		Reload(): Promise<{ Reloaded: boolean; Reason?: 'unchanged' | 'kept'; Message?: string; Changed?: string[]; Findings?: Finding[] }>;
+		/** Watches the file's folder and reloads when the file changes. */
+		Watch(): void;
 		/** Waits for the queue, then releases every data source. */
 		Release(): Promise<number>;
 	}
 
 	export interface HeldModule
 	{
+		RELOAD_DEBOUNCE_MS: number;
 		REFUSED_OPTIONS: { [ Name: string ]: string };
 		/** ExitCode is what the command line answers: 2 usage, 1 unreadable, 3 not a jsonx file. */
 		HeldError: new ( Message: string, ExitCode?: number ) => Error & { ExitCode: number };
 		/** The commands a held session answers, as data, for the served modes to route and list. */
 		ServedCommands( Tree: any ): Array<{ Path: string[]; Command: string; Describe: string; Concurrent: boolean; Positionals: any[]; Options: { [ Name: string ]: any } }>;
 		/** Throws HeldError when there is no file to hold, or it is not a JSON object. */
-		NewHeld( Options: { Tree: any; File?: string; Binds?: string[]; Sets?: string[]; Io?: Io; jsonstor?: any; Require?: ( Name: string ) => any; MaxSteps?: number; MaxCalls?: number } ): HeldSession;
+		NewHeld( Options: { Tree: any; File?: string; Binds?: string[]; Sets?: string[]; Io?: Io; Log?: ( Text: string ) => void; OnReload?: ( Outcome: any ) => void; jsonstor?: any; Require?: ( Name: string ) => any; MaxSteps?: number; MaxCalls?: number } ): HeldSession;
 	}
 
 	export interface DebuggerModule

@@ -10,7 +10,8 @@
 	***`--api` is required***, so adding the Web UI later (`--ui`) changes what no existing command
 	line does. ***A host other than loopback needs a token***, from --token or JSONX_TOKEN, and is
 	refused before anything listens. ***A file with errors is served***, so it can be repaired through
-	the API; every run answers 422 until it is.
+	the API; every run answers 422 until it is. ***The file is watched***: an edit made to it while it
+	is served is reloaded, and reported, between requests (src/Session/Held.js).
 
 	Exit codes: 0 stopped; 1 the address cannot be bound, or the file cannot be read; 2 a usage
 	mistake - no --api, no token for the host, no file chosen, a bad override; 3 the file is not a
@@ -57,7 +58,11 @@ async function handler( Parsed, Context )
 	let held = null;
 	try
 	{
-		held = Held.NewHeld( { Tree: Context.Tree, File: value( 'file' ), Binds: value( 'bind' ), Sets: value( 'set' ), Io: io } );
+		held = Held.NewHeld( {
+			Tree: Context.Tree, File: value( 'file' ), Binds: value( 'bind' ), Sets: value( 'set' ), Io: io,
+			// A reload, and what it found, is reported as it happens (plan F2.5).
+			Log: function ( Text ) { out.Log( Text ); },
+		} );
 	}
 	catch ( error )
 	{
@@ -92,6 +97,7 @@ async function handler( Parsed, Context )
 	}
 
 	let shown_host = ( host.indexOf( ':' ) >= 0 ) ? '[' + host + ']' : host;
+	held.Watch();
 	out.Log( 'Serving ' + held.Path + ' at http://' + shown_host + ':' + server.address().port + ( token ? ' (token required)' : '' ) + '. Ctrl+C stops it.\n' );
 
 	await io.WaitForStop();

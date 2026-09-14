@@ -22,7 +22,21 @@
 
 	A command whose node, or a group above it, declares `Served: false` is refused, with its
 	`ServedReason`.
+
+	***When the file changes, the session follows it*** (plan F2.5, O6):
+	-	A request which edits the file edits the held document, and when it finishes the session
+		reconciles: every data source whose definition, or whose watching triggers, changed is closed
+		and opens again from the new definition on its next use. The others stay open.
+	-	A change on disk (Watch) is read and reconciled the same way, ***in the queue***, so a run in
+		flight finishes on the copy it started with.
+	-	***Text the session wrote itself is not a change***: an edit's own write arrives at the watcher
+		too, and is recognised by being exactly the last text written.
+	-	A file which no longer parses, or which an override no longer fits, keeps the old copy, and the
+		reason is logged.
 */
+
+const LIB_FS = require( 'fs' );
+const LIB_PATH = require( 'path' );
 
 const jsongin = require( '@liquicode/jsongin' );
 const jsonproc = require( '@liquicode/jsonproc' );
@@ -35,7 +49,11 @@ const Parser = require( '../CommandLine/Parser.js' );
 const InputJson = require( '../CommandLine/InputJson.js' );
 const Help = require( '../CommandLine/Help.js' );
 const Envelope = require( '../Envelope.js' );
+const Report = require( '../Report.js' );
 
+
+// How long the watcher waits for a burst of file events to end before reading the file.
+const RELOAD_DEBOUNCE_MS = 200;
 
 // Options a request cannot give: they are the held session's, or the envelope's.
 const REFUSED_OPTIONS = {
@@ -120,6 +138,8 @@ function ServedCommands( Tree )
 //		File           the jsonx file, as --file would name it; absent, JSONX_FILE then the lone .jsonx
 //		Binds, Sets    override tokens, as --bind and --set
 //		Io             the process's Io: Env, Cwd, ReadFile, and WriteFile when files are written elsewhere
+//		Log            function ( Text ): where a reload, and what it found, is reported
+//		OnReload       function ( Outcome ): called with Reload's answer after each watched reload
 //		jsonstor, Require, MaxSteps, MaxCalls   passed to the session
 //
 // Throws HeldError when there is nothing to hold: no file, an unreadable one, one which is not a
@@ -185,9 +205,57 @@ function NewHeld( Options )
 		StartFindings: [],
 	};
 
-	held.StartFindings = Validate.ValidateFile( session.Document, {
-		jsongin: jsongin, jsonproc: jsonproc, Env: io.Env, CheckSettings: session.Catalog.ValidateSettings,
-	} );
+	held.StartFindings = validate_held();
+
+	let log = ( typeof options.Log === 'function' ) ? options.Log : function () { return; };
+
+	// The file's text as the session last read or wrote it.
+	let last_text = text;
+
+	function validate_held()
+	{
+		return Validate.ValidateFile( session.Document, {
+			jsongin: jsongin, jsonproc: jsonproc, Env: io.Env, CheckSettings: session.Catalog.ValidateSettings,
+		} );
+	}
+
+
+	//---------------------------------------------------------------------
+	// The Io a served handler writes the file through: the text it writes is remembered, so the
+	// watcher knows the session's own write when it arrives. Written as Writer writes, to a temporary
+	// file renamed over the old one.
+
+	let handler_io = Object.create( io );
+	handler_io.WriteFile = function ( Path, Text )
+	{
+		if ( LIB_PATH.resolve( Path ) === LIB_PATH.resolve( held.Path ) ) { last_text = Text; }
+		if ( typeof io.WriteFile === 'function' ) { return io.WriteFile( Path, Text ); }
+		let temporary = Path + '.~writing';
+		LIB_FS.writeFileSync( temporary, Text, 'utf8' );
+		LIB_FS.renameSync( temporary, Path );
+		return;
+	};
+
+
+	//---------------------------------------------------------------------
+	// After a request which may have edited the document: closes what changed. Answers a report line,
+	// or '' when nothing changed.
+
+	async function reconcile_edit()
+	{
+		let changed = null;
+		try
+		{
+			changed = await session.Reconcile( session.Document );
+		}
+		catch ( error )
+		{
+			if ( !( error instanceof Overrides.OverrideError ) ) { throw error; }
+			return 'The file changed, but this session\'s overrides no longer fit it: ' + error.message + ' Its data sources keep their earlier definitions.\n';
+		}
+		if ( changed.length === 0 ) { return ''; }
+		return 'Changed data sources, opened again on their next use: ' + changed.join( ', ' ) + '.\n';
+	}
 
 
 	//---------------------------------------------------------------------
@@ -270,31 +338,136 @@ function NewHeld( Options )
 			return out.Envelope( 2 );
 		}
 
-		let context = { Tree: held.Tree, Io: io, Parser: Parser, Out: out, Held: held };
+		let context = { Tree: held.Tree, Io: handler_io, Parser: Parser, Out: out, Held: held };
+		let concurrent = nodes.some( function ( Node ) { return Node.Concurrent === true; } );
+
 		let handle = async function ()
 		{
+			let code = 1;
 			try
 			{
-				return await node.Handler( parsed, context );
+				code = await node.Handler( parsed, context );
 			}
 			catch ( error )
 			{
 				out.Log( 'The command failed unexpectedly: ' + ( error && error.message ? error.message : String( error ) ) + '\n' );
-				return 1;
+				code = 1;
 			}
+			// A queued command may have edited the file; a concurrent one writes nothing.
+			if ( !concurrent )
+			{
+				let line = await reconcile_edit();
+				if ( line !== '' ) { out.Log( line ); }
+			}
+			return code;
 		};
 
-		let concurrent = nodes.some( function ( Node ) { return Node.Concurrent === true; } );
 		let code = concurrent ? await handle() : await held.Exclusive( handle );
 		return out.Envelope( code );
 	};
 
 
 	//---------------------------------------------------------------------
-	// The end of serving: waits for the queue, then flushes and releases every data source.
+	// Reads the file from disk and follows it, in the queue. Answers what happened:
+	//
+	//		{ Reloaded: false, Reason: 'unchanged' }       the text is what the session last read or wrote
+	//		{ Reloaded: false, Reason: 'kept', Message, Findings }   it could not be followed; the old copy stays
+	//		{ Reloaded: true, Changed: [ names ], Findings }
+
+	held.Reload = function ()
+	{
+		return held.Exclusive( async function ()
+		{
+			let text_now = null;
+			try
+			{
+				text_now = Reader.ReadText( held.Path, io );
+			}
+			catch ( error )
+			{
+				if ( !( error instanceof Reader.FileError ) ) { throw error; }
+				log( 'Not reloaded: ' + error.message + ' The session keeps the file as it was.\n' );
+				return { Reloaded: false, Reason: 'kept', Message: error.message, Findings: [] };
+			}
+			if ( text_now === last_text ) { return { Reloaded: false, Reason: 'unchanged' }; }
+
+			let read = Reader.ParseText( text_now );
+			if ( read.Document === null || typeof read.Document !== 'object' || Array.isArray( read.Document ) )
+			{
+				let findings = read.Findings.length > 0 ? read.Findings : Validate.ValidateFile( read.Document, {} );
+				let message = held.Path + ' changed and cannot be read as a jsonx file; the session keeps the file as it was.';
+				for ( let index = 0; index < findings.length; index++ ) { log( Report.FormatFinding( findings[ index ] ) ); }
+				log( 'Not reloaded: ' + message + '\n' );
+				return { Reloaded: false, Reason: 'kept', Message: message, Findings: findings };
+			}
+
+			let changed = null;
+			try
+			{
+				changed = await session.Reconcile( read.Document );
+			}
+			catch ( error )
+			{
+				if ( !( error instanceof Overrides.OverrideError ) ) { throw error; }
+				log( 'Not reloaded: ' + error.message + ' The session keeps the file as it was.\n' );
+				return { Reloaded: false, Reason: 'kept', Message: error.message, Findings: [] };
+			}
+			last_text = text_now;
+
+			let findings = validate_held();
+			let summary = Validate.Summarize( findings );
+			for ( let index = 0; index < findings.length; index++ )
+			{
+				if ( findings[ index ].Severity === 'error' ) { log( Report.FormatFinding( findings[ index ] ) ); }
+			}
+			let reopened = ( changed.length > 0 ) ? '; opened again on next use: ' + changed.join( ', ' ) : '';
+			log( 'Reloaded ' + Report.FormatSummary( held.Path, summary ).trim() + reopened + '.\n' );
+			return { Reloaded: true, Changed: changed, Findings: findings };
+		} );
+	};
+
+
+	//---------------------------------------------------------------------
+	// Watches the file, reloading when it changes. The folder is watched rather than the file,
+	// because an editor - and Writer - replaces a file instead of writing into it, which a watch on
+	// the file itself stops seeing.
+
+	let watcher = null;
+	let reload_timer = null;
+
+	held.Watch = function ()
+	{
+		if ( watcher !== null ) { return; }
+		let name = LIB_PATH.basename( held.Path );
+		watcher = LIB_FS.watch( LIB_PATH.dirname( held.Path ), function ( Event, Filename )
+		{
+			if ( Filename && String( Filename ) !== name ) { return; }
+			if ( reload_timer !== null ) { clearTimeout( reload_timer ); }
+			reload_timer = setTimeout( function ()
+			{
+				reload_timer = null;
+				held.Reload().then( function ( Outcome )
+				{
+					if ( typeof options.OnReload === 'function' ) { options.OnReload( Outcome ); }
+				}, function ( error )
+				{
+					log( 'Not reloaded: ' + error.message + '\n' );
+				} );
+			}, RELOAD_DEBOUNCE_MS );
+		} );
+		watcher.on( 'error', function ( error ) { log( 'The file is no longer watched: ' + error.message + '\n' ); } );
+		return;
+	};
+
+
+	//---------------------------------------------------------------------
+	// The end of serving: stops watching, waits for the queue, then flushes and releases every data
+	// source.
 
 	held.Release = async function ()
 	{
+		if ( reload_timer !== null ) { clearTimeout( reload_timer ); reload_timer = null; }
+		if ( watcher !== null ) { watcher.close(); watcher = null; }
 		return await held.Exclusive( function () { return session.Release(); } );
 	};
 
@@ -305,6 +478,7 @@ function NewHeld( Options )
 
 //---------------------------------------------------------------------
 module.exports = {
+	RELOAD_DEBOUNCE_MS: RELOAD_DEBOUNCE_MS,
 	REFUSED_OPTIONS: REFUSED_OPTIONS,
 	HeldError: HeldError,
 	ServedCommands: ServedCommands,

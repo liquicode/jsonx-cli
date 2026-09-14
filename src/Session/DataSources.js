@@ -203,6 +203,33 @@ function NewDataSources( Options )
 
 
 	//---------------------------------------------------------------------
+	// The definitions again, from a changed or replaced file, with this session's overrides. Throws
+	// OverrideError, changing nothing, when an override no longer applies (a --bind naming a data
+	// source the file has dropped). What is open stays open: closing is the caller's choice (Close).
+
+	sources.Redefine = function ( Document )
+	{
+		sources.Definitions = Overrides.Apply( Document, options.Binds, options.Sets, cwd, options.Catalog.PathSettings );
+		return Object.keys( sources.Definitions );
+	};
+
+
+	//---------------------------------------------------------------------
+	// One data source flushed and dropped, so its next use opens it again from its definition.
+	// Answers whether it was open.
+
+	sources.Close = async function ( Name )
+	{
+		if ( !Object.prototype.hasOwnProperty.call( sources.Cache, Name ) ) { return false; }
+		let held = sources.Cache[ Name ];
+		delete sources.Cache[ Name ];
+		try { await held.Storage.FlushStorage(); }
+		catch ( error ) { /* nothing to flush */ }
+		return true;
+	};
+
+
+	//---------------------------------------------------------------------
 	// Everything open, flushed and kept open: what a held session does after each request, so a
 	// write reaches the store without losing what an in-memory store holds.
 
