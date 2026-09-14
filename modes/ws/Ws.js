@@ -18,6 +18,8 @@
 		{ "Id": "2", "Debug": { "process": "Prepare the season" } }    opens this connection's debug
 		{ "Id": "3", "Step": "step" }                                  one debug command
 		{ "Id": "4", "Read": "jsonx://file" }                          the held document, as MCP's resource
+		{ "Id": "5", "Line" | "Entry" | "Complete" | "Actions" | "Inventory": ... }
+		                                                              a front request (modes/ws/Front.js, cut 5)
 
 	From the server:
 
@@ -54,6 +56,7 @@
 
 const Frames = require( './Frames.js' );
 const Connection = require( './Connection.js' );
+const Front = require( './Front.js' );
 
 
 const ROUTE = '/ws';
@@ -91,6 +94,9 @@ function AttachWs( App, Held, Options )
 	let attached = {
 		Connections: new Set(),
 	};
+
+	// One set of front requests for every connection, so what they have learned is shared.
+	let front = Front.NewFrontRequests( Held );
 
 
 	//---------------------------------------------------------------------
@@ -207,9 +213,20 @@ function AttachWs( App, Held, Options )
 			if ( typeof message.Read !== 'undefined' ) { return on_read( id, message.Read ); }
 			if ( typeof message.Step !== 'undefined' ) { return on_step( id, message.Step ); }
 			if ( typeof message.Debug !== 'undefined' ) { return on_debug( id, message.Debug ); }
+			if ( front.Handles( message ) )
+			{
+				running.add( id );
+				front.Answer( message ).then( function ( Envelope )
+				{
+					running.delete( id );
+					send( { Id: id, Answer: Envelope } );
+					return;
+				} );
+				return;
+			}
 			if ( !is_object( message.Invoke ) )
 			{
-				send( { Id: id, Answer: refusal( 'A request names what it asks in Invoke: { Command, ...arguments and options }; a debug in Debug or Step.' ) } );
+				send( { Id: id, Answer: refusal( 'A request names what it asks in Invoke: { Command, ...arguments and options }; a debug in Debug or Step; a front request in Line, Entry, Complete, Actions or Inventory.' ) } );
 				return;
 			}
 
@@ -223,6 +240,8 @@ function AttachWs( App, Held, Options )
 			} ).then( function ( Envelope )
 			{
 				running.delete( id );
+				// What a command wrote may give a store fields it did not have.
+				front.Forget();
 				send( { Id: id, Answer: Envelope } );
 				return;
 			}, function ( error )

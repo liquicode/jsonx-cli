@@ -28,6 +28,15 @@
 	-	Bound to any other host, it needs a token, and NewApi throws without one.
 	-	With a token, every request must carry `Authorization: Bearer <token>`, or it is refused with
 		401. The comparison takes the same time whatever the token.
+
+	***A browser's token*** (cut 5; cut 4's decision 4): a browser cannot set `Authorization` loading a
+	page or opening a WebSocket. So:
+	-	`POST /ws/ticket`, carrying the token like any request, answers `{ Ticket, ExpiresInMs }`: good for
+		one upgrade within 30 s.
+	-	`GET /ws?ticket=<ticket>` is accepted in place of `Authorization`, once. A used, expired or unknown
+		ticket is the token's own 401, before any handshake.
+	-	`GET /ui/config.json` answers `{ TokenRequired }` without a token, so a page knows to ask for one.
+		A public path is exempt from the token only; the Host and Origin checks still run on it.
 */
 
 const LIB_CRYPTO = require( 'crypto' );
@@ -45,6 +54,10 @@ const STATUS_FOR_EXIT = { 0: 200, 1: 500, 2: 400, 3: 422 };
 const BODY_LIMIT = '16mb';
 
 const NDJSON = 'application/x-ndjson';
+
+const TICKET_ROUTE = '/ws/ticket';
+const TICKET_MS = 30000;
+const CONFIG_ROUTE = '/ui/config.json';
 
 
 //---------------------------------------------------------------------
@@ -90,11 +103,54 @@ function same_token( Given, Expected )
 
 
 //---------------------------------------------------------------------
+// One-use tickets for a browser's WebSocket. Kept by their digest, so the store holds nothing a reader
+// could present. Answers { Issue(), Take( Ticket ) }: Issue gives { Ticket, ExpiresInMs }; Take answers
+// whether the ticket was good, and spends it.
+
+function NewTickets( Options )
+{
+	let options = ( Options && typeof Options === 'object' ) ? Options : {};
+	let lifetime = ( typeof options.LifetimeMs === 'number' ) ? options.LifetimeMs : TICKET_MS;
+	let now = ( typeof options.Now === 'function' ) ? options.Now : Date.now;
+	let issued = new Map();
+
+	function digest( Ticket ) { return LIB_CRYPTO.createHash( 'sha256' ).update( String( Ticket ) ).digest( 'hex' ); }
+
+	function prune()
+	{
+		let time = now();
+		issued.forEach( function ( Expires, Key ) { if ( Expires <= time ) { issued.delete( Key ); } } );
+		return;
+	}
+
+	return {
+		Issue: function ()
+		{
+			prune();
+			let ticket = LIB_CRYPTO.randomBytes( 32 ).toString( 'base64url' );
+			issued.set( digest( ticket ), now() + lifetime );
+			return { Ticket: ticket, ExpiresInMs: lifetime };
+		},
+		Take: function ( Ticket )
+		{
+			if ( typeof Ticket !== 'string' || Ticket === '' ) { return false; }
+			let key = digest( Ticket );
+			let expires = issued.get( key );
+			issued.delete( key );
+			return ( typeof expires === 'number' ) && ( expires > now() );
+		},
+	};
+}
+
+
+//---------------------------------------------------------------------
 // Who may call, for any app a served mode builds (the Web API, MCP over HTTP):
 //
 //		Host      the host it will be bound to; decides the checks (default 127.0.0.1)
 //		Token     the bearer token every request must carry; required for a host which is not loopback
 //		Refuse    function ( Status, Message, Response ): how a refusal is answered; an envelope when absent
+//		Tickets   a NewTickets store: `GET /ws?ticket=` is accepted in place of the token
+//		Public    paths a GET reaches without the token (the Host and Origin checks still apply)
 //
 // Throws ApiError for a host which is not loopback and no token. The port is read from
 // app.locals.Port, which Listen sets once the server is bound.
@@ -105,6 +161,8 @@ function UseGuards( App, Options )
 	let host = options.Host || '127.0.0.1';
 	let token = ( typeof options.Token === 'string' && options.Token !== '' ) ? options.Token : null;
 	let loopback = IsLoopback( host );
+	let tickets = ( options.Tickets && typeof options.Tickets.Take === 'function' ) ? options.Tickets : null;
+	let public_paths = Array.isArray( options.Public ) ? options.Public : [];
 	let refuse = ( typeof options.Refuse === 'function' )
 		? options.Refuse
 		: function ( Status, Message, Response ) { Response.status( Status ).json( refusal( Message ) ); return; };
@@ -153,8 +211,15 @@ function UseGuards( App, Options )
 	App.use( function ( Request, Response, Next )
 	{
 		if ( token === null ) { return Next(); }
+		if ( ( Request.method === 'GET' || Request.method === 'HEAD' ) && public_paths.includes( Request.path ) ) { return Next(); }
 		let header = String( Request.get( 'Authorization' ) || '' );
 		let match = /^Bearer\s+(.+)$/i.exec( header );
+		if ( match === null && tickets !== null && Request.method === 'GET' && Request.path === Ws.ROUTE && typeof Request.query.ticket === 'string' )
+		{
+			if ( tickets.Take( Request.query.ticket ) ) { return Next(); }
+			Response.set( 'WWW-Authenticate', 'Bearer' );
+			return refuse( 401, 'Refused: the ticket is used, expired or unknown; ask ' + TICKET_ROUTE + ' for another.', Response );
+		}
 		if ( match === null || !same_token( match[ 1 ].trim(), token ) )
 		{
 			Response.set( 'WWW-Authenticate', 'Bearer' );
@@ -176,7 +241,10 @@ function NewApi( HeldSession, Options )
 
 	let app = LIB_EXPRESS();
 	app.disable( 'x-powered-by' );
-	UseGuards( app, options );
+	let tickets = NewTickets( { LifetimeMs: options.TicketMs } );
+	let public_paths = [ CONFIG_ROUTE ].concat( Array.isArray( options.Public ) ? options.Public : [] );
+	UseGuards( app, Object.assign( {}, options, { Tickets: tickets, Public: public_paths } ) );
+	let token_required = ( typeof options.Token === 'string' && options.Token !== '' );
 
 	let commands = Held.ServedCommands( HeldSession.Tree );
 
@@ -203,6 +271,23 @@ function NewApi( HeldSession, Options )
 			File: HeldSession.Path,
 			Commands: listed,
 		} );
+		return;
+	} );
+
+
+	//---------------------------------------------------------------------
+	// A browser's way in: whether a token is needed, and a one-use ticket for the WebSocket.
+
+	app.get( CONFIG_ROUTE, function ( Request, Response )
+	{
+		Response.status( 200 ).json( { TokenRequired: token_required } );
+		return;
+	} );
+
+	app.post( TICKET_ROUTE, function ( Request, Response )
+	{
+		Response.set( 'Cache-Control', 'no-store' );
+		Response.status( 200 ).json( tickets.Issue() );
 		return;
 	} );
 
@@ -359,9 +444,13 @@ module.exports = {
 	LOOPBACK_HOSTS: LOOPBACK_HOSTS,
 	STATUS_FOR_EXIT: STATUS_FOR_EXIT,
 	NDJSON: NDJSON,
+	TICKET_ROUTE: TICKET_ROUTE,
+	TICKET_MS: TICKET_MS,
+	CONFIG_ROUTE: CONFIG_ROUTE,
 	ApiError: ApiError,
 	IsLoopback: IsLoopback,
 	StatusFor: StatusFor,
+	NewTickets: NewTickets,
 	UseGuards: UseGuards,
 	NewApi: NewApi,
 	Listen: Listen,
