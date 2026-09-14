@@ -125,6 +125,8 @@ declare module '@liquicode/jsonx-cli'
 		Choices?: any[];
 		Inherit?: boolean;
 		Describe?: string;
+		/** What the value completes to: entries, objects, objects:<Kind>, datasources, triggers or adapters. */
+		Complete?: string;
 	}
 
 	/** A positional argument of a command. */
@@ -229,6 +231,20 @@ declare module '@liquicode/jsonx-cli'
 	export interface HelpModule
 	{
 		HelpText( Tree: CommandNode, Path: string[] ): string;
+	}
+
+	export interface CompleteModule
+	{
+		/** The mark the completion scripts put before the word being typed, so it is never empty. */
+		CURRENT_MARK: string;
+		/** The candidates for the words after the program name; the last word is the one being typed. */
+		Candidates( Tree: CommandNode, Words: string[], Io?: Io ): string[];
+	}
+
+	export interface CompletionScriptsModule
+	{
+		SHELLS: string[];
+		Script( Shell: 'bash' | 'zsh' | 'powershell', Program?: string ): string;
 	}
 
 	export interface InputJsonModule
@@ -518,8 +534,14 @@ declare module '@liquicode/jsonx-cli'
 
 	export interface ReportModule
 	{
-		FormatResult( Output: 'json' | 'jsonl', Value: any ): string;
-		WriteResult( Io: Io, Output: 'json' | 'jsonl', Value: any ): void;
+		/** The widest a table cell is written, in characters. */
+		CELL_WIDTH: number;
+		/** A result for a person: strings as they are, objects as Key: value lines. */
+		FormatText( Value: any ): string;
+		/** An array of objects as columns; anything else as FormatText. */
+		FormatTable( Value: any ): string;
+		FormatResult( Output: 'json' | 'jsonl' | 'text' | 'table', Value: any ): string;
+		WriteResult( Io: Io, Output: 'json' | 'jsonl' | 'text' | 'table', Value: any ): void;
 		FormatFinding( Finding: Finding ): string;
 		FormatSummary( Label: string, Summary: { Errors: number; Warnings: number; Notes: number } ): string;
 		FormatRunReport( RunReport: RunReport, Depth?: number, Options?: { Statistics?: boolean; Trace?: boolean } ): string;
@@ -536,6 +558,8 @@ declare module '@liquicode/jsonx-cli'
 			Parser: ParserModule;
 			Help: HelpModule;
 			InputJson: InputJsonModule;
+			Complete: CompleteModule;
+			CompletionScripts: CompletionScriptsModule;
 		};
 		File: {
 			Reader: ReaderModule;

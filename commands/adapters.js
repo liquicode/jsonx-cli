@@ -16,7 +16,7 @@ const Report = require( '../src/Report.js' );
 const FileCommand = require( './file.js' );
 
 
-const NAME = { Name: 'name', Type: 'string', Required: true, Describe: 'An adapter name: a package\'s own, a prime, or an alias.' };
+const NAME = { Name: 'name', Type: 'string', Required: true, Complete: 'adapters', Describe:'An adapter name: a package\'s own, a prime, or an alias.' };
 
 
 //---------------------------------------------------------------------

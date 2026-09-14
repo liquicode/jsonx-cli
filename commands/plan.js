@@ -58,7 +58,7 @@ module.exports = {
 	Command: 'plan',
 	Describe: 'Show what running an object would do, opening nothing.',
 	Positionals: [
-		{ Name: 'name', Type: 'string', Required: true, Describe: 'The object to plan.' },
+		{ Name: 'name', Type: 'string', Required: true, Complete: 'objects', Describe: 'The object to plan.' },
 	],
 	Options: Object.assign( {}, SessionCommand.SESSION_OPTIONS ),
 	Handler: handler,

@@ -17,7 +17,7 @@
 const GLOBAL_OPTIONS = {
 	'help': { Type: 'boolean', Alias: 'h', Describe: 'Show help for the command.' },
 	'file': { Type: 'string', Alias: 'f', Describe: 'The jsonx file. Absent: JSONX_FILE, then the one .jsonx file in the current directory.' },
-	'output': { Type: 'string', Alias: 'o', Choices: [ 'json', 'jsonl' ], Default: 'json', Describe: 'How the result is written to standard output.' },
+	'output': { Type: 'string', Alias: 'o', Choices: [ 'json', 'jsonl', 'text', 'table' ], Default: 'json', Describe: 'How the result is written to standard output: json and jsonl for a program, text and table for a person.' },
 	'quiet': { Type: 'boolean', Alias: 'q', Describe: 'Write no report to standard error.' },
 	'input-json': { Type: 'string', Describe: 'Read the whole invocation from a JSON file, or - for standard input. Must be the only argument.' },
 };
@@ -42,7 +42,7 @@ const TREE = {
 	].concat( require( './manage.js' ).Groups, [
 		require( './engine.js' ),
 		require( './adapters.js' ),
-	] ),
+	], require( './completion.js' ).Commands ),
 };
 
 

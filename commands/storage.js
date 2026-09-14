@@ -198,7 +198,7 @@ module.exports = {
 			Command: Verb,
 			Describe: Verbs.VERBS[ Verb ].Describe,
 			Library: Verbs.VERBS[ Verb ].Functions.map( function ( Name ) { return 'jsonstor.' + Name; } ),
-			Positionals: [ { Name: 'name', Type: 'string', Required: true, Describe: 'The data source.' } ],
+			Positionals: [ { Name: 'name', Type: 'string', Required: true, Complete: 'datasources', Describe: 'The data source.' } ],
 			Options: Object.assign( {}, VERB_OPTIONS[ Verb ], SessionCommand.RUN_OPTIONS ),
 			Handler: handler_for( Verb ),
 		};

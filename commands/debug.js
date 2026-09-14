@@ -93,7 +93,7 @@ module.exports = {
 	Describe: 'Step a Process, reading commands from standard input: step, into, continue, decline, answer <json>, state, skip, quit.',
 	Library: [ 'jsonproc.Start', 'jsonproc.Step', 'jsonproc.Resume' ],
 	Positionals: [
-		{ Name: 'process', Type: 'string', Required: true, Describe: 'The Process to debug.' },
+		{ Name: 'process', Type: 'string', Required: true, Complete: 'objects:Process', Describe: 'The Process to debug.' },
 	],
 	Options: Object.assign( {
 		'input': { Type: 'json', Describe: 'The starting document of a Process with no DataSource.' },

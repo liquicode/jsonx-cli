@@ -122,7 +122,9 @@ function inspect_handler( Which )
 function noun_group( Noun )
 {
 	let label = Edit.NOUNS[ Noun ].Label;
-	let name_positional = { Name: 'name', Type: 'string', Required: true, Describe: 'The ' + label + '.' };
+	// Completes the noun's own entries: `query show` offers the Queries, `datasource show` the data sources.
+	let completes = ( Edit.NOUNS[ Noun ].Kind !== null ) ? 'objects:' + Edit.NOUNS[ Noun ].Kind : Edit.NOUNS[ Noun ].Section.toLowerCase();
+	let name_positional = { Name: 'name', Type: 'string', Required: true, Complete: completes, Describe: 'The ' + label + '.' };
 	let body = { 'json': { Type: 'json', Required: true, Describe: 'The ' + label + ' as JSON.' } };
 
 	let group = {

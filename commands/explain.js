@@ -44,7 +44,7 @@ module.exports = {
 	Command: 'explain',
 	Describe: 'Say in English what a data source, object or trigger of the file does.',
 	Positionals: [
-		{ Name: 'name', Type: 'string', Required: true, Describe: 'The data source, object or trigger to explain.' },
+		{ Name: 'name', Type: 'string', Required: true, Complete: 'entries', Describe:'The data source, object or trigger to explain.' },
 	],
 	Handler: handler,
 };

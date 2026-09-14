@@ -54,7 +54,7 @@ module.exports = {
 	Command: 'run',
 	Describe: 'Run an object of the file by name.',
 	Positionals: [
-		{ Name: 'name', Type: 'string', Required: true, Describe: 'The object to run.' },
+		{ Name: 'name', Type: 'string', Required: true, Complete: 'objects', Describe: 'The object to run.' },
 	],
 	Options: Object.assign( {
 		'input': { Type: 'json', Describe: 'The starting document of a Process with no DataSource.' },

@@ -13,11 +13,121 @@
 
 
 //---------------------------------------------------------------------
-// The result, as --output asks: `json` pretty with tabs, or `jsonl` one line per element of an
-// array (one line for anything else, nothing for an empty array).
+// ***`text` and `table` are for a person reading*** (cut 2), and are not for a program to parse;
+// `json` and `jsonl` are.
+//
+//	text    a string as it is; a scalar as JSON; an array one element per line, objects as blocks
+//	        separated by a blank line; an object as `Key: value` lines, where a value which is an
+//	        array of scalars is listed beneath its key and anything else structured is compact JSON
+//	table   an array of objects as columns: the union of their top-level keys in the order first
+//	        seen, a header and a rule, each cell at most CELL_WIDTH characters. Anything else is text.
+//
+// There is no terminal width detection: output is the same wherever it goes.
+
+const CELL_WIDTH = 40;
+
+
+function is_plain_object( Value )
+{
+	return ( Value !== null ) && ( typeof Value === 'object' ) && !Array.isArray( Value );
+}
+
+function is_scalar( Value )
+{
+	return ( Value === null ) || ( typeof Value !== 'object' );
+}
+
+function scalar_text( Value )
+{
+	if ( typeof Value === 'string' ) { return Value; }
+	if ( typeof Value === 'undefined' ) { return ''; }
+	return JSON.stringify( Value );
+}
+
+
+function object_text( Value )
+{
+	let lines = '';
+	let keys = Object.keys( Value );
+	for ( let index = 0; index < keys.length; index++ )
+	{
+		let item = Value[ keys[ index ] ];
+		if ( Array.isArray( item ) && item.length > 0 && item.every( is_scalar ) )
+		{
+			lines += keys[ index ] + ':\n';
+			for ( let element = 0; element < item.length; element++ ) { lines += '  ' + scalar_text( item[ element ] ) + '\n'; }
+			continue;
+		}
+		lines += keys[ index ] + ': ' + ( is_scalar( item ) ? scalar_text( item ) : JSON.stringify( item ) ) + '\n';
+	}
+	return lines;
+}
+
+
+function FormatText( Value )
+{
+	if ( typeof Value === 'undefined' ) { return ''; }
+	if ( is_scalar( Value ) ) { return scalar_text( Value ) + '\n'; }
+	if ( Array.isArray( Value ) )
+	{
+		if ( Value.every( is_plain_object ) ) { return Value.map( object_text ).join( '\n' ); }
+		return Value.map( function ( Item ) { return ( is_scalar( Item ) ? scalar_text( Item ) : JSON.stringify( Item ) ) + '\n'; } ).join( '' );
+	}
+	return object_text( Value );
+}
+
+
+function cell( Value )
+{
+	let text = ( typeof Value === 'undefined' ) ? '' : ( is_scalar( Value ) ? scalar_text( Value ) : JSON.stringify( Value ) );
+	text = text.replace( /\s*[\r\n]+\s*/g, ' ' );
+	if ( text.length > CELL_WIDTH ) { text = text.slice( 0, CELL_WIDTH - 3 ) + '...'; }
+	return text;
+}
+
+
+function FormatTable( Value )
+{
+	if ( !Array.isArray( Value ) || Value.length === 0 || !Value.every( is_plain_object ) ) { return FormatText( Value ); }
+
+	let columns = [];
+	for ( let index = 0; index < Value.length; index++ )
+	{
+		let keys = Object.keys( Value[ index ] );
+		for ( let key = 0; key < keys.length; key++ )
+		{
+			if ( !columns.includes( keys[ key ] ) ) { columns.push( keys[ key ] ); }
+		}
+	}
+
+	let rows = Value.map( function ( Row ) { return columns.map( function ( Column ) { return cell( Row[ Column ] ); } ); } );
+	let widths = columns.map( function ( Column, Position )
+	{
+		let width = cell( Column ).length;
+		for ( let index = 0; index < rows.length; index++ ) { width = Math.max( width, rows[ index ][ Position ].length ); }
+		return width;
+	} );
+
+	function line( Cells )
+	{
+		return Cells.map( function ( Text, Position ) { return ( Position === Cells.length - 1 ) ? Text : Text.padEnd( widths[ Position ] ); } ).join( '  ' ).replace( /\s+$/, '' ) + '\n';
+	}
+
+	let text = line( columns.map( cell ) );
+	text += line( widths.map( function ( Width ) { return '-'.repeat( Width ); } ) );
+	for ( let index = 0; index < rows.length; index++ ) { text += line( rows[ index ] ); }
+	return text;
+}
+
+
+//---------------------------------------------------------------------
+// The result, as --output asks: `json` pretty with tabs, `jsonl` one line per element of an array
+// (one line for anything else, nothing for an empty array), `text` or `table`.
 
 function FormatResult( Output, Value )
 {
+	if ( Output === 'text' ) { return FormatText( Value ); }
+	if ( Output === 'table' ) { return FormatTable( Value ); }
 	if ( Output === 'jsonl' )
 	{
 		if ( Array.isArray( Value ) )
@@ -184,6 +294,9 @@ function FormatPlan( Plan )
 
 //---------------------------------------------------------------------
 module.exports = {
+	CELL_WIDTH: CELL_WIDTH,
+	FormatText: FormatText,
+	FormatTable: FormatTable,
 	FormatResult: FormatResult,
 	WriteResult: WriteResult,
 	FormatFinding: FormatFinding,

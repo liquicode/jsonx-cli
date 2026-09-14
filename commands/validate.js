@@ -90,7 +90,7 @@ module.exports = {
 	Command: 'validate',
 	Describe: 'Report the findings for the file, or for one entry of it.',
 	Positionals: [
-		{ Name: 'name', Type: 'string', Describe: 'The data source, object or trigger to validate; absent means the whole file.' },
+		{ Name: 'name', Type: 'string', Complete: 'entries', Describe:'The data source, object or trigger to validate; absent means the whole file.' },
 	],
 	Options: {
 		'strict': { Type: 'boolean', Describe: 'Exit 3 on warnings as well as errors.' },

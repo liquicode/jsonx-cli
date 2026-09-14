@@ -24,6 +24,8 @@ module.exports = {
 			Parser: require( './CommandLine/Parser.js' ),
 			Help: require( './CommandLine/Help.js' ),
 			InputJson: require( './CommandLine/InputJson.js' ),
+			Complete: require( './CommandLine/Complete.js' ),
+			CompletionScripts: require( './CommandLine/CompletionScripts.js' ),
 		},
 		File: {
 			Reader: require( './File/Reader.js' ),

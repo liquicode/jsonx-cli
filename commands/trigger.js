@@ -41,7 +41,7 @@ module.exports = {
 		Command: 'run',
 		Describe: 'Run a trigger by hand: its Process over its data source.',
 		Positionals: [
-			{ Name: 'name', Type: 'string', Required: true, Describe: 'The trigger to run.' },
+			{ Name: 'name', Type: 'string', Required: true, Complete: 'triggers', Describe: 'The trigger to run.' },
 		],
 		Options: Object.assign( {}, SessionCommand.RUN_OPTIONS ),
 		Handler: run_handler,
