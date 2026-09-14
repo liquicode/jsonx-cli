@@ -23,6 +23,15 @@
 	***Every storage call goes through call_storage.*** With Statistics on, it asks jsonstor for the
 	call's measurement (`Options.Statistics`), unwraps `{ Result, Statistics }`, and records the
 	measurement on the report of the object which made the call.
+
+	***An ad hoc verb runs here too*** (cut 2): `RunEntry` runs an object built from a command line
+	through the same kind functions, and `RunCall` makes one storage call under a report of its
+	own, so statistics, trace lines and trigger firings land in one place either way.
+
+	***A data source's primary key is read from `PrimaryKeyInfo`, else from `StorageInfo()`.*** A
+	filter built on `StorageInterface()` does not carry `PrimaryKeyInfo` up (measured 2026-09-13:
+	behind `jsonstor-oplog` it is undefined, and `StorageInfo().PrimaryKey` still answers), so
+	without the second source an Update behind any filter would measure Changed against `_id`.
 */
 
 const jsongin = require( '@liquicode/jsongin' );
@@ -46,6 +55,19 @@ const HOST_PARAMETERS = {
 	DeleteOne: [ 'Criteria' ],
 	DeleteMany: [ 'Criteria' ],
 };
+
+// Every storage function the runner may call: the host functions, and the four which ask about or
+// act on the storage itself, for the ad hoc verbs. ***Not host functions***: a process cannot call
+// these, because spec 12.7 names the eleven.
+const STORAGE_PARAMETERS = Object.assign( {
+	FlushStorage: [],
+	DropStorage: [],
+	RefreshIndex: [],
+	StorageInfo: [],
+}, HOST_PARAMETERS );
+
+// The report name of a run no object of the file made.
+const AD_HOC = '(ad hoc)';
 
 
 //---------------------------------------------------------------------
@@ -102,6 +124,12 @@ function NewRunner( Options )
 
 		// Firings with no object running, such as a storage call made from outside a run.
 		Fired: [],
+
+		// Trace lines with no object running.
+		Trace: [],
+
+		// Each data source's primary key fields, once read.
+		KeyFields: {},
 	};
 
 
@@ -117,7 +145,48 @@ function NewRunner( Options )
 	//---------------------------------------------------------------------
 	function new_report( Name, Kind )
 	{
-		return { Name: Name, Kind: Kind, Ok: true, Result: undefined, Summary: '', Ms: 0, Error: null, Calls: [], Fired: [], Statistics: [] };
+		return { Name: Name, Kind: Kind, Ok: true, Result: undefined, Summary: '', Ms: 0, Error: null, Calls: [], Fired: [], Statistics: [], Trace: [] };
+	}
+
+
+	//---------------------------------------------------------------------
+	// A trace line, recorded on the report of the object running now (Session.js hands this to
+	// the jsonstor-oplog filter).
+
+	runner.RecordTrace = function ( Line )
+	{
+		let report = runner.Stack[ runner.Stack.length - 1 ];
+		if ( report ) { report.Trace.push( Line ); }
+		else { runner.Trace.push( Line ); }
+		return;
+	};
+
+
+	//---------------------------------------------------------------------
+	// A data source's primary key fields: PrimaryKeyInfo, else StorageInfo().PrimaryKey, else _id.
+
+	async function key_fields( DataSourceName, Storage )
+	{
+		if ( Object.prototype.hasOwnProperty.call( runner.KeyFields, DataSourceName ) ) { return runner.KeyFields[ DataSourceName ]; }
+
+		let fields = null;
+		if ( is_object( Storage.PrimaryKeyInfo ) && Array.isArray( Storage.PrimaryKeyInfo.Fields ) && Storage.PrimaryKeyInfo.Fields.length > 0 )
+		{
+			fields = Storage.PrimaryKeyInfo.Fields;
+		}
+		else
+		{
+			try
+			{
+				let info = await Storage.StorageInfo();
+				if ( is_object( info ) && Array.isArray( info.PrimaryKey ) && info.PrimaryKey.length > 0 ) { fields = info.PrimaryKey; }
+			}
+			catch ( error ) { /* an adapter which cannot answer keeps the default */ }
+		}
+		if ( fields === null ) { fields = [ '_id' ]; }
+
+		runner.KeyFields[ DataSourceName ] = fields;
+		return fields;
 	}
 
 
@@ -129,7 +198,7 @@ function NewRunner( Options )
 		let storage = runner.DataSources.Open( DataSourceName );
 		if ( !runner.Statistics ) { return await storage[ FunctionName ]( ...Parameters ); }
 
-		let options_index = HOST_PARAMETERS[ FunctionName ].length;
+		let options_index = STORAGE_PARAMETERS[ FunctionName ].length;
 		let parameters = Parameters.slice( 0, options_index );
 		while ( parameters.length < options_index ) { parameters.push( null ); }
 		parameters.push( { Statistics: true } );
@@ -148,7 +217,77 @@ function NewRunner( Options )
 
 	runner.RunObject = async function ( Name, Input )
 	{
-		let entry = object_named( Name );
+		return await run_entry( Name, object_named( Name ), Input );
+	};
+
+
+	//---------------------------------------------------------------------
+	// Runs an object which is not in the file - one an ad hoc verb built - under its own Name, or
+	// `(ad hoc)` when it has none. The caller validates it first.
+
+	runner.RunEntry = async function ( Entry, Input )
+	{
+		let name = ( is_object( Entry ) && typeof Entry.Name === 'string' ) ? Entry.Name : AD_HOC;
+		return await run_entry( name, is_object( Entry ) ? Entry : null, Input );
+	};
+
+
+	//---------------------------------------------------------------------
+	// Makes one storage call under a report of its own, `(ad hoc)` with the function as its Kind.
+	// Returns the report; a refused call is a failed report, as an object's is.
+
+	runner.RunCall = async function ( DataSourceName, FunctionName, Parameters )
+	{
+		let report = new_report( AD_HOC, FunctionName );
+		let parent = runner.Stack[ runner.Stack.length - 1 ];
+		if ( parent ) { parent.Calls.push( report ); }
+
+		let started = Date.now();
+		runner.Stack.push( report );
+		try
+		{
+			if ( !Object.prototype.hasOwnProperty.call( STORAGE_PARAMETERS, FunctionName ) ) { throw new RunError( 'The runner makes no storage call named [' + FunctionName + '].', 'BadCall' ); }
+			let parameters = Array.isArray( Parameters ) ? Parameters.map( clone ) : [];
+			let result = await call_storage( DataSourceName, FunctionName, parameters );
+			report.Result = result;
+			report.Summary = call_summary( FunctionName, result );
+		}
+		catch ( error )
+		{
+			report.Ok = false;
+			report.Result = undefined;
+			report.Error = { Code: error.Code || 'RunFailed', Message: error.message };
+		}
+		finally
+		{
+			runner.Stack.pop();
+			report.Ms = Date.now() - started;
+		}
+		return report;
+	};
+
+
+	//---------------------------------------------------------------------
+	function call_summary( FunctionName, Result )
+	{
+		if ( FunctionName === 'Count' ) { return 'counted ' + Result; }
+		if ( FunctionName === 'FindOne' ) { return ( Result === null || typeof Result === 'undefined' ) ? 'found none' : 'found 1'; }
+		if ( FunctionName === 'ReplaceOne' ) { return 'replaced ' + Result; }
+		if ( FunctionName === 'FlushStorage' ) { return 'flushed'; }
+		if ( FunctionName === 'DropStorage' ) { return 'dropped'; }
+		if ( FunctionName === 'RefreshIndex' )
+		{
+			let count = Number( Result ) || 0;
+			return 'rebuilt ' + count + ' index ' + ( count === 1 ? 'entry' : 'entries' );
+		}
+		return 'answered';
+	}
+
+
+	//---------------------------------------------------------------------
+	async function run_entry( Name, Entry, Input )
+	{
+		let entry = Entry;
 		let report = new_report( Name, entry ? entry.Kind : null );
 
 		let parent = runner.Stack[ runner.Stack.length - 1 ];
@@ -173,7 +312,7 @@ function NewRunner( Options )
 			report.Ms = Date.now() - started;
 		}
 		return report;
-	};
+	}
 
 
 	//---------------------------------------------------------------------
@@ -250,9 +389,8 @@ function NewRunner( Options )
 		let selected = await call_storage( Entry.DataSource, first_only ? 'UpdateOne' : 'UpdateMany', [ Entry.Criteria, clone( Entry.Update ) ] );
 
 		let changed = selected;
-		let key_fields = ( is_object( storage.PrimaryKeyInfo ) && Array.isArray( storage.PrimaryKeyInfo.Fields ) && storage.PrimaryKeyInfo.Fields.length > 0 )
-			? storage.PrimaryKeyInfo.Fields : [ '_id' ];
-		let criteria = Triggers.CriteriaForDocuments( before, key_fields );
+		let fields = await key_fields( Entry.DataSource, storage );
+		let criteria = Triggers.CriteriaForDocuments( before, fields );
 
 		if ( criteria !== null )
 		{
@@ -261,10 +399,10 @@ function NewRunner( Options )
 			changed = 0;
 			for ( let index = 0; index < before.length; index++ )
 			{
-				let key = JSON.stringify( key_fields.map( function ( Field ) { return jsongin.GetValue( before[ index ], Field ); } ) );
+				let key = JSON.stringify( fields.map( function ( Field ) { return jsongin.GetValue( before[ index ], Field ); } ) );
 				let now = after.find( function ( Document )
 				{
-					return JSON.stringify( key_fields.map( function ( Field ) { return jsongin.GetValue( Document, Field ); } ) ) === key;
+					return JSON.stringify( fields.map( function ( Field ) { return jsongin.GetValue( Document, Field ); } ) ) === key;
 				} );
 				if ( !now || !jsongin.StrictEquals( before[ index ], now ) ) { changed++; }
 			}
@@ -440,6 +578,8 @@ function NewRunner( Options )
 //---------------------------------------------------------------------
 module.exports = {
 	HOST_PARAMETERS: HOST_PARAMETERS,
+	STORAGE_PARAMETERS: STORAGE_PARAMETERS,
+	AD_HOC: AD_HOC,
 	RunError: RunError,
 	NewRunner: NewRunner,
 };

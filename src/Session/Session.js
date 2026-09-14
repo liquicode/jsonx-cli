@@ -21,6 +21,10 @@ const Runner = require( './Runner.js' );
 const Triggers = require( './Triggers.js' );
 
 
+// The built-in jsonstor filter --trace stacks.
+const TRACE_FILTER = 'jsonstor-oplog';
+
+
 //---------------------------------------------------------------------
 class SessionError extends Error
 {
@@ -48,6 +52,9 @@ function is_object( Value )
 //		jsonstor       an instance to use; a new one when absent
 //		Require        how the catalog loads adapter packages; `require` when absent
 //		MaxSteps, MaxCalls   process host limits
+//		Statistics     true to measure every storage call (--verbose)
+//		Trace          true to stack jsonstor-oplog over every data source and record its lines
+//		               on the report of the object making each call (--trace, plan F6.2)
 
 function NewSession( Options )
 {
@@ -121,7 +128,35 @@ function NewSession( Options )
 				Settings: { DataSource: Name, Triggers: watching, Session: trigger_session },
 			} ];
 		},
+		OuterFilters: function ()
+		{
+			if ( options.Trace !== true ) { return []; }
+			return [ {
+				FilterName: TRACE_FILTER,
+				Settings: {
+					LogTo: record_trace,
+					ErrorTo: record_trace,
+					// ***No timestamp***: the report already says how long each object took, and a
+					// clock in every line makes two runs impossible to compare.
+					IncludeTimestamp: false,
+					IncludeDuration: true,
+					IncludePluginName: true,
+					IncludeParameters: true,
+				},
+			} ];
+		},
 	} );
+
+
+	//---------------------------------------------------------------------
+	// jsonstor-oplog writes a blank line before each call; the report has its own layout.
+
+	function record_trace( Line )
+	{
+		if ( typeof Line !== 'string' || Line.trim() === '' ) { return; }
+		session.Runner.RecordTrace( Line );
+		return;
+	}
 
 	session.Runner = Runner.NewRunner( {
 		Document: session.Document, DataSources: session.DataSources, Host: session.Host, Statistics: ( options.Statistics === true ),

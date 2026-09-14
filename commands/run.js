@@ -18,7 +18,7 @@ const Names = require( '../src/File/Names.js' );
 //---------------------------------------------------------------------
 async function handler( Parsed, Context )
 {
-	let opened = await SessionCommand.OpenSession( Parsed, Context, { Statistics: Context.Parser.Value( Context.Tree, Parsed, 'verbose' ) } );
+	let opened = await SessionCommand.OpenSession( Parsed, Context, SessionCommand.RunExtras( Parsed, Context ) );
 	if ( typeof opened.ExitCode === 'number' ) { return opened.ExitCode; }
 
 	let name = Context.Parser.Value( Context.Tree, Parsed, 'name' );

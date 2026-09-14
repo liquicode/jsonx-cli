@@ -162,6 +162,10 @@ function noun_group( Noun )
 			Options: Object.assign( { 'rows': { Type: 'integer', Default: Inspect.DEFAULT_ROWS, Describe: 'How many rows to read.' } }, SessionCommand.SESSION_OPTIONS ),
 			Handler: inspect_handler( 'describe' ),
 		} );
+
+		// The storage verbs (plan F3.7), and ping.
+		group.Commands = group.Commands.concat( require( './storage.js' ).Commands );
+		group.Describe = 'Manage the file\'s data sources, and read and write the documents in them.';
 	}
 
 	if ( Noun === 'trigger' ) { group.Commands.push( TriggerCommand.RunCommand ); }

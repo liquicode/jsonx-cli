@@ -100,6 +100,16 @@ function FormatRunReport( RunReport, Depth, Options )
 		}
 	}
 
+	// ***What jsonstor-oplog saw***, with --trace: each storage call this object made, its
+	// parameters and its result, as the filter writes them.
+	if ( options.Trace === true && Array.isArray( RunReport.Trace ) )
+	{
+		for ( let index = 0; index < RunReport.Trace.length; index++ )
+		{
+			lines += indent + '  | ' + RunReport.Trace[ index ] + '\n';
+		}
+	}
+
 	for ( let index = 0; index < RunReport.Calls.length; index++ ) { lines += FormatRunReport( RunReport.Calls[ index ], depth + 1, options ); }
 	for ( let index = 0; index < RunReport.Fired.length; index++ ) { lines += FormatRunReport( RunReport.Fired[ index ], depth + 1, options ); }
 

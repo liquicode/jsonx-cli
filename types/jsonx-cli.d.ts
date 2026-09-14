@@ -64,6 +64,8 @@ declare module '@liquicode/jsonx-cli'
 		Calls: RunReport[];
 		Fired: RunReport[];
 		Statistics: CallStatistics[];
+		/** What jsonstor-oplog wrote for this object's storage calls, with Trace on. */
+		Trace: string[];
 		/** Present on a Process a trigger started, and on a trigger run by hand. */
 		Trigger?: string;
 	}
@@ -143,6 +145,8 @@ declare module '@liquicode/jsonx-cli'
 		Options?: { [ Name: string ]: OptionDeclaration };
 		GlobalOptions?: { [ Name: string ]: OptionDeclaration };
 		Handler?: ( Parsed: ParsedArguments, Context: any ) => Promise<number>;
+		/** The library functions the command reaches, such as 'jsonstor.FindMany2' (plan F3.12). */
+		Library?: string[];
 	}
 
 	/** A parsed command line. */
@@ -353,6 +357,10 @@ declare module '@liquicode/jsonx-cli'
 	export interface RunnerModule
 	{
 		HOST_PARAMETERS: { [ FunctionName: string ]: string[] };
+		/** The host functions and the four storage functions only the ad hoc verbs make. */
+		STORAGE_PARAMETERS: { [ FunctionName: string ]: string[] };
+		/** The report name of a run no object of the file made. */
+		AD_HOC: string;
 		RunError: new ( Message: string, Code?: string ) => Error;
 		NewRunner( Options: JsonDocument ): any;
 	}
@@ -360,7 +368,7 @@ declare module '@liquicode/jsonx-cli'
 	export interface SessionModule
 	{
 		SessionError: new ( Message: string ) => Error;
-		NewSession( Options: { Document: JsonDocument; Path?: string; Binds?: string[]; Sets?: string[]; Env?: JsonDocument; Cwd?: string; jsonstor?: any; Require?: ( PackageName: string ) => any; MaxSteps?: number; MaxCalls?: number; Statistics?: boolean } ): Session;
+		NewSession( Options: { Document: JsonDocument; Path?: string; Binds?: string[]; Sets?: string[]; Env?: JsonDocument; Cwd?: string; jsonstor?: any; Require?: ( PackageName: string ) => any; MaxSteps?: number; MaxCalls?: number; Statistics?: boolean; Trace?: boolean } ): Session;
 	}
 
 	export interface PlanModule
@@ -375,13 +383,35 @@ declare module '@liquicode/jsonx-cli'
 		Describe( Session: Session, Name: string, Rows?: number ): Promise<{ Name: string; Schema: JsonDocument; Samples: JsonDocument[] }>;
 	}
 
+	/** One ad hoc storage verb. */
+	export interface VerbDeclaration
+	{
+		Kind: 'Query' | 'Insert' | 'Update' | 'Delete' | null;
+		Functions: string[];
+		Guard: 'criteria' | 'always' | null;
+		Describe: string;
+	}
+
+	export interface VerbsModule
+	{
+		VERBS: { [ Verb: string ]: VerbDeclaration };
+		VerbError: new ( Message: string ) => Error;
+		/** The object a verb with a kind stands for. Values are named as the command's options are. */
+		BuildObject( Verb: string, DataSource: string, Values: JsonDocument, Name?: string ): JsonDocument;
+		/** Why the verb is refused without --yes, or null. */
+		Guard( Verb: string, Values: JsonDocument ): string | null;
+		/** The errors a built object has under the file's rules; paths read `(ad hoc)...`. */
+		ValidateObject( Document: JsonDocument, Entry: JsonDocument, ValidateOptions?: JsonDocument ): Finding[];
+		Run( Session: Session, Verb: string, DataSource: string, Values: JsonDocument ): Promise<RunReport>;
+	}
+
 	export interface ReportModule
 	{
 		FormatResult( Output: 'json' | 'jsonl', Value: any ): string;
 		WriteResult( Io: Io, Output: 'json' | 'jsonl', Value: any ): void;
 		FormatFinding( Finding: Finding ): string;
 		FormatSummary( Label: string, Summary: { Errors: number; Warnings: number; Notes: number } ): string;
-		FormatRunReport( RunReport: RunReport, Depth?: number, Options?: { Statistics?: boolean } ): string;
+		FormatRunReport( RunReport: RunReport, Depth?: number, Options?: { Statistics?: boolean; Trace?: boolean } ): string;
 		FormatPlan( Plan: Plan ): string;
 	}
 
@@ -416,6 +446,9 @@ declare module '@liquicode/jsonx-cli'
 			Session: SessionModule;
 			Plan: PlanModule;
 			Inspect: InspectModule;
+		};
+		Storage: {
+			Verbs: VerbsModule;
 		};
 		Report: ReportModule;
 	}

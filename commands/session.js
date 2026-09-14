@@ -32,13 +32,25 @@ const SESSION_OPTIONS = {
 // The commands which run objects.
 const RUN_OPTIONS = Object.assign( {
 	'verbose': { Type: 'boolean', Alias: 'v', Describe: 'Add what each storage call measured to the report.' },
+	'trace': { Type: 'boolean', Describe: 'Add every storage call, with its parameters and result, to the report.' },
 }, SESSION_OPTIONS );
+
+
+//---------------------------------------------------------------------
+// What a command with RUN_OPTIONS asks of its session.
+
+function RunExtras( Parsed, Context )
+{
+	let value = function ( Name ) { return Context.Parser.Value( Context.Tree, Parsed, Name ); };
+	return { Statistics: value( 'verbose' ), Trace: value( 'trace' ) };
+}
 
 
 //---------------------------------------------------------------------
 // Opens a session for a command. Returns { Session, Path } or { ExitCode } when it cannot.
 //
-// Extra.Statistics measures every storage call the session's runner makes.
+// Extra.Statistics measures every storage call the session's runner makes; Extra.Trace records
+// each one with jsonstor-oplog.
 
 async function OpenSession( Parsed, Context, Extra )
 {
@@ -79,6 +91,7 @@ async function OpenSession( Parsed, Context, Extra )
 			Env: io.Env,
 			Cwd: io.Cwd,
 			Statistics: ( extra.Statistics === true ),
+			Trace: ( extra.Trace === true ),
 		} );
 	}
 	catch ( error )
@@ -121,7 +134,7 @@ async function FinishRun( RunReport, Session_, Parsed, Context )
 
 	try
 	{
-		if ( !value( 'quiet' ) ) { io.Stderr( Report.FormatRunReport( RunReport, 0, { Statistics: value( 'verbose' ) } ) ); }
+		if ( !value( 'quiet' ) ) { io.Stderr( Report.FormatRunReport( RunReport, 0, { Statistics: value( 'verbose' ), Trace: value( 'trace' ) } ) ); }
 		if ( RunReport.Ok ) { Report.WriteResult( io, value( 'output' ), RunReport.Result ); }
 	}
 	finally
@@ -136,6 +149,7 @@ async function FinishRun( RunReport, Session_, Parsed, Context )
 module.exports = {
 	SESSION_OPTIONS: SESSION_OPTIONS,
 	RUN_OPTIONS: RUN_OPTIONS,
+	RunExtras: RunExtras,
 	OpenSession: OpenSession,
 	FinishRun: FinishRun,
 };

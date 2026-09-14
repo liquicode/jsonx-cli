@@ -57,6 +57,8 @@ function is_object( Value )
 //		jsonstor       the instance storages are built from
 //		Catalog        an AdapterCatalog over that instance
 //		InnerFilters   function ( Name, Definition ) -> filter entries placed nearest the adapter
+//		OuterFilters   function ( Name, Definition ) -> filter entries placed over the file's own,
+//		               so they see each call as the runner made it (--trace)
 
 function NewDataSources( Options )
 {
@@ -139,6 +141,14 @@ function NewDataSources( Options )
 					Settings: Environment.Resolve( is_object( filter.Settings ) ? filter.Settings : {}, options.Env || {} ),
 				} );
 			}
+		}
+
+		// ***The session's outer filters are handed over as they are***: their settings carry
+		// functions, and nothing in them came from the file.
+		if ( typeof options.OuterFilters === 'function' )
+		{
+			let outer = options.OuterFilters( Name, Definition );
+			if ( Array.isArray( outer ) ) { filters = filters.concat( outer ); }
 		}
 		return filters;
 	}
