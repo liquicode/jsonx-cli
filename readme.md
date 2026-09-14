@@ -1,7 +1,8 @@
 # jsonx-cli
 
 The jsonx command line: validate, plan, run, debug and edit a `.jsonx` file, work with the
-documents in its data sources, and use jsongin on its own.
+documents in its data sources, use jsongin on its own, and serve the file to programs over HTTP or
+MCP.
 
 A `.jsonx` file holds the data sources a piece of work uses, the operations on them, and the
 triggers that run a process when data changes. The format is defined in
@@ -49,6 +50,8 @@ says what it tried. `engine`, `adapters`, `new` and `completion` read no file, a
 | `jsonx new <kind>` | A skeleton to start from: a file, or one entry. |
 | `jsonx format` | Rewrite the file in canonical order. `--check` only reports. |
 | `jsonx completion <shell>` | The completion script for `bash`, `zsh` or `powershell`. |
+| `jsonx serve --api` | Serve the file's commands over HTTP until stopped. See [Serving the file](#serving-the-file). |
+| `jsonx mcp` | Serve the file's commands as MCP tools, over standard input and output or `--http`. |
 
 The nouns are `datasource`, `query`, `insert`, `update`, `delete`, `process` and `trigger`.
 `data` is another name for `datasource`. `jsonx --help`, and `--help` after any command, lists
@@ -109,8 +112,8 @@ b-1      R. Okafor  B
 | Code | Meaning |
 |---|---|
 | 0 | Done. |
-| 1 | What ran failed, a debug was stopped before it finished, `format --check` found a change, or the file could not be read. |
-| 2 | A mistake in the command: an unknown option, a name that is not in the file, no file found, or a change refused for want of `--yes`. |
+| 1 | What ran failed, a debug was stopped before it finished, `format --check` found a change, the file could not be read, or a server could not use its port. |
+| 2 | A mistake in the command: an unknown option, a name that is not in the file, no file found, a change refused for want of `--yes`, or a server address other than loopback with no token. |
 | 3 | The file has errors, an edit was refused, or jsongin refused a criteria, update or schema. Nothing ran and nothing was written. |
 
 ***A file with errors runs nothing.*** Every command that opens a data source validates the whole
@@ -328,8 +331,9 @@ Write a setting as `${env:NAME}` to take it from the environment variable `NAME`
 ```
 
 The reference can sit inside a longer string. The value is read when the data source opens and is
-never printed: `show`, `plan`, `explain` and every report show the reference as written. `validate`
-warns when a variable is not set; a run that opens the data source fails.
+never printed: `show`, `plan`, `explain`, every report, every served answer and every MCP resource
+show the reference as written. `validate` warns when a variable is not set; a run that opens the
+data source fails.
 
 
 ## Editing
@@ -386,6 +390,121 @@ option is.
 ```
 
 `--input-json` must be the only argument. An option that takes JSON Lines takes an array here.
+
+
+## Serving the file
+
+`jsonx serve --api` and `jsonx mcp` hold the file open and answer its commands for other programs
+until they are stopped. Every served command answers the same object:
+
+```
+{ "Ok": true, "ExitCode": 0, "Result": [ ... ], "Findings": [], "Log": [ "Prepare the season  Process  ran once  9 ms", ... ] }
+```
+
+`Result` is what the command writes to standard output, `Log` is its report one line at a time,
+`Findings` are its findings, and `ExitCode` is its [exit code](#exit-codes). `Result` is left out
+when the command has none.
+
+### The Web API
+
+```
+jsonx serve --api --file observatory.jsonx
+```
+
+It serves at `http://127.0.0.1:3470` until Ctrl+C. `--port` picks another port, and `--port 0` a
+free one; the address is written to standard error.
+
+- `GET /` lists every command it answers, with its route, arguments and options.
+- `POST /<command>` runs a command: `POST /run`, `POST /datasource/find`,
+  `POST /engine/schema/infer`. The body is the command's [JSON document](#a-whole-command-as-json)
+  without `Command`.
+
+```
+{ "name": "Prepare the season" }
+```
+
+```
+curl -s -X POST http://127.0.0.1:3470/run -H "Content-Type: application/json" -d @run.json
+```
+
+```
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:3470/run -ContentType application/json -Body (Get-Content run.json -Raw)
+```
+
+The HTTP status follows the exit code:
+
+| Exit code | Status |
+|---|---|
+| 0 | 200 |
+| 1 | 500 |
+| 2 | 400 |
+| 3 | 422 |
+
+A command whose result is a list answers one JSON line per item when the request sends
+`Accept: application/x-ndjson`, then a last line with `Ok`, `ExitCode`, `Findings` and `Log`.
+
+### MCP
+
+```
+jsonx mcp --file observatory.jsonx
+```
+
+An MCP client starts `jsonx mcp` and talks to it over standard input and output. To add it to
+Claude Code:
+
+```
+claude mcp add jsonx -- node <checkout>/bin/jsonx.js mcp --file <path>/observatory.jsonx
+```
+
+`jsonx mcp --http` serves MCP at `http://127.0.0.1:3471/mcp` instead, with `--host`, `--port` and
+`--token` as for `serve`. It speaks MCP revision 2025-11-25, which the official MCP SDK speaks.
+
+- Each command is a tool named by its words joined with `_`: `run`, `datasource_find`,
+  `engine_schema_infer`. A tool's arguments are the command's JSON document without `Command`, and
+  it answers the object above.
+- ***`datasource_update`, `datasource_delete` and `datasource_drop` require `yes`.*** `yes: true`
+  confirms a call that touches every document or removes the store; a call without `yes` is refused.
+  Beside `save`, which runs nothing, `yes` is not needed.
+- The file is the resource `jsonx://file`, and each data source, object and trigger is
+  `jsonx://entry/<name>`.
+
+### What a request cannot change
+
+A request runs against the file and data sources the server was started with. `file`, `bind`,
+`set` and `quiet` are refused, and so is an `output` other than `json`. Give `--file`, `--bind` and
+`--set` to `jsonx serve` or `jsonx mcp` instead. `debug`, `completion`, `serve` and `mcp` are not
+served.
+
+### Who can call
+
+- ***`jsonx serve` and `jsonx mcp --http` bind to `127.0.0.1` by default***, and refuse a request
+  from a web page on another site. `jsonx mcp` over standard input and output listens on no address.
+- Any other `--host` needs a token, from `--token` or `JSONX_TOKEN`. Without one, the server does
+  not start.
+- With a token, every request must send `Authorization: Bearer <token>`.
+
+```
+jsonx serve --api --host 0.0.0.0 --token "a long random value"
+```
+
+### While it serves
+
+- ***Requests take turns*** for anything that opens a data source or changes the file, so each run
+  sees the data as the one before it left it. `validate`, `plan`, `explain`, `list`, `show`,
+  `engine`, `adapters` and `new` answer at once.
+- Data sources stay open between requests, so a `jsonstor-memory` store keeps what earlier requests
+  wrote.
+- ***A write through the server fires the file's triggers***, as the same write typed at the
+  command line would.
+- ***The file is watched.*** An edit saved to it while it is served is picked up between requests
+  and reported on standard error. A data source whose definition changed opens again from the new
+  definition; the others keep their data. A file that no longer reads as JSON is not picked up, and
+  the server keeps the file as it was.
+- An edit made through a request (`add`, `set`, `rename`, `format`, `--save`) writes the file and
+  takes effect from the next request.
+- ***A file with errors is still served***, so it can be fixed through requests. Until it is, every
+  run answers 422.
+- An environment variable is read when its data source opens. Restart the server to use a new value.
 
 
 ## Using the library
