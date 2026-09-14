@@ -31,6 +31,8 @@ module.exports = {
 			Names: require( './File/Names.js' ),
 			Schema: require( './File/Schema.js' ),
 			Edit: require( './File/Edit.js' ),
+			Skeletons: require( './File/Skeletons.js' ),
+			Format: require( './File/Format.js' ),
 		},
 		Validate: require( './Validate/Validate.js' ),
 		Explain: require( './Explain/Explain.js' ),

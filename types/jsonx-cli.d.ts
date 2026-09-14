@@ -282,6 +282,22 @@ declare module '@liquicode/jsonx-cli'
 		Rename( Document: JsonDocument, Noun: string, Name: string, NewName: string, Options?: { Force?: boolean; Validate?: JsonDocument } ): EditOutcome;
 	}
 
+	export interface SkeletonsModule
+	{
+		/** file, datasource, query, insert, update, delete, process, trigger. */
+		KINDS: string[];
+		/** A skeleton of a kind; Name replaces its Name. Throws for an unknown kind. */
+		Skeleton( Kind: string, Name?: string ): JsonDocument;
+	}
+
+	export interface FormatModule
+	{
+		/** A copy of the file in Appendix A's order, unknown fields after, arrays as they were. */
+		FormatDocument( Document: JsonDocument ): JsonDocument;
+		/** Whether a file's text already is the canonical text, line endings and a BOM aside. */
+		IsFormatted( Text: string, Canonical: string ): boolean;
+	}
+
 	export interface ValidateModule
 	{
 		KINDS: string[];
@@ -527,6 +543,8 @@ declare module '@liquicode/jsonx-cli'
 			Names: NamesModule;
 			Schema: SchemaModule;
 			Edit: EditModule;
+			Skeletons: SkeletonsModule;
+			Format: FormatModule;
 		};
 		Validate: ValidateModule;
 		Explain: ExplainModule;
