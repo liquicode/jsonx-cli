@@ -28,7 +28,7 @@ async function run_handler( Parsed, Context )
 	{
 		await opened.Session.Release();
 		if ( !( error instanceof Session.SessionError ) ) { throw error; }
-		Context.Io.Stderr( error.message + '\n' );
+		Context.Out.Log( error.message + '\n' );
 		return 2;
 	}
 	return await SessionCommand.FinishRun( report, opened.Session, Parsed, Context );

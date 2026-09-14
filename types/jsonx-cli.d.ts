@@ -548,6 +548,37 @@ declare module '@liquicode/jsonx-cli'
 		FormatPlan( Plan: Plan ): string;
 	}
 
+	/** What every mode answers for one command (plan F6.1). */
+	export interface ResultEnvelope
+	{
+		Ok: boolean;
+		ExitCode: number;
+		/** Absent when the command wrote no result. */
+		Result?: any;
+		Findings: Finding[];
+		/** The report, one line per element. */
+		Log: string[];
+	}
+
+	/** What a command writes through, as `Context.Out`. */
+	export interface Out
+	{
+		Result( Value: any ): void;
+		Finding( Finding: Finding ): void;
+		Log( Text: string ): void;
+		/** Text for a shell, written as it is. */
+		Text( Text: string ): void;
+		/** One JSON Lines record. */
+		Line( Value: any ): void;
+		Envelope( ExitCode: number ): ResultEnvelope;
+	}
+
+	export interface EnvelopeModule
+	{
+		/** With Stdout and Stderr, writes each piece as it arrives (the command line); without, only records. */
+		NewOut( Options?: { Stdout?: ( Text: string ) => void; Stderr?: ( Text: string ) => void; Output?: 'json' | 'jsonl' | 'text' | 'table' } ): Out;
+	}
+
 
 	//---------------------------------------------------------------------
 	// The library's components, by group.
@@ -591,6 +622,7 @@ declare module '@liquicode/jsonx-cli'
 		Engine: EngineModule;
 		Adapters: AdaptersModule;
 		Report: ReportModule;
+		Envelope: EnvelopeModule;
 	}
 
 

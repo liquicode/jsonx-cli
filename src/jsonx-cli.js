@@ -57,6 +57,7 @@ module.exports = {
 		Engine: require( './Engine/Engine.js' ),
 		Adapters: require( './Adapters/Adapters.js' ),
 		Report: require( './Report.js' ),
+		Envelope: require( './Envelope.js' ),
 	},
 
 };

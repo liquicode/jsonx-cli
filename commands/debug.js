@@ -27,16 +27,17 @@ const SessionCommand = require( './session.js' );
 async function handler( Parsed, Context )
 {
 	let io = Context.Io;
+	let out = Context.Out;
 	let value = function ( Name ) { return Context.Parser.Value( Context.Tree, Parsed, Name ); };
 
 	if ( Parsed.Given.output === true )
 	{
-		io.Stderr( 'Option [--output] does not apply to jsonx debug, which writes one JSON snapshot per line.\n' );
+		out.Log( 'Option [--output] does not apply to jsonx debug, which writes one JSON snapshot per line.\n' );
 		return 2;
 	}
 	if ( Parsed.StdinRead === true )
 	{
-		io.Stderr( 'jsonx debug reads its commands from standard input, so no value can be read from it with -. Use @file.\n' );
+		out.Log( 'jsonx debug reads its commands from standard input, so no value can be read from it with -. Use @file.\n' );
 		return 2;
 	}
 
@@ -53,11 +54,11 @@ async function handler( Parsed, Context )
 	{
 		await session.Release();
 		if ( !( error instanceof Debugger.DebugError ) ) { throw error; }
-		io.Stderr( error.message + '\n' );
+		out.Log( error.message + '\n' );
 		return 2;
 	}
 
-	let write = function ( Snapshot ) { io.Stdout( JSON.stringify( Snapshot ) + '\n' ); };
+	let write = function ( Snapshot ) { out.Line( Snapshot ); };
 
 	try
 	{
@@ -76,7 +77,7 @@ async function handler( Parsed, Context )
 		// ***The end of input stops the debug***, as quit does, and says so.
 		if ( !debug.Finished ) { write( await debug.Command( 'quit' ) ); }
 
-		if ( !value( 'quiet' ) ) { io.Stderr( Report.FormatRunReport( debug.Report, 0, { Statistics: value( 'verbose' ), Trace: value( 'trace' ) } ) ); }
+		if ( !value( 'quiet' ) ) { out.Log( Report.FormatRunReport( debug.Report, 0, { Statistics: value( 'verbose' ), Trace: value( 'trace' ) } ) ); }
 	}
 	finally
 	{

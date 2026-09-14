@@ -10,7 +10,6 @@
 */
 
 const Engine = require( '../src/Engine/Engine.js' );
-const Report = require( '../src/Report.js' );
 const FileCommand = require( './file.js' );
 
 
@@ -22,7 +21,7 @@ function handler_for( Verb )
 
 	return async function ( Parsed, Context )
 	{
-		let io = Context.Io;
+		let out = Context.Out;
 		let value = function ( Name ) { return Context.Parser.Value( Context.Tree, Parsed, Name ); };
 
 		let refused = FileCommand.RefuseFile( Parsed, Context, 'an engine command' );
@@ -39,14 +38,14 @@ function handler_for( Verb )
 		catch ( error )
 		{
 			if ( !( error instanceof Engine.EngineError ) ) { throw error; }
-			io.Stderr( error.message + '\n' );
+			out.Log( error.message + '\n' );
 			return 2;
 		}
 
-		if ( typeof answer.Result !== 'undefined' ) { Report.WriteResult( io, value( 'output' ), answer.Result ); }
+		if ( typeof answer.Result !== 'undefined' ) { out.Result( answer.Result ); }
 		if ( !value( 'quiet' ) )
 		{
-			for ( let index = 0; index < answer.Findings.length; index++ ) { io.Stderr( Report.FormatFinding( answer.Findings[ index ] ) ); }
+			for ( let index = 0; index < answer.Findings.length; index++ ) { out.Finding( answer.Findings[ index ] ); }
 		}
 		return ( answer.Findings.length > 0 ) ? 3 : 0;
 	};

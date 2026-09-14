@@ -22,7 +22,6 @@ const Verbs = require( '../src/Storage/Verbs.js' );
 const Edit = require( '../src/File/Edit.js' );
 const Writer = require( '../src/File/Writer.js' );
 const DataSources = require( '../src/Session/DataSources.js' );
-const Report = require( '../src/Report.js' );
 const FileCommand = require( './file.js' );
 const SessionCommand = require( './session.js' );
 
@@ -74,6 +73,7 @@ function handler_for( Verb )
 	return async function ( Parsed, Context )
 	{
 		let io = Context.Io;
+		let out = Context.Out;
 		let value = function ( Name ) { return Context.Parser.Value( Context.Tree, Parsed, Name ); };
 
 		let values = {};
@@ -84,14 +84,14 @@ function handler_for( Verb )
 
 		if ( Parsed.Given.force === true && declared.includes( 'force' ) )
 		{
-			io.Stderr( 'Option [--force] has an effect only with --save.\n' );
+			out.Log( 'Option [--force] has an effect only with --save.\n' );
 			return 2;
 		}
 
 		let refusal = Verbs.Guard( Verb, values );
 		if ( refusal !== null )
 		{
-			io.Stderr( refusal + '\n' );
+			out.Log( refusal + '\n' );
 			return 2;
 		}
 
@@ -109,7 +109,7 @@ function handler_for( Verb )
 			catch ( error )
 			{
 				if ( !( error instanceof DataSources.DataSourceError ) ) { throw error; }
-				io.Stderr( error.message + '\n' );
+				out.Log( error.message + '\n' );
 				await session.Release();
 				return 2;
 			}
@@ -122,8 +122,8 @@ function handler_for( Verb )
 				} );
 				if ( errors.length > 0 )
 				{
-					for ( let index = 0; index < errors.length; index++ ) { io.Stderr( Report.FormatFinding( errors[ index ] ) ); }
-					io.Stderr( 'Nothing ran: the ' + verb.Kind + ' this command builds has errors.\n' );
+					for ( let index = 0; index < errors.length; index++ ) { out.Finding( errors[ index ] ); }
+					out.Log( 'Nothing ran: the ' + verb.Kind + ' this command builds has errors.\n' );
 					await session.Release();
 					return 3;
 				}
@@ -147,11 +147,12 @@ function handler_for( Verb )
 function save( Verb, DataSource, Values, Parsed, Context )
 {
 	let io = Context.Io;
+	let out = Context.Out;
 
 	let pointless = NOT_WITH_SAVE.filter( function ( Name ) { return Parsed.Given[ Name ] === true; } );
 	if ( pointless.length > 0 )
 	{
-		io.Stderr( 'Option [--' + pointless[ 0 ] + '] has no effect with --save, which runs nothing.\n' );
+		out.Log( 'Option [--' + pointless[ 0 ] + '] has no effect with --save, which runs nothing.\n' );
 		return 2;
 	}
 
@@ -167,24 +168,24 @@ function save( Verb, DataSource, Values, Parsed, Context )
 	catch ( error )
 	{
 		if ( !( error instanceof Edit.EditError ) ) { throw error; }
-		io.Stderr( error.message + '\n' );
+		out.Log( error.message + '\n' );
 		return 2;
 	}
 
 	let quiet = Context.Parser.Value( Context.Tree, Parsed, 'quiet' );
 	if ( !quiet )
 	{
-		for ( let index = 0; index < outcome.Findings.length; index++ ) { io.Stderr( Report.FormatFinding( outcome.Findings[ index ] ) ); }
+		for ( let index = 0; index < outcome.Findings.length; index++ ) { out.Finding( outcome.Findings[ index ] ); }
 	}
 	if ( !outcome.Ok )
 	{
-		if ( !quiet ) { io.Stderr( 'Refused: saving [' + Values.save + '] would add ' + outcome.Findings.length + ' error' + ( outcome.Findings.length === 1 ? '' : 's' ) + '. The file is unchanged; pass --force to save it anyway.\n' ); }
+		if ( !quiet ) { out.Log( 'Refused: saving [' + Values.save + '] would add ' + outcome.Findings.length + ' error' + ( outcome.Findings.length === 1 ? '' : 's' ) + '. The file is unchanged; pass --force to save it anyway.\n' ); }
 		return 3;
 	}
 
 	Writer.WriteFile( loaded.Path, loaded.Document, io.WriteFile ? io : null );
-	if ( !quiet ) { io.Stderr( 'saved ' + entry.Kind + ' [' + Values.save + ']: ' + loaded.Path + ' written. Nothing ran.\n' ); }
-	Report.WriteResult( io, Context.Parser.Value( Context.Tree, Parsed, 'output' ), outcome.Result );
+	if ( !quiet ) { out.Log( 'saved ' + entry.Kind + ' [' + Values.save + ']: ' + loaded.Path + ' written. Nothing ran.\n' ); }
+	out.Result( outcome.Result );
 	return 0;
 }
 

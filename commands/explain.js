@@ -12,14 +12,13 @@
 */
 
 const Explain = require( '../src/Explain/Explain.js' );
-const Report = require( '../src/Report.js' );
 const FileCommand = require( './file.js' );
 
 
 //---------------------------------------------------------------------
 async function handler( Parsed, Context )
 {
-	let io = Context.Io;
+	let out = Context.Out;
 	let value = function ( Name ) { return Context.Parser.Value( Context.Tree, Parsed, Name ); };
 
 	let loaded = FileCommand.LoadFile( Parsed, Context );
@@ -29,12 +28,12 @@ async function handler( Parsed, Context )
 	let explained = Explain.ExplainEntry( loaded.Document, name );
 	if ( explained === null )
 	{
-		io.Stderr( 'No entry is named [' + name + '] in ' + loaded.Path + '.\n' );
+		out.Log( 'No entry is named [' + name + '] in ' + loaded.Path + '.\n' );
 		return 2;
 	}
 
-	Report.WriteResult( io, value( 'output' ), explained );
-	if ( !value( 'quiet' ) ) { io.Stderr( explained.Lines.join( '\n' ) + '\n' ); }
+	out.Result( explained );
+	if ( !value( 'quiet' ) ) { out.Log( explained.Lines.join( '\n' ) + '\n' ); }
 	return 0;
 }
 

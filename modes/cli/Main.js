@@ -17,6 +17,7 @@ const jsonx_cli = require( '../../src/jsonx-cli.js' );
 const Parser = require( '../../src/CommandLine/Parser.js' );
 const Help = require( '../../src/CommandLine/Help.js' );
 const InputJson = require( '../../src/CommandLine/InputJson.js' );
+const Envelope = require( '../../src/Envelope.js' );
 const Commands = require( '../../commands/jsonx.js' );
 
 
@@ -49,8 +50,12 @@ function ProcessIo()
 
 
 //---------------------------------------------------------------------
-async function Main( Argv, Io, Tree )
+// Options.Out, when given, is the Out a handler writes through instead of the command line's own, so
+// a caller can read the envelope (src/Envelope.js). Parsing and help still write to Io.
+
+async function Main( Argv, Io, Tree, Options )
 {
+	let options = ( Options && typeof Options === 'object' ) ? Options : {};
 	let tree = Tree || Commands.TREE;
 	let argv = Array.isArray( Argv ) ? Argv : [];
 	let parsed = null;
@@ -93,7 +98,11 @@ async function Main( Argv, Io, Tree )
 		return EXIT_USAGE;
 	}
 
-	let context = { Tree: tree, Io: Io, Parser: Parser };
+	// ***The command line writes each piece of the envelope as it arrives***: the result on standard
+	// output, findings and report lines on standard error (src/Envelope.js).
+	let output = ( typeof Parser.OptionsAt( tree, parsed.Path ).output !== 'undefined' ) ? Parser.Value( tree, parsed, 'output' ) : 'json';
+	let out = options.Out || Envelope.NewOut( { Stdout: Io.Stdout, Stderr: Io.Stderr, Output: output } );
+	let context = { Tree: tree, Io: Io, Parser: Parser, Out: out };
 	return await node.Handler( parsed, context );
 }
 

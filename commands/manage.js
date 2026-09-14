@@ -16,7 +16,6 @@ const Edit = require( '../src/File/Edit.js' );
 const Writer = require( '../src/File/Writer.js' );
 const Inspect = require( '../src/Session/Inspect.js' );
 const DataSources = require( '../src/Session/DataSources.js' );
-const Report = require( '../src/Report.js' );
 const FileCommand = require( './file.js' );
 const SessionCommand = require( './session.js' );
 const TriggerCommand = require( './trigger.js' );
@@ -40,6 +39,7 @@ function edit_handler( Noun, Verb )
 	return async function ( Parsed, Context )
 	{
 		let io = Context.Io;
+		let out = Context.Out;
 		let value = values( Parsed, Context );
 
 		let loaded = FileCommand.LoadFile( Parsed, Context );
@@ -59,28 +59,28 @@ function edit_handler( Noun, Verb )
 		catch ( error )
 		{
 			if ( !( error instanceof Edit.EditError ) ) { throw error; }
-			io.Stderr( error.message + '\n' );
+			out.Log( error.message + '\n' );
 			return 2;
 		}
 
 		let quiet = value( 'quiet' );
 		if ( !quiet )
 		{
-			for ( let index = 0; index < outcome.Findings.length; index++ ) { io.Stderr( Report.FormatFinding( outcome.Findings[ index ] ) ); }
+			for ( let index = 0; index < outcome.Findings.length; index++ ) { out.Finding( outcome.Findings[ index ] ); }
 		}
 
 		if ( !outcome.Ok )
 		{
-			if ( !quiet ) { io.Stderr( 'Refused: this ' + Verb + ' would add ' + outcome.Findings.length + ' error' + ( outcome.Findings.length === 1 ? '' : 's' ) + '. The file is unchanged; pass --force to make it anyway.\n' ); }
+			if ( !quiet ) { out.Log( 'Refused: this ' + Verb + ' would add ' + outcome.Findings.length + ' error' + ( outcome.Findings.length === 1 ? '' : 's' ) + '. The file is unchanged; pass --force to make it anyway.\n' ); }
 			return 3;
 		}
 
 		if ( outcome.Read !== true )
 		{
 			Writer.WriteFile( loaded.Path, loaded.Document, io.WriteFile ? io : null );
-			if ( !quiet ) { io.Stderr( Verb + ' ' + Noun + ': ' + loaded.Path + ' written.\n' ); }
+			if ( !quiet ) { out.Log( Verb + ' ' + Noun + ': ' + loaded.Path + ' written.\n' ); }
 		}
-		Report.WriteResult( io, value( 'output' ), outcome.Result );
+		out.Result( outcome.Result );
 		return 0;
 	};
 }
@@ -101,13 +101,13 @@ function inspect_handler( Which )
 			let result = ( Which === 'info' )
 				? await Inspect.Info( opened.Session, name )
 				: await Inspect.Describe( opened.Session, name, value( 'rows' ) );
-			Report.WriteResult( Context.Io, value( 'output' ), result );
+			Context.Out.Result( result );
 			return 0;
 		}
 		catch ( error )
 		{
 			if ( !( error instanceof DataSources.DataSourceError ) ) { throw error; }
-			Context.Io.Stderr( error.message + '\n' );
+			Context.Out.Log( error.message + '\n' );
 			return /No data source is named/.test( error.message ) ? 2 : 1;
 		}
 		finally

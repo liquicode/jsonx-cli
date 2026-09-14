@@ -13,7 +13,6 @@
 */
 
 const Skeletons = require( '../src/File/Skeletons.js' );
-const Report = require( '../src/Report.js' );
 const FileCommand = require( './file.js' );
 
 
@@ -25,7 +24,7 @@ async function handler( Parsed, Context )
 	let refused = FileCommand.RefuseFile( Parsed, Context, 'jsonx new' );
 	if ( refused !== null ) { return refused; }
 
-	Report.WriteResult( Context.Io, value( 'output' ), Skeletons.Skeleton( value( 'kind' ), value( 'name' ) ) );
+	Context.Out.Result( Skeletons.Skeleton( value( 'kind' ), value( 'name' ) ) );
 	return 0;
 }
 

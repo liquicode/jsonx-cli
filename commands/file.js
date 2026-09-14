@@ -14,7 +14,6 @@ const jsonproc = require( '@liquicode/jsonproc' );
 const Reader = require( '../src/File/Reader.js' );
 const Validate = require( '../src/Validate/Validate.js' );
 const AdapterCatalog = require( '../src/Session/AdapterCatalog.js' );
-const Report = require( '../src/Report.js' );
 
 
 //---------------------------------------------------------------------
@@ -35,7 +34,7 @@ function LoadFile( Parsed, Context )
 	catch ( error )
 	{
 		if ( !( error instanceof Reader.FileError ) ) { throw error; }
-		io.Stderr( error.message + '\n' );
+		Context.Out.Log( error.message + '\n' );
 		return { ExitCode: error.IsUsage ? 2 : 1 };
 	}
 
@@ -44,8 +43,8 @@ function LoadFile( Parsed, Context )
 	if ( document === null || typeof document !== 'object' || Array.isArray( document ) )
 	{
 		let findings = ( read.Findings.length > 0 ) ? read.Findings : Validate.ValidateFile( document, {} );
-		for ( let index = 0; index < findings.length; index++ ) { io.Stderr( Report.FormatFinding( findings[ index ] ) ); }
-		io.Stderr( 'The file cannot be read as a jsonx file.\n' );
+		for ( let index = 0; index < findings.length; index++ ) { Context.Out.Finding( findings[ index ] ); }
+		Context.Out.Log( 'The file cannot be read as a jsonx file.\n' );
 		return { ExitCode: 3 };
 	}
 
@@ -67,7 +66,7 @@ function LoadFile( Parsed, Context )
 function RefuseFile( Parsed, Context, What )
 {
 	if ( Parsed.Given.file !== true ) { return null; }
-	Context.Io.Stderr( 'Option [--file] has no effect on ' + What + ', which reads no jsonx file.\n' );
+	Context.Out.Log( 'Option [--file] has no effect on ' + What + ', which reads no jsonx file.\n' );
 	return 2;
 }
 

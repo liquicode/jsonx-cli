@@ -55,6 +55,7 @@ function RunExtras( Parsed, Context )
 async function OpenSession( Parsed, Context, Extra )
 {
 	let io = Context.Io;
+	let out = Context.Out;
 	let extra = ( Extra && typeof Extra === 'object' ) ? Extra : {};
 	let value = function ( Name ) { return Context.Parser.Value( Context.Tree, Parsed, Name ); };
 
@@ -68,7 +69,7 @@ async function OpenSession( Parsed, Context, Extra )
 	catch ( error )
 	{
 		if ( !( error instanceof Reader.FileError ) ) { throw error; }
-		io.Stderr( error.message + '\n' );
+		out.Log( error.message + '\n' );
 		return { ExitCode: error.IsUsage ? 2 : 1 };
 	}
 
@@ -76,7 +77,7 @@ async function OpenSession( Parsed, Context, Extra )
 	if ( typeof read.Document === 'undefined' || read.Document === null || typeof read.Document !== 'object' || Array.isArray( read.Document ) )
 	{
 		let findings = read.Findings.length > 0 ? read.Findings : Validate.ValidateFile( read.Document, {} );
-		write_findings( io, resolved.Path, findings );
+		write_findings( out, resolved.Path, findings );
 		return { ExitCode: 3 };
 	}
 
@@ -97,7 +98,7 @@ async function OpenSession( Parsed, Context, Extra )
 	catch ( error )
 	{
 		if ( !( error instanceof Overrides.OverrideError ) ) { throw error; }
-		io.Stderr( error.message + '\n' );
+		out.Log( error.message + '\n' );
 		return { ExitCode: 2 };
 	}
 
@@ -106,8 +107,8 @@ async function OpenSession( Parsed, Context, Extra )
 	} );
 	if ( Validate.Summarize( findings ).Errors > 0 )
 	{
-		write_findings( io, resolved.Path, findings.filter( function ( Finding ) { return Finding.Severity === 'error'; } ) );
-		io.Stderr( 'Nothing ran: the file has errors. Run jsonx validate for every finding.\n' );
+		write_findings( out, resolved.Path, findings.filter( function ( Finding ) { return Finding.Severity === 'error'; } ) );
+		out.Log( 'Nothing ran: the file has errors. Run jsonx validate for every finding.\n' );
 		return { ExitCode: 3 };
 	}
 
@@ -116,10 +117,10 @@ async function OpenSession( Parsed, Context, Extra )
 
 
 //---------------------------------------------------------------------
-function write_findings( Io, Path, Findings )
+function write_findings( Out, Path, Findings )
 {
-	for ( let index = 0; index < Findings.length; index++ ) { Io.Stderr( Report.FormatFinding( Findings[ index ] ) ); }
-	Io.Stderr( Report.FormatSummary( Path, Validate.Summarize( Findings ) ) );
+	for ( let index = 0; index < Findings.length; index++ ) { Out.Finding( Findings[ index ] ); }
+	Out.Log( Report.FormatSummary( Path, Validate.Summarize( Findings ) ) );
 	return;
 }
 
@@ -129,13 +130,13 @@ function write_findings( Io, Path, Findings )
 
 async function FinishRun( RunReport, Session_, Parsed, Context )
 {
-	let io = Context.Io;
+	let out = Context.Out;
 	let value = function ( Name ) { return Context.Parser.Value( Context.Tree, Parsed, Name ); };
 
 	try
 	{
-		if ( !value( 'quiet' ) ) { io.Stderr( Report.FormatRunReport( RunReport, 0, { Statistics: value( 'verbose' ), Trace: value( 'trace' ) } ) ); }
-		if ( RunReport.Ok ) { Report.WriteResult( io, value( 'output' ), RunReport.Result ); }
+		if ( !value( 'quiet' ) ) { out.Log( Report.FormatRunReport( RunReport, 0, { Statistics: value( 'verbose' ), Trace: value( 'trace' ) } ) ); }
+		if ( RunReport.Ok ) { out.Result( RunReport.Result ); }
 	}
 	finally
 	{

@@ -25,7 +25,7 @@ function refuse_output( Parsed, Context, What )
 	let refused = FileCommand.RefuseFile( Parsed, Context, What );
 	if ( refused !== null ) { return refused; }
 	if ( Parsed.Given.output !== true ) { return null; }
-	Context.Io.Stderr( 'Option [--output] does not apply to ' + What + ', which writes text for a shell.\n' );
+	Context.Out.Log( 'Option [--output] does not apply to ' + What + ', which writes text for a shell.\n' );
 	return 2;
 }
 
@@ -35,7 +35,7 @@ async function script_handler( Parsed, Context )
 {
 	let refused = refuse_output( Parsed, Context, 'jsonx completion' );
 	if ( refused !== null ) { return refused; }
-	Context.Io.Stdout( CompletionScripts.Script( Context.Parser.Value( Context.Tree, Parsed, 'shell' ), Context.Tree.Command ) );
+	Context.Out.Text( CompletionScripts.Script( Context.Parser.Value( Context.Tree, Parsed, 'shell' ), Context.Tree.Command ) );
 	return 0;
 }
 
@@ -60,7 +60,7 @@ async function complete_handler( Parsed, Context )
 	try { candidates = Complete.Candidates( Context.Tree, words, Context.Io ); }
 	catch ( error ) { candidates = []; }
 
-	if ( candidates.length > 0 ) { Context.Io.Stdout( candidates.join( '\n' ) + '\n' ); }
+	if ( candidates.length > 0 ) { Context.Out.Text( candidates.join( '\n' ) + '\n' ); }
 	return 0;
 }
 

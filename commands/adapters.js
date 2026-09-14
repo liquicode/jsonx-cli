@@ -12,7 +12,6 @@
 */
 
 const Adapters = require( '../src/Adapters/Adapters.js' );
-const Report = require( '../src/Report.js' );
 const FileCommand = require( './file.js' );
 
 
@@ -24,7 +23,7 @@ function handler_for( Which )
 {
 	return async function ( Parsed, Context )
 	{
-		let io = Context.Io;
+		let out = Context.Out;
 		let value = function ( Name ) { return Context.Parser.Value( Context.Tree, Parsed, Name ); };
 
 		let refused = FileCommand.RefuseFile( Parsed, Context, 'an adapters command' );
@@ -41,14 +40,14 @@ function handler_for( Which )
 		catch ( error )
 		{
 			if ( !( error instanceof Adapters.AdaptersError ) ) { throw error; }
-			io.Stderr( error.message + '\n' );
+			out.Log( error.message + '\n' );
 			return 2;
 		}
 
-		Report.WriteResult( io, value( 'output' ), result );
+		out.Result( result );
 		if ( Which === 'info' && result.Installed === false && !value( 'quiet' ) )
 		{
-			io.Stderr( result.Package + ' is not installed here, so the names it answers to cannot be listed.\n' );
+			out.Log( result.Package + ' is not installed here, so the names it answers to cannot be listed.\n' );
 		}
 		return 0;
 	};

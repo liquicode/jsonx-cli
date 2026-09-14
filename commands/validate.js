@@ -25,10 +25,10 @@ async function handler( Parsed, Context )
 {
 	let tree = Context.Tree;
 	let io = Context.Io;
+	let out = Context.Out;
 	let value = function ( Name ) { return Context.Parser.Value( tree, Parsed, Name ); };
 
 	let name = value( 'name' );
-	let output = value( 'output' );
 	let quiet = value( 'quiet' );
 
 	let resolved = null;
@@ -41,7 +41,7 @@ async function handler( Parsed, Context )
 	catch ( error )
 	{
 		if ( !( error instanceof Reader.FileError ) ) { throw error; }
-		io.Stderr( error.message + '\n' );
+		out.Log( error.message + '\n' );
 		return error.IsUsage ? 2 : 1;
 	}
 
@@ -59,7 +59,7 @@ async function handler( Parsed, Context )
 			findings = Validate.ValidateEntry( read.Document, name, options );
 			if ( findings === null )
 			{
-				io.Stderr( 'No entry is named [' + name + '] in ' + resolved.Path + '.\n' );
+				out.Log( 'No entry is named [' + name + '] in ' + resolved.Path + '.\n' );
 				return 2;
 			}
 		}
@@ -69,14 +69,14 @@ async function handler( Parsed, Context )
 		}
 	}
 
-	Report.WriteResult( io, output, findings );
+	out.Result( findings );
 
 	let summary = Validate.Summarize( findings );
 	if ( !quiet )
 	{
-		for ( let index = 0; index < findings.length; index++ ) { io.Stderr( Report.FormatFinding( findings[ index ] ) ); }
+		for ( let index = 0; index < findings.length; index++ ) { out.Finding( findings[ index ] ); }
 		let label = ( typeof name === 'string' ) ? resolved.Path + ' [' + name + ']' : resolved.Path;
-		io.Stderr( Report.FormatSummary( label, summary ) );
+		out.Log( Report.FormatSummary( label, summary ) );
 	}
 
 	if ( summary.Errors > 0 ) { return 3; }

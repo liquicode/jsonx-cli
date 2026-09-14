@@ -36,18 +36,18 @@ async function handler( Parsed, Context )
 	catch ( error )
 	{
 		if ( !( error instanceof Overrides.OverrideError ) ) { throw error; }
-		io.Stderr( error.message + '\n' );
+		Context.Out.Log( error.message + '\n' );
 		return 2;
 	}
 
 	if ( plan === null )
 	{
-		io.Stderr( 'No object is named [' + name + '] in ' + loaded.Path + '.\n' );
+		Context.Out.Log( 'No object is named [' + name + '] in ' + loaded.Path + '.\n' );
 		return 2;
 	}
 
-	Report.WriteResult( io, value( 'output' ), plan );
-	if ( !value( 'quiet' ) ) { io.Stderr( Report.FormatPlan( plan ) ); }
+	Context.Out.Result( plan );
+	if ( !value( 'quiet' ) ) { Context.Out.Log( Report.FormatPlan( plan ) ); }
 
 	return plan.Findings.some( function ( Finding ) { return Finding.Severity === 'error'; } ) ? 3 : 0;
 }

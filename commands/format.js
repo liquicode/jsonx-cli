@@ -18,7 +18,6 @@
 const Format = require( '../src/File/Format.js' );
 const Reader = require( '../src/File/Reader.js' );
 const Writer = require( '../src/File/Writer.js' );
-const Report = require( '../src/Report.js' );
 const FileCommand = require( './file.js' );
 
 
@@ -38,14 +37,14 @@ async function handler( Parsed, Context )
 
 	if ( value( 'check' ) )
 	{
-		Report.WriteResult( io, value( 'output' ), { Path: loaded.Path, Changed: changed } );
-		if ( changed && !quiet ) { io.Stderr( loaded.Path + ' is not formatted. Run jsonx format to rewrite it.\n' ); }
+		Context.Out.Result( { Path: loaded.Path, Changed: changed } );
+		if ( changed && !quiet ) { Context.Out.Log( loaded.Path + ' is not formatted. Run jsonx format to rewrite it.\n' ); }
 		return changed ? 1 : 0;
 	}
 
 	if ( changed ) { Writer.WriteFile( loaded.Path, formatted, io.WriteFile ? io : null ); }
-	Report.WriteResult( io, value( 'output' ), { Path: loaded.Path, Changed: changed } );
-	if ( !quiet ) { io.Stderr( loaded.Path + ( changed ? ' formatted.\n' : ' is already formatted.\n' ) ); }
+	Context.Out.Result( { Path: loaded.Path, Changed: changed } );
+	if ( !quiet ) { Context.Out.Log( loaded.Path + ( changed ? ' formatted.\n' : ' is already formatted.\n' ) ); }
 	return 0;
 }
 
