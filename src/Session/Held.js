@@ -33,6 +33,14 @@
 		too, and is recognised by being exactly the last text written.
 	-	A file which no longer parses, or which an override no longer fits, keeps the old copy, and the
 		reason is logged.
+
+	***What a served mode pushes*** (cut 4, the WebSocket):
+	-	A request's own progress, while it runs, to the Listen function given with it: each report line,
+		each finding, and each run report as it opens and closes. ***A queued request listens only once
+		its turn starts***, so it never hears the reports of the request before it.
+	-	What belongs to the file, to every OnEvent listener: `reload` when the file on disk was read
+		(followed or kept), and `document` when the held document changed - by a reload, or by a
+		request which wrote the file.
 */
 
 const LIB_FS = require( 'fs' );
@@ -259,6 +267,53 @@ function NewHeld( Options )
 
 
 	//---------------------------------------------------------------------
+	// Listeners for what belongs to the file. Each is told, never asked: what it throws is ignored.
+
+	let event_listeners = [];
+
+	held.OnEvent = function ( Listener )
+	{
+		event_listeners.push( Listener );
+		return function ()
+		{
+			let index = event_listeners.indexOf( Listener );
+			if ( index >= 0 ) { event_listeners.splice( index, 1 ); }
+			return;
+		};
+	};
+
+	function tell_event( Event )
+	{
+		let listeners = event_listeners.slice();
+		for ( let index = 0; index < listeners.length; index++ )
+		{
+			try { listeners[ index ]( Event ); }
+			catch ( error ) { /* a listener is told, never asked */ }
+		}
+		return;
+	}
+
+
+	//---------------------------------------------------------------------
+	// A run report as a served mode pushes it: what a person watching needs, without the result, which
+	// the answer carries, or the nested calls, which arrive as reports of their own.
+
+	function report_event( Phase, Report, Depth )
+	{
+		let event = { Phase: Phase, Name: Report.Name, Kind: Report.Kind, Depth: Depth };
+		if ( typeof Report.Trigger === 'string' ) { event.Trigger = Report.Trigger; }
+		if ( Phase === 'close' )
+		{
+			event.Ok = Report.Ok;
+			event.Summary = Report.Summary;
+			event.Ms = Report.Ms;
+			if ( Report.Error ) { event.Error = Report.Error; }
+		}
+		return event;
+	}
+
+
+	//---------------------------------------------------------------------
 	// The queue. Work runs after everything queued before it, whether that succeeded or not.
 
 	let tail = Promise.resolve();
@@ -285,10 +340,20 @@ function NewHeld( Options )
 
 	//---------------------------------------------------------------------
 	// One request. Returns the envelope; never throws.
+	//
+	// Listen, when given, is told the request's progress as it runs: { Log: line }, { Finding } and
+	// { Report: { Phase, Name, Kind, Depth, Trigger?, Ok?, Summary?, Ms?, Error? } }. Everything it
+	// is told is in the envelope as well.
 
-	held.Invoke = async function ( Invocation )
+	held.Invoke = async function ( Invocation, Listen )
 	{
-		let out = Envelope.NewOut();
+		let listen = ( typeof Listen === 'function' ) ? Listen : null;
+		let out = listen
+			? Envelope.NewOut( {
+				OnLog: function ( Line ) { listen( { Log: Line } ); },
+				OnFinding: function ( Finding ) { listen( { Finding: Finding } ); },
+			} )
+			: Envelope.NewOut();
 
 		let parsed = null;
 		let nodes = null;
@@ -343,6 +408,17 @@ function NewHeld( Options )
 
 		let handle = async function ()
 		{
+			// Subscribed only now, when this request's turn has come (the header).
+			let stop_listening = null;
+			if ( listen && !concurrent )
+			{
+				stop_listening = session.Runner.OnReport( function ( Phase, Report, Depth )
+				{
+					listen( { Report: report_event( Phase, Report, Depth ) } );
+				} );
+			}
+			let text_before = last_text;
+
 			let code = 1;
 			try
 			{
@@ -353,11 +429,16 @@ function NewHeld( Options )
 				out.Log( 'The command failed unexpectedly: ' + ( error && error.message ? error.message : String( error ) ) + '\n' );
 				code = 1;
 			}
+			finally
+			{
+				if ( stop_listening ) { stop_listening(); }
+			}
 			// A queued command may have edited the file; a concurrent one writes nothing.
 			if ( !concurrent )
 			{
 				let line = await reconcile_edit();
 				if ( line !== '' ) { out.Log( line ); }
+				if ( last_text !== text_before ) { tell_event( { Event: 'document' } ); }
 			}
 			return code;
 		};
@@ -374,7 +455,17 @@ function NewHeld( Options )
 	//		{ Reloaded: false, Reason: 'kept', Message, Findings }   it could not be followed; the old copy stays
 	//		{ Reloaded: true, Changed: [ names ], Findings }
 
-	held.Reload = function ()
+	// Every listener hears a reload which read something new, followed or kept, and a followed one
+	// changes the document too. A read of the session's own text is not a reload and tells nobody.
+	held.Reload = async function ()
+	{
+		let outcome = await reload_in_queue();
+		if ( outcome.Reason !== 'unchanged' ) { tell_event( { Event: 'reload', Outcome: outcome } ); }
+		if ( outcome.Reloaded === true ) { tell_event( { Event: 'document' } ); }
+		return outcome;
+	};
+
+	function reload_in_queue()
 	{
 		return held.Exclusive( async function ()
 		{
@@ -424,7 +515,7 @@ function NewHeld( Options )
 			log( 'Reloaded ' + Report.FormatSummary( held.Path, summary ).trim() + reopened + '.\n' );
 			return { Reloaded: true, Changed: changed, Findings: findings };
 		} );
-	};
+	}
 
 
 	//---------------------------------------------------------------------

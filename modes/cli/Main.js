@@ -54,6 +54,17 @@ function ProcessIo()
 			process.once( 'SIGTERM', Resolve );
 		} );
 	};
+	// Resolves when standard input ends, for jsonx serve --attached: the program which started it has
+	// gone, or closed its end on purpose.
+	io.WaitForStdinEnd = function ()
+	{
+		return new Promise( function ( Resolve )
+		{
+			process.stdin.once( 'end', Resolve );
+			process.stdin.once( 'close', Resolve );
+			process.stdin.resume();
+		} );
+	};
 	return io;
 }
 

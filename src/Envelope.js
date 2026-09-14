@@ -28,6 +28,12 @@ const Report = require( './Report.js' );
 // Options:
 //		Stdout, Stderr   where the command line writes; absent, nothing is written and Out only records
 //		Output           the --output format a result is written in
+//		OnLog            function ( Line ): each report line as it is written, for a served mode which
+//		                 pushes the report while the command runs (the WebSocket, cut 4)
+//		OnFinding        function ( Finding ): each finding as it is written, likewise
+//
+// ***A sink is told, never asked***: what it throws is ignored, so a client which went away cannot
+// fail the command it asked for, and the envelope is recorded whatever the sinks do.
 
 function NewOut( Options )
 {
@@ -35,6 +41,15 @@ function NewOut( Options )
 	let stdout = ( typeof options.Stdout === 'function' ) ? options.Stdout : null;
 	let stderr = ( typeof options.Stderr === 'function' ) ? options.Stderr : null;
 	let output = options.Output || 'json';
+	let on_log = ( typeof options.OnLog === 'function' ) ? options.OnLog : null;
+	let on_finding = ( typeof options.OnFinding === 'function' ) ? options.OnFinding : null;
+
+	function tell( Sink, Value )
+	{
+		try { Sink( Value ); }
+		catch ( error ) { /* a sink is told, never asked */ }
+		return;
+	}
 
 	let recorded = { Result: undefined, Findings: [], Log: [], Lines: null };
 
@@ -55,6 +70,7 @@ function NewOut( Options )
 	{
 		recorded.Findings.push( Finding );
 		if ( stderr ) { stderr( Report.FormatFinding( Finding ) ); }
+		if ( on_finding ) { tell( on_finding, Finding ); }
 		return;
 	};
 
@@ -67,6 +83,7 @@ function NewOut( Options )
 		if ( lines.length > 0 && lines[ lines.length - 1 ] === '' ) { lines.pop(); }
 		recorded.Log = recorded.Log.concat( lines );
 		if ( stderr ) { stderr( text ); }
+		if ( on_log ) { for ( let index = 0; index < lines.length; index++ ) { tell( on_log, lines[ index ] ); } }
 		return;
 	};
 

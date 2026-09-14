@@ -377,8 +377,35 @@ describe( 'jsonx serve', function ()
 		io.Stop();
 		LIB_ASSERT.strictEqual( await running, 0 );
 		LIB_ASSERT.ok( io.Err.endsWith( 'Stopped.\n' ), io.Err );
-		LIB_ASSERT.strictEqual( io.Out, '' );
+		// ***Standard output is the ready line and nothing else*** (cut 4), one JSON line a program reads.
+		LIB_ASSERT.strictEqual( io.Out.split( '\n' ).length, 2, io.Out );
+		LIB_ASSERT.deepStrictEqual( JSON.parse( io.Out ), { File: scratch, Url: base, Pid: process.pid } );
 		await LIB_ASSERT.rejects( fetch( base + '/' ) );
+	} );
+
+	it( 'with --attached, stops when standard input ends; without it, does not', async function ()
+	{
+		let attached = serve_io();
+		let stdin_ended = null;
+		attached.WaitForStdinEnd = function () { return new Promise( function ( Resolve ) { stdin_ended = Resolve; } ); };
+		let running = Main.Main( [ 'serve', '--api', '--attached', '--port', '0', '--file', scratch ], attached );
+		let base = await attached.Address;
+		LIB_ASSERT.ok( attached.Err.includes( 'The end of standard input, or Ctrl+C, stops it.' ), attached.Err );
+		stdin_ended();
+		LIB_ASSERT.strictEqual( await running, 0 );
+		LIB_ASSERT.ok( attached.Err.endsWith( 'Stopped.\n' ), attached.Err );
+		await LIB_ASSERT.rejects( fetch( base + '/' ) );
+
+		let free = serve_io();
+		let asked = false;
+		free.WaitForStdinEnd = function () { asked = true; return Promise.resolve(); };
+		let still = Main.Main( [ 'serve', '--api', '--port', '0', '--file', scratch ], free );
+		let free_base = await free.Address;
+		await new Promise( function ( Resolve ) { setTimeout( Resolve, 100 ); } );
+		LIB_ASSERT.strictEqual( asked, false );
+		LIB_ASSERT.strictEqual( ( await fetch( free_base + '/' ) ).status, 200 );
+		free.Stop();
+		LIB_ASSERT.strictEqual( await still, 0 );
 	} );
 
 	it( 'refuses to start without --api, without a token for a wide host, or with --output', async function ()

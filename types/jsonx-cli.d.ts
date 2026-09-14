@@ -37,6 +37,10 @@ declare module '@liquicode/jsonx-cli'
 		WriteFile?: ( Path: string, Text: string ) => void;
 		Env?: { [ Name: string ]: string };
 		Cwd?: string;
+		/** Resolves when the process is asked to stop, for jsonx serve and jsonx mcp. */
+		WaitForStop?: () => Promise<void>;
+		/** Resolves when standard input ends, for jsonx serve --attached. */
+		WaitForStdinEnd?: () => Promise<void>;
 	}
 
 	/** What one storage call measured, with Statistics on. */
@@ -535,6 +539,38 @@ declare module '@liquicode/jsonx-cli'
 		Snapshot(): DebugSnapshot;
 	}
 
+	/** A run report opening or closing, as a served mode pushes it. The close carries the outcome. */
+	export interface ReportProgress
+	{
+		Phase: 'open' | 'close';
+		Name: string;
+		Kind: string | null;
+		/** The report's place on the runner's stack; 0 is outermost. */
+		Depth: number;
+		/** The trigger which fired it, for a triggered Process. */
+		Trigger?: string;
+		Ok?: boolean;
+		Summary?: string;
+		Ms?: number;
+		Error?: { Code: string; Message: string };
+	}
+
+	/** One piece of a request's progress: exactly one member is present. */
+	export interface HeldProgress
+	{
+		Log?: string;
+		Finding?: Finding;
+		Report?: ReportProgress;
+	}
+
+	/** What belongs to the file rather than to a request. */
+	export interface HeldEvent
+	{
+		Event: 'reload' | 'document';
+		/** Reload's answer, for a reload. */
+		Outcome?: JsonDocument;
+	}
+
 	/** One file and one session, held for as long as a served mode runs. */
 	export interface HeldSession
 	{
@@ -550,8 +586,10 @@ declare module '@liquicode/jsonx-cli'
 		Exclusive<T>( Work: () => T | Promise<T> ): Promise<T>;
 		/** The session as a handler borrows it: Release flushes and keeps everything open. */
 		Lease(): Session;
-		/** One request, as an --input-json document. Never throws. */
-		Invoke( Invocation: JsonDocument ): Promise<ResultEnvelope>;
+		/** One request, as an --input-json document. Never throws. Listen hears its progress as it runs. */
+		Invoke( Invocation: JsonDocument, Listen?: ( Progress: HeldProgress ) => void ): Promise<ResultEnvelope>;
+		/** Hears what belongs to the file: a reload which read something new, and the document changing. Answers a function which stops it. */
+		OnEvent( Listener: ( Event: HeldEvent ) => void ): () => void;
 		/** Reads the file and follows it, in the queue. */
 		Reload(): Promise<{ Reloaded: boolean; Reason?: 'unchanged' | 'kept'; Message?: string; Changed?: string[]; Findings?: Finding[] }>;
 		/** Watches the file's folder and reloads when the file changes. */
@@ -627,7 +665,7 @@ declare module '@liquicode/jsonx-cli'
 	export interface EnvelopeModule
 	{
 		/** With Stdout and Stderr, writes each piece as it arrives (the command line); without, only records. */
-		NewOut( Options?: { Stdout?: ( Text: string ) => void; Stderr?: ( Text: string ) => void; Output?: 'json' | 'jsonl' | 'text' | 'table' } ): Out;
+		NewOut( Options?: { Stdout?: ( Text: string ) => void; Stderr?: ( Text: string ) => void; Output?: 'json' | 'jsonl' | 'text' | 'table'; OnLog?: ( Line: string ) => void; OnFinding?: ( Finding: Finding ) => void } ): Out;
 	}
 
 

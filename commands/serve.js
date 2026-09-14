@@ -4,8 +4,15 @@
 	jsonx serve --api [--host <host>] [--port <port>] [--token <token>] [--bind ...] [--set ...]
 
 	Holds the file and serves its commands over HTTP (plan F4.2, modes/api/Api.js) until it is
-	stopped (Ctrl+C). Everything it says goes to standard error: the address, the file's findings
-	when it is held, and that it stopped.
+	stopped (Ctrl+C). What it says for a person goes to standard error: the address, the file's
+	findings when it is held, and that it stopped.
+
+	***Once it listens, it writes one JSON line to standard output***, `{ File, Url, Pid }`, for a
+	program which starts it (the TUI, the desktop) to read instead of the prose. It is written as one
+	line whatever the result would be formatted as, because the reader reads a line.
+
+	***`--attached` also stops it when standard input ends***, so the program which started it cannot
+	leave it running by going away: on Windows a killed parent does not take its children with it.
 
 	***`--api` is required***, so adding the Web UI later (`--ui`) changes what no existing command
 	line does. ***A host other than loopback needs a token***, from --token or JSONX_TOKEN, and is
@@ -97,10 +104,14 @@ async function handler( Parsed, Context )
 	}
 
 	let shown_host = ( host.indexOf( ':' ) >= 0 ) ? '[' + host + ']' : host;
+	let url = 'http://' + shown_host + ':' + server.address().port;
 	held.Watch();
-	out.Log( 'Serving ' + held.Path + ' at http://' + shown_host + ':' + server.address().port + ( token ? ' (token required)' : '' ) + '. Ctrl+C stops it.\n' );
+	out.Line( { File: held.Path, Url: url, Pid: process.pid } );
+	out.Log( 'Serving ' + held.Path + ' at ' + url + ( token ? ' (token required)' : '' ) + '. ' + ( value( 'attached' ) ? 'The end of standard input, or Ctrl+C, stops it.' : 'Ctrl+C stops it.' ) + '\n' );
 
-	await io.WaitForStop();
+	let stops = [ io.WaitForStop() ];
+	if ( value( 'attached' ) && typeof io.WaitForStdinEnd === 'function' ) { stops.push( io.WaitForStdinEnd() ); }
+	await Promise.race( stops );
 
 	await Api.Close( server );
 	await held.Release();
@@ -121,6 +132,7 @@ module.exports = {
 		'host': { Type: 'string', Default: '127.0.0.1', Describe: 'The address to bind. Anything but loopback needs a token.' },
 		'port': { Type: 'integer', Default: DEFAULT_PORT, Describe: 'The port to bind; 0 picks a free one.' },
 		'token': { Type: 'string', Describe: 'The bearer token every request must carry. Absent: JSONX_TOKEN.' },
+		'attached': { Type: 'boolean', Describe: 'Stop when standard input ends, for a program which starts jsonx serve.' },
 	}, SessionCommand.SESSION_OPTIONS ),
 	Handler: handler,
 };

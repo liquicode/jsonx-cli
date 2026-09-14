@@ -4,7 +4,7 @@
 	"description": "The jsonx application: read, validate, run and edit jsonx files over jsongin, jsonstor and jsonproc.",
 	"license": "MIT",
 	"engines": {
-		"node": ">=20.0.0"
+		"node": ">=22.0.0"
 	},
 	"homepage": "http://jsonx.liquicode.com",
 	"repository": {

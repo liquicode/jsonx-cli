@@ -150,6 +150,54 @@ function NewRunner( Options )
 
 
 	//---------------------------------------------------------------------
+	// ***Every report is pushed and popped here***, so a listener hears each one open and close as the
+	// run goes (cut 4: a served run pushes its progress). Depth is the report's place on the stack,
+	// 0 for the outermost. A listener is told, never asked: what it throws is ignored.
+
+	let report_listeners = [];
+
+	runner.OnReport = function ( Listener )
+	{
+		report_listeners.push( Listener );
+		return function ()
+		{
+			let index = report_listeners.indexOf( Listener );
+			if ( index >= 0 ) { report_listeners.splice( index, 1 ); }
+			return;
+		};
+	};
+
+	function tell_report( Phase, Report, Depth )
+	{
+		let listeners = report_listeners.slice();
+		for ( let index = 0; index < listeners.length; index++ )
+		{
+			try { listeners[ index ]( Phase, Report, Depth ); }
+			catch ( error ) { /* a listener is told, never asked */ }
+		}
+		return;
+	}
+
+	function push_report( Report )
+	{
+		runner.Stack.push( Report );
+		if ( report_listeners.length > 0 ) { tell_report( 'open', Report, runner.Stack.length - 1 ); }
+		return;
+	}
+
+	// Ms is set before the report is popped, so a listener hears the finished report.
+	function pop_report( Report, Started )
+	{
+		if ( typeof Started === 'number' ) { Report.Ms = Date.now() - Started; }
+		let index = runner.Stack.lastIndexOf( Report );
+		if ( index < 0 ) { return; }
+		runner.Stack.splice( index, 1 );
+		if ( report_listeners.length > 0 ) { tell_report( 'close', Report, index ); }
+		return;
+	}
+
+
+	//---------------------------------------------------------------------
 	// A trace line, recorded on the report of the object running now (Session.js hands this to
 	// the jsonstor-oplog filter).
 
@@ -243,7 +291,7 @@ function NewRunner( Options )
 		if ( parent ) { parent.Calls.push( report ); }
 
 		let started = Date.now();
-		runner.Stack.push( report );
+		push_report( report );
 		try
 		{
 			if ( !Object.prototype.hasOwnProperty.call( STORAGE_PARAMETERS, FunctionName ) ) { throw new RunError( 'The runner makes no storage call named [' + FunctionName + '].', 'BadCall' ); }
@@ -260,8 +308,7 @@ function NewRunner( Options )
 		}
 		finally
 		{
-			runner.Stack.pop();
-			report.Ms = Date.now() - started;
+			pop_report( report, started );
 		}
 		return report;
 	};
@@ -294,7 +341,7 @@ function NewRunner( Options )
 		if ( parent ) { parent.Calls.push( report ); }
 
 		let started = Date.now();
-		runner.Stack.push( report );
+		push_report( report );
 		try
 		{
 			if ( entry === null ) { throw new RunError( 'No object is named [' + Name + '] (3.8).', 'NoSuchObject' ); }
@@ -308,8 +355,7 @@ function NewRunner( Options )
 		}
 		finally
 		{
-			runner.Stack.pop();
-			report.Ms = Date.now() - started;
+			pop_report( report, started );
 		}
 		return report;
 	}
@@ -544,7 +590,7 @@ function NewRunner( Options )
 		else { runner.Fired.push( report ); }
 
 		let started = Date.now();
-		runner.Stack.push( report );
+		push_report( report );
 		try
 		{
 			let run = await RunProcessOnce( Process, Input );
@@ -565,8 +611,7 @@ function NewRunner( Options )
 		}
 		finally
 		{
-			runner.Stack.pop();
-			report.Ms = Date.now() - started;
+			pop_report( report, started );
 		}
 	};
 
@@ -583,16 +628,14 @@ function NewRunner( Options )
 		let report = new_report( Name, Kind );
 		let parent = runner.Stack[ runner.Stack.length - 1 ];
 		if ( parent ) { parent.Calls.push( report ); }
-		runner.Stack.push( report );
 		started_at.set( report, Date.now() );
+		push_report( report );
 		return report;
 	};
 
 	runner.CloseReport = function ( Report )
 	{
-		let index = runner.Stack.lastIndexOf( Report );
-		if ( index >= 0 ) { runner.Stack.splice( index, 1 ); }
-		if ( started_at.has( Report ) ) { Report.Ms = Date.now() - started_at.get( Report ); }
+		pop_report( Report, started_at.has( Report ) ? started_at.get( Report ) : undefined );
 		return;
 	};
 
