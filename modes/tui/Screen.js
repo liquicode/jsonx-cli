@@ -53,6 +53,9 @@ const INPUT_HEIGHT = { small: 2, normal: 5, large: 7 };
 // Where the next character typed into Input goes.
 const CURSOR = '▏';
 
+// The mouse reports asked of the terminal: presses and releases (?1000), drags (?1002), as SGR (?1006).
+const MOUSE_MODES = { vt200Mouse: true, cellMotion: true, sgrMouse: true };
+
 const CELL_WIDTH = 30;
 const CHECK_DELAY_MS = 400;
 
@@ -121,6 +124,12 @@ function Run( Model, Options )
 		if ( options.Input ) { screen_options.input = options.Input; }
 		if ( options.Output ) { screen_options.output = options.Output; screen_options.terminal = options.Terminal || 'xterm'; }
 		let screen = blessed.screen( screen_options );
+
+		// ***neo-blessed asks for mouse reports only for a terminal it recognizes***, and a Windows console
+		// with no TERM is `windows-ansi`, for which it asks for nothing (measured). Windows Terminal sends
+		// SGR reports once asked (measured), so every screen asks for them itself: presses, releases and
+		// drags, not every move.
+		screen.program.enableMouse = function () { return this.setMouse( MOUSE_MODES, true ); };
 
 		// One object whose members are replaced when the panes are rebuilt, so a reader keeps it.
 		let widgets = {};

@@ -47,7 +47,8 @@ async function until( Test, Label )
 }
 
 // A served Appendix B, a started model over it, and the screen on streams, 120 by 40.
-async function open_screen( Root, Name )
+// Terminal is the name neo-blessed is given, `xterm` when absent; everything written is kept in Written.
+async function open_screen( Root, Name, Terminal )
 {
 	let file = LIB_PATH.join( Root, Name );
 	LIB_FS.writeFileSync( file, JSON.stringify( Spec.AppendixB(), null, '\t' ) );
@@ -68,10 +69,10 @@ async function open_screen( Root, Name )
 	output.isTTY = true;
 	output.columns = 120;
 	output.rows = 40;
-	output.resume();
 
-	let opened = { Model: model, Held: held, Screen: null, Widgets: null, Finish: null };
-	opened.Running = Screen.Run( model, { Input: input, Output: output, CheckDelayMs: 50, OnScreen: function ( S, W, Finish ) { opened.Screen = S; opened.Widgets = W; opened.Finish = Finish; } } );
+	let opened = { Model: model, Held: held, Screen: null, Widgets: null, Finish: null, Written: '' };
+	output.on( 'data', function ( Chunk ) { opened.Written += Chunk.toString(); } );
+	opened.Running = Screen.Run( model, { Input: input, Output: output, Terminal: Terminal, CheckDelayMs: 50, OnScreen: function ( S, W, Finish ) { opened.Screen = S; opened.Widgets = W; opened.Finish = Finish; } } );
 	opened.Type = async function ( Text ) { input.write( Text ); await wait( 60 ); };
 	opened.Click = async function ( Column, Row ) { await opened.Type( press( Column, Row ) ); await opened.Type( release( Column, Row ) ); };
 	// Which pane has focus, by name: comparing widgets themselves makes a failing assertion print them.
@@ -224,9 +225,18 @@ describe( 'The TUI screen', function ()
 
 	it( 'takes the mouse: a click focuses a pane, selects and opens an entry, and the wheel scrolls', { timeout: 20000 }, async function ()
 	{
-		let opened = await open_screen( root, 'mouse.jsonx' );
+		// ***As a Windows console with no TERM***, for which neo-blessed asks for no mouse reports itself
+		// (the user found the mouse dead there, 2026-09-14, while this case passed as `xterm`).
+		let opened = await open_screen( root, 'mouse.jsonx', 'windows-ansi' );
 		try
 		{
+			// The terminal is asked for presses, releases and drags as SGR, and not for every move.
+			LIB_ASSERT.ok( opened.Written.includes( '\x1b[?1000h' ), 'presses and releases asked for' );
+			LIB_ASSERT.ok( opened.Written.includes( '\x1b[?1002h' ), 'drags asked for' );
+			LIB_ASSERT.ok( opened.Written.includes( '\x1b[?1006h' ), 'SGR asked for' );
+			LIB_ASSERT.ok( !opened.Written.includes( '\x1b[?1003h' ), 'every move not asked for' );
+			LIB_ASSERT.ok( !opened.Written.includes( '\x1b[?1005h' ), 'UTF-8 reports not asked for' );
+
 			let text = opened.Text();
 			let row = text.findIndex( function ( Line ) { return /│ {2}Process Prepare the season/.test( Line ); } );
 			LIB_ASSERT.ok( row > 0, text.join( '\n' ) );
