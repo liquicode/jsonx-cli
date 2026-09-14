@@ -39,8 +39,9 @@
 		each finding, and each run report as it opens and closes. ***A queued request listens only once
 		its turn starts***, so it never hears the reports of the request before it.
 	-	What belongs to the file, to every OnEvent listener: `reload` when the file on disk was read
-		(followed or kept), and `document` when the held document changed - by a reload, or by a
-		request which wrote the file.
+		(followed or kept), `document` when the held document changed - by a reload, or by a request
+		which wrote the file - and `queue` when a conversation (a served debug) starts holding the
+		queue, `HeldBy` its command, and when it stops, `HeldBy` null.
 */
 
 const LIB_FS = require( 'fs' );
@@ -345,15 +346,136 @@ function NewHeld( Options )
 	// { Report: { Phase, Name, Kind, Depth, Trigger?, Ok?, Summary?, Ms?, Error? } }. Everything it
 	// is told is in the envelope as well.
 
-	held.Invoke = async function ( Invocation, Listen )
+	held.Invoke = function ( Invocation, Listen )
+	{
+		return request( Invocation, Listen, null );
+	};
+
+
+	//---------------------------------------------------------------------
+	// A conversation: a command which reads its input a line at a time (cut 4, decision 3 - jsonx
+	// debug), served to a client which can keep talking, the WebSocket.
+	//
+	// ***The command's own handler runs it***, as for any request: its Io.Lines is fed by Send, and
+	// each JSON Lines record it writes is told to Listen as { Line }. So validation, refusals, the
+	// records, the report and the exit code are the command's own. Only a node which declares
+	// `Conversational: true` may be conversed with; Invoke still refuses it when it is Served: false.
+	//
+	// ***A conversation holds the queue until it ends***, like any queued command: every other queued
+	// request waits, and `queue` events tell every listener when one starts and ends.
+	//
+	// Answers:
+	//		Send( Line )   Promise of { Ok: true, Record }: the record the command wrote for that line;
+	//		               or { Ok: false, Message } for a blank line, or once the conversation is over
+	//		End()          ends its input, which a command reads as the end (debug quits)
+	//		Done           Promise of the envelope, when the command has finished
+	//		Over           true once it has
+
+	let conversations = new Set();
+
+	held.Converse = function ( Invocation, Listen )
+	{
+		let listen = ( typeof Listen === 'function' ) ? Listen : function () { return; };
+
+		let inbox = [];
+		let input_ended = false;
+		let wake = null;
+		let pending = [];
+		let records = 0;
+
+		let conversation = { Over: false };
+
+		function rouse()
+		{
+			if ( wake ) { let resolve = wake; wake = null; resolve(); }
+			return;
+		}
+
+		let lines = {};
+		lines[ Symbol.asyncIterator ] = function ()
+		{
+			return {
+				next: async function ()
+				{
+					while ( inbox.length === 0 && !input_ended ) { await new Promise( function ( Resolve ) { wake = Resolve; } ); }
+					if ( inbox.length > 0 ) { return { value: inbox.shift(), done: false }; }
+					return { value: undefined, done: true };
+				},
+				return: async function () { return { value: undefined, done: true }; },
+			};
+		};
+
+		conversation.Send = function ( Line )
+		{
+			if ( conversation.Over || input_ended ) { return Promise.resolve( { Ok: false, Message: 'The conversation is over.' } ); }
+			if ( String( Line ).trim() === '' ) { return Promise.resolve( { Ok: false, Message: 'A line must say something.' } ); }
+			return new Promise( function ( Resolve )
+			{
+				pending.push( Resolve );
+				inbox.push( String( Line ) );
+				rouse();
+			} );
+		};
+
+		conversation.End = function ()
+		{
+			input_ended = true;
+			rouse();
+			return;
+		};
+
+		conversations.add( conversation );
+
+		conversation.Done = request( Invocation, listen, {
+			Lines: function () { return lines; },
+			// The first record is the command's start; each after it answers the oldest line sent.
+			OnLine: function ( Record )
+			{
+				records++;
+				if ( records === 1 ) { tell_event( { Event: 'queue', HeldBy: parsed_command( Invocation ) } ); }
+				else if ( pending.length > 0 ) { pending.shift()( { Ok: true, Record: Record } ); }
+				return;
+			},
+		} ).then( function ( Envelope_ )
+		{
+			conversation.Over = true;
+			conversations.delete( conversation );
+			if ( records > 0 ) { tell_event( { Event: 'queue', HeldBy: null } ); }
+			while ( pending.length > 0 ) { pending.shift()( { Ok: false, Message: 'The conversation ended before answering.' } ); }
+			return Envelope_;
+		} );
+
+		return conversation;
+	};
+
+	function parsed_command( Invocation )
+	{
+		let command = ( Invocation && typeof Invocation === 'object' ) ? Invocation.Command : null;
+		return Array.isArray( command ) ? command.join( ' ' ) : String( command );
+	}
+
+
+	//---------------------------------------------------------------------
+	// A request or a conversation (Conversation is null for a request).
+
+	async function request( Invocation, Listen, Conversation )
 	{
 		let listen = ( typeof Listen === 'function' ) ? Listen : null;
-		let out = listen
-			? Envelope.NewOut( {
-				OnLog: function ( Line ) { listen( { Log: Line } ); },
-				OnFinding: function ( Finding ) { listen( { Finding: Finding } ); },
-			} )
-			: Envelope.NewOut();
+		let sinks = {};
+		if ( listen )
+		{
+			sinks.OnLog = function ( Line ) { listen( { Log: Line } ); };
+			sinks.OnFinding = function ( Finding ) { listen( { Finding: Finding } ); };
+		}
+		if ( Conversation )
+		{
+			sinks.OnLine = function ( Record )
+			{
+				if ( listen ) { listen( { Line: Record } ); }
+				Conversation.OnLine( Record );
+			};
+		}
+		let out = Envelope.NewOut( sinks );
 
 		let parsed = null;
 		let nodes = null;
@@ -383,12 +505,23 @@ function NewHeld( Options )
 			return out.Envelope( 2 );
 		}
 
-		let unserved = nodes.filter( function ( Node ) { return Node.Served === false; } );
-		if ( unserved.length > 0 )
+		if ( Conversation )
 		{
-			let reason = unserved[ 0 ].ServedReason ? ': ' + unserved[ 0 ].ServedReason : '';
-			out.Log( '[' + command + '] is not served' + reason + '.\n' );
-			return out.Envelope( 2 );
+			if ( node.Conversational !== true )
+			{
+				out.Log( '[' + command + '] is not a conversation: send it as a request.\n' );
+				return out.Envelope( 2 );
+			}
+		}
+		else
+		{
+			let unserved = nodes.filter( function ( Node ) { return Node.Served === false; } );
+			if ( unserved.length > 0 )
+			{
+				let reason = unserved[ 0 ].ServedReason ? ': ' + unserved[ 0 ].ServedReason : '';
+				out.Log( '[' + command + '] is not served' + reason + '.\n' );
+				return out.Envelope( 2 );
+			}
 		}
 
 		let refused = Object.keys( REFUSED_OPTIONS ).filter( function ( Name ) { return parsed.Given[ Name ] === true; } );
@@ -403,7 +536,13 @@ function NewHeld( Options )
 			return out.Envelope( 2 );
 		}
 
-		let context = { Tree: held.Tree, Io: handler_io, Parser: Parser, Out: out, Held: held };
+		let io_for_handler = handler_io;
+		if ( Conversation )
+		{
+			io_for_handler = Object.create( handler_io );
+			io_for_handler.Lines = Conversation.Lines;
+		}
+		let context = { Tree: held.Tree, Io: io_for_handler, Parser: Parser, Out: out, Held: held };
 		let concurrent = nodes.some( function ( Node ) { return Node.Concurrent === true; } );
 
 		let handle = async function ()
@@ -445,7 +584,7 @@ function NewHeld( Options )
 
 		let code = concurrent ? await handle() : await held.Exclusive( handle );
 		return out.Envelope( code );
-	};
+	}
 
 
 	//---------------------------------------------------------------------
@@ -557,6 +696,8 @@ function NewHeld( Options )
 
 	held.Release = async function ()
 	{
+		// A conversation holds the queue until its input ends: end each, so the queue can drain.
+		Array.from( conversations ).forEach( function ( Each ) { Each.End(); } );
 		if ( reload_timer !== null ) { clearTimeout( reload_timer ); reload_timer = null; }
 		if ( watcher !== null ) { watcher.close(); watcher = null; }
 		return await held.Exclusive( function () { return session.Release(); } );

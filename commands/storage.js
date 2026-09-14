@@ -51,7 +51,7 @@ const VERB_OPTIONS = {
 	'find-one': Object.assign( {}, CRITERIA_OPTIONAL, PROJECTION ),
 	'count': Object.assign( {}, CRITERIA_OPTIONAL ),
 	'insert': Object.assign( { 'documents': { Type: 'json', Required: true, Describe: 'One document, or an array of them.' } }, SAVE ),
-	'update': Object.assign( {}, CRITERIA_REQUIRED, { 'update': { Type: 'json', Required: true, Describe: 'The update document, such as { "$set": { ... } }.' } }, FIRST_ONLY, YES, SAVE ),
+	'update': Object.assign( {}, CRITERIA_REQUIRED, { 'update': { Type: 'json', Required: true, Describe: 'The update document, such as { "$set": { ... } }.' } }, FIRST_ONLY, YES, SessionCommand.CHANGES_OPTION, SAVE ),
 	'replace': Object.assign( { 'criteria': { Type: 'json', Required: true, Describe: 'The criteria.' }, 'document': { Type: 'json', Required: true, Describe: 'The document which replaces the first one selected.' } } ),
 	'delete': Object.assign( {}, CRITERIA_REQUIRED, FIRST_ONLY, YES, SAVE ),
 	'flush': {},
@@ -61,7 +61,7 @@ const VERB_OPTIONS = {
 };
 
 // What --save makes pointless.
-const NOT_WITH_SAVE = [ 'bind', 'set', 'verbose', 'trace', 'yes' ];
+const NOT_WITH_SAVE = [ 'bind', 'set', 'verbose', 'trace', 'yes', 'changes' ];
 
 
 //---------------------------------------------------------------------

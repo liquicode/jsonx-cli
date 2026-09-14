@@ -31,6 +31,8 @@ const Report = require( './Report.js' );
 //		OnLog            function ( Line ): each report line as it is written, for a served mode which
 //		                 pushes the report while the command runs (the WebSocket, cut 4)
 //		OnFinding        function ( Finding ): each finding as it is written, likewise
+//		OnLine           function ( Value ): each JSON Lines record as it is written (a served debug's
+//		                 snapshots)
 //
 // ***A sink is told, never asked***: what it throws is ignored, so a client which went away cannot
 // fail the command it asked for, and the envelope is recorded whatever the sinks do.
@@ -43,6 +45,7 @@ function NewOut( Options )
 	let output = options.Output || 'json';
 	let on_log = ( typeof options.OnLog === 'function' ) ? options.OnLog : null;
 	let on_finding = ( typeof options.OnFinding === 'function' ) ? options.OnFinding : null;
+	let on_line = ( typeof options.OnLine === 'function' ) ? options.OnLine : null;
 
 	function tell( Sink, Value )
 	{
@@ -104,6 +107,7 @@ function NewOut( Options )
 		recorded.Lines.push( Value );
 		recorded.Result = recorded.Lines;
 		if ( stdout ) { stdout( JSON.stringify( Value ) + '\n' ); }
+		if ( on_line ) { tell( on_line, Value ); }
 		return;
 	};
 

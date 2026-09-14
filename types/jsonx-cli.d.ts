@@ -74,6 +74,8 @@ declare module '@liquicode/jsonx-cli'
 		Trace: string[];
 		/** Present on a Process a trigger started, and on a trigger run by hand. */
 		Trigger?: string;
+		/** On an Update run with Changes on: the documents it changed. Absent when they could not be read back. */
+		Changes?: Array<{ Before: JsonDocument; After: JsonDocument | null }>;
 	}
 
 	/** One node of a plan's static call tree. */
@@ -217,7 +219,7 @@ declare module '@liquicode/jsonx-cli'
 		/** Whether the run in progress records trace lines. */
 		Trace: boolean;
 		/** What the next run measures (--verbose) and records (--trace). */
-		SetRunOptions( RunOptions: { Statistics?: boolean; Trace?: boolean } ): void;
+		SetRunOptions( RunOptions: { Statistics?: boolean; Trace?: boolean; Changes?: boolean } ): void;
 		/** Follows a changed file (a new document, or the same one edited): closes every data source whose definition or watching triggers changed. Answers their names. */
 		Reconcile( Document?: JsonDocument ): Promise<string[]>;
 		Run( Name: string, Input?: JsonDocument ): Promise<RunReport>;
@@ -420,7 +422,7 @@ declare module '@liquicode/jsonx-cli'
 	export interface SessionModule
 	{
 		SessionError: new ( Message: string ) => Error;
-		NewSession( Options: { Document: JsonDocument; Path?: string; Binds?: string[]; Sets?: string[]; Env?: JsonDocument; Cwd?: string; jsonstor?: any; Require?: ( PackageName: string ) => any; MaxSteps?: number; MaxCalls?: number; Statistics?: boolean; Trace?: boolean } ): Session;
+		NewSession( Options: { Document: JsonDocument; Path?: string; Binds?: string[]; Sets?: string[]; Env?: JsonDocument; Cwd?: string; jsonstor?: any; Require?: ( PackageName: string ) => any; MaxSteps?: number; MaxCalls?: number; Statistics?: boolean; Trace?: boolean; Changes?: boolean } ): Session;
 	}
 
 	export interface PlanModule
@@ -561,14 +563,30 @@ declare module '@liquicode/jsonx-cli'
 		Log?: string;
 		Finding?: Finding;
 		Report?: ReportProgress;
+		/** A JSON Lines record a conversation's command wrote: a debug snapshot. */
+		Line?: any;
 	}
 
 	/** What belongs to the file rather than to a request. */
 	export interface HeldEvent
 	{
-		Event: 'reload' | 'document';
+		Event: 'reload' | 'document' | 'queue';
 		/** Reload's answer, for a reload. */
 		Outcome?: JsonDocument;
+		/** For queue: the command of the conversation now holding the queue, or null when it let go. */
+		HeldBy?: string | null;
+	}
+
+	/** A conversational command (jsonx debug) held open, a line at a time. */
+	export interface HeldConversation
+	{
+		/** Sends one line; answers the record the command wrote for it. */
+		Send( Line: string ): Promise<{ Ok: true; Record: any } | { Ok: false; Message: string }>;
+		/** Ends its input, which the command reads as the end. */
+		End(): void;
+		/** The command's envelope, once it has finished. */
+		Done: Promise<ResultEnvelope>;
+		Over: boolean;
 	}
 
 	/** One file and one session, held for as long as a served mode runs. */
@@ -588,7 +606,9 @@ declare module '@liquicode/jsonx-cli'
 		Lease(): Session;
 		/** One request, as an --input-json document. Never throws. Listen hears its progress as it runs. */
 		Invoke( Invocation: JsonDocument, Listen?: ( Progress: HeldProgress ) => void ): Promise<ResultEnvelope>;
-		/** Hears what belongs to the file: a reload which read something new, and the document changing. Answers a function which stops it. */
+		/** A conversation with a command which declares Conversational: true. It holds the queue until it ends. */
+		Converse( Invocation: JsonDocument, Listen?: ( Progress: HeldProgress ) => void ): HeldConversation;
+		/** Hears what belongs to the file: a reload which read something new, the document changing, and a conversation holding the queue. Answers a function which stops it. */
 		OnEvent( Listener: ( Event: HeldEvent ) => void ): () => void;
 		/** Reads the file and follows it, in the queue. */
 		Reload(): Promise<{ Reloaded: boolean; Reason?: 'unchanged' | 'kept'; Message?: string; Changed?: string[]; Findings?: Finding[] }>;
@@ -665,7 +685,7 @@ declare module '@liquicode/jsonx-cli'
 	export interface EnvelopeModule
 	{
 		/** With Stdout and Stderr, writes each piece as it arrives (the command line); without, only records. */
-		NewOut( Options?: { Stdout?: ( Text: string ) => void; Stderr?: ( Text: string ) => void; Output?: 'json' | 'jsonl' | 'text' | 'table'; OnLog?: ( Line: string ) => void; OnFinding?: ( Finding: Finding ) => void } ): Out;
+		NewOut( Options?: { Stdout?: ( Text: string ) => void; Stderr?: ( Text: string ) => void; Output?: 'json' | 'jsonl' | 'text' | 'table'; OnLog?: ( Line: string ) => void; OnFinding?: ( Finding: Finding ) => void; OnLine?: ( Value: any ) => void } ): Out;
 	}
 
 

@@ -115,6 +115,8 @@ function NewRunner( Options )
 		DataSources: options.DataSources,
 		Host: options.Host,
 		Statistics: ( options.Statistics === true ),
+		// Whether an Update keeps the documents it changed, before and after, on its report (--changes).
+		Changes: ( options.Changes === true ),
 
 		// The reports of the objects running now, outermost first.
 		Stack: [],
@@ -438,11 +440,16 @@ function NewRunner( Options )
 		let fields = await key_fields( Entry.DataSource, storage );
 		let criteria = Triggers.CriteriaForDocuments( before, fields );
 
+		// ***With Changes on, the documents already read to measure Changed are kept*** (cut 4, F5.4):
+		// no call is added. Nothing selected changed nothing; selected documents with no key values
+		// cannot be read back, so what changed is not known and Changes is left out.
+		let changes = ( runner.Changes && before.length === 0 ) ? [] : null;
 		if ( criteria !== null )
 		{
 			let after = await call_storage( Entry.DataSource, 'FindMany', [ criteria, null ] );
 			after = Array.isArray( after ) ? after : [];
 			changed = 0;
+			if ( runner.Changes ) { changes = []; }
 			for ( let index = 0; index < before.length; index++ )
 			{
 				let key = JSON.stringify( fields.map( function ( Field ) { return jsongin.GetValue( before[ index ], Field ); } ) );
@@ -450,11 +457,17 @@ function NewRunner( Options )
 				{
 					return JSON.stringify( fields.map( function ( Field ) { return jsongin.GetValue( Document, Field ); } ) ) === key;
 				} );
-				if ( !now || !jsongin.StrictEquals( before[ index ], now ) ) { changed++; }
+				if ( !now || !jsongin.StrictEquals( before[ index ], now ) )
+				{
+					changed++;
+					if ( changes !== null ) { changes.push( { Before: before[ index ], After: now || null } ); }
+				}
 			}
 		}
 
+		// The result stays spec 6.3's, since a `$call` receives it; the changes are the report's.
 		Report.Result = { Selected: selected, Changed: changed };
+		if ( changes !== null ) { Report.Changes = changes; }
 		Report.Summary = 'selected ' + selected + ', changed ' + changed;
 		return;
 	}

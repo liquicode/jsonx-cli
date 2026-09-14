@@ -15,6 +15,8 @@
 	From the client:
 
 		{ "Id": "1", "Invoke": { "Command": [ "datasource", "find" ], "name": "Bookings" } }
+		{ "Id": "2", "Debug": { "process": "Prepare the season" } }    opens this connection's debug
+		{ "Id": "3", "Step": "step" }                                  one debug command
 
 	From the server:
 
@@ -22,8 +24,19 @@
 		{ "Id": "1", "Event": "log", "Line": "..." }
 		{ "Id": "1", "Event": "finding", "Finding": { ... } }
 		{ "Id": "1", "Event": "report", "Phase", "Name", "Kind", "Depth", ... }
+		{ "Id": "2", "Event": "debug", "Snapshot": { ... } }       each snapshot of a debug
 		{ "Id": "1", "Answer": <the envelope> }                   always last for its Id
-		{ "Event": "reload", "Outcome": { ... } }  { "Event": "document" }
+		{ "Event": "reload", "Outcome": { ... } }  { "Event": "document" }  { "Event": "queue", "HeldBy" }
+
+	***A served debug*** (cut 4, decision 3) is `jsonx debug` itself, held as a conversation
+	(Held.Converse):
+	-	`Debug` opens it, with the options jsonx debug takes. Its snapshots arrive as `debug` events
+		under the Debug's Id - the first when it starts - and ***the Debug's Answer comes when the debug
+		ends***, the envelope jsonx debug answers: every snapshot as Result, the run report as Log.
+	-	`Step` sends one command line; its Answer's Result is the snapshot that line produced.
+	-	One debug per connection. ***Closing the connection ends it***, as the end of standard input
+		ends jsonx debug.
+	-	***While it is open, every queued request from any client waits***: `queue` events say so.
 
 	-	***An Invoke is a Web API request with its route written in `Command`***: the same --input-json
 		document, answered by the same Held.Invoke, so the answer is the envelope a POST would carry.
@@ -119,6 +132,8 @@ function AttachWs( App, Held, Options )
 		// The Ids of this connection's requests which have not been answered.
 		let running = new Set();
 		let stop_events = null;
+		// This connection's debug, while one is open: { Id, Conversation }.
+		let debugging = null;
 		let closed = null;
 		let is_closed = new Promise( function ( Resolve ) { closed = Resolve; } );
 
@@ -131,6 +146,7 @@ function AttachWs( App, Held, Options )
 			OnClose: function ()
 			{
 				if ( stop_events ) { stop_events(); stop_events = null; }
+				if ( debugging ) { debugging.Conversation.End(); }
 				attached.Connections.delete( connection );
 				closed();
 				return;
@@ -187,9 +203,11 @@ function AttachWs( App, Held, Options )
 				send( { Id: id, Answer: refusal( 'The Id [' + id + '] belongs to a request which has not been answered.' ) } );
 				return;
 			}
+			if ( typeof message.Step !== 'undefined' ) { return on_step( id, message.Step ); }
+			if ( typeof message.Debug !== 'undefined' ) { return on_debug( id, message.Debug ); }
 			if ( !is_object( message.Invoke ) )
 			{
-				send( { Id: id, Answer: refusal( 'A request names what it asks in Invoke: { Command, ...arguments and options }.' ) } );
+				send( { Id: id, Answer: refusal( 'A request names what it asks in Invoke: { Command, ...arguments and options }; a debug in Debug or Step.' ) } );
 				return;
 			}
 
@@ -209,6 +227,76 @@ function AttachWs( App, Held, Options )
 			{
 				running.delete( id );
 				send( { Id: id, Answer: { Ok: false, ExitCode: 1, Findings: [], Log: [ 'The request failed unexpectedly: ' + error.message ] } } );
+				return;
+			} );
+			return;
+		}
+
+
+		//---------------------------------------------------------------------
+		// Opens this connection's debug: jsonx debug, conversed with.
+
+		function on_debug( Id, Options_ )
+		{
+			if ( !is_object( Options_ ) )
+			{
+				send( { Id: Id, Answer: refusal( 'Debug takes jsonx debug\'s arguments and options: { "process": "<name>" }.' ) } );
+				return;
+			}
+			if ( Object.prototype.hasOwnProperty.call( Options_, 'Command' ) )
+			{
+				send( { Id: Id, Answer: refusal( 'Debug cannot name a Command: it is jsonx debug.' ) } );
+				return;
+			}
+			if ( debugging )
+			{
+				send( { Id: Id, Answer: refusal( 'This connection is already debugging, under the Id [' + debugging.Id + ']. Quit it first.' ) } );
+				return;
+			}
+
+			running.add( Id );
+			let conversation = Held.Converse( Object.assign( {}, Options_, { Command: 'debug' } ), function ( Progress )
+			{
+				if ( Progress.Line ) { send( { Id: Id, Event: 'debug', Snapshot: Progress.Line } ); }
+				else if ( typeof Progress.Log === 'string' ) { send( { Id: Id, Event: 'log', Line: Progress.Log } ); }
+				else if ( Progress.Finding ) { send( { Id: Id, Event: 'finding', Finding: Progress.Finding } ); }
+				else if ( Progress.Report ) { send( Object.assign( { Id: Id, Event: 'report' }, Progress.Report ) ); }
+				return;
+			} );
+			debugging = { Id: Id, Conversation: conversation };
+
+			conversation.Done.then( function ( Envelope )
+			{
+				running.delete( Id );
+				if ( debugging && debugging.Conversation === conversation ) { debugging = null; }
+				send( { Id: Id, Answer: Envelope } );
+				return;
+			} );
+			return;
+		}
+
+
+		//---------------------------------------------------------------------
+		// One command line to this connection's debug. Answers the snapshot it produced.
+
+		function on_step( Id, Line )
+		{
+			if ( typeof Line !== 'string' )
+			{
+				send( { Id: Id, Answer: refusal( 'Step takes one debug command as a string: step, into, continue, decline, answer <json>, state, skip, quit.' ) } );
+				return;
+			}
+			if ( !debugging )
+			{
+				send( { Id: Id, Answer: refusal( 'Nothing is being debugged on this connection: open one with Debug.' ) } );
+				return;
+			}
+			running.add( Id );
+			debugging.Conversation.Send( Line ).then( function ( Sent )
+			{
+				running.delete( Id );
+				if ( !Sent.Ok ) { send( { Id: Id, Answer: refusal( Sent.Message ) } ); return; }
+				send( { Id: Id, Answer: { Ok: true, ExitCode: 0, Result: Sent.Record, Findings: [], Log: [] } } );
 				return;
 			} );
 			return;

@@ -36,13 +36,24 @@ const RUN_OPTIONS = Object.assign( {
 }, SESSION_OPTIONS );
 
 
+// The commands whose result can carry what an Update changed: run, and datasource update (cut 4, F5.4).
+const CHANGES_OPTION = {
+	'changes': { Type: 'boolean', Describe: 'Add the documents an Update changed, before and after, to the result.' },
+};
+
+
 //---------------------------------------------------------------------
-// What a command with RUN_OPTIONS asks of its session.
+// What a command with RUN_OPTIONS asks of its session. Changes only where the command declares it.
 
 function RunExtras( Parsed, Context )
 {
 	let value = function ( Name ) { return Context.Parser.Value( Context.Tree, Parsed, Name ); };
-	return { Statistics: value( 'verbose' ), Trace: value( 'trace' ) };
+	return { Statistics: value( 'verbose' ), Trace: value( 'trace' ), Changes: declares_changes( Parsed, Context ) && ( value( 'changes' ) === true ) };
+}
+
+function declares_changes( Parsed, Context )
+{
+	return Object.prototype.hasOwnProperty.call( Context.Parser.OptionsAt( Context.Tree, Parsed.Path ), 'changes' );
 }
 
 
@@ -65,7 +76,7 @@ async function OpenSession( Parsed, Context, Extra )
 	{
 		let held = Context.Held;
 		if ( refuse_errors( out, held.Path, held.Session.Document, io, held.Session.Catalog ) ) { return { ExitCode: 3 }; }
-		held.Session.SetRunOptions( { Statistics: ( extra.Statistics === true ), Trace: ( extra.Trace === true ) } );
+		held.Session.SetRunOptions( { Statistics: ( extra.Statistics === true ), Trace: ( extra.Trace === true ), Changes: ( extra.Changes === true ) } );
 		return { Session: held.Lease(), Path: held.Path };
 	}
 
@@ -103,6 +114,7 @@ async function OpenSession( Parsed, Context, Extra )
 			Cwd: io.Cwd,
 			Statistics: ( extra.Statistics === true ),
 			Trace: ( extra.Trace === true ),
+			Changes: ( extra.Changes === true ),
 		} );
 	}
 	catch ( error )
@@ -144,6 +156,10 @@ function write_findings( Out, Path, Findings )
 
 //---------------------------------------------------------------------
 // Writes a run report and the result, releases the session, and answers the exit code.
+//
+// ***With --changes, an Update's result gains `Changes`***, the documents it changed as
+// { Before, After }. Only here, where the command writes its result: the Update's own result stays
+// spec 6.3's, because a Process calling it receives that.
 
 async function FinishRun( RunReport, Session_, Parsed, Context )
 {
@@ -153,7 +169,11 @@ async function FinishRun( RunReport, Session_, Parsed, Context )
 	try
 	{
 		if ( !value( 'quiet' ) ) { out.Log( Report.FormatRunReport( RunReport, 0, { Statistics: value( 'verbose' ), Trace: value( 'trace' ) } ) ); }
-		if ( RunReport.Ok ) { out.Result( RunReport.Result ); }
+		if ( RunReport.Ok )
+		{
+			let with_changes = declares_changes( Parsed, Context ) && value( 'changes' ) === true && Array.isArray( RunReport.Changes );
+			out.Result( with_changes ? Object.assign( {}, RunReport.Result, { Changes: RunReport.Changes } ) : RunReport.Result );
+		}
 	}
 	finally
 	{
@@ -167,6 +187,7 @@ async function FinishRun( RunReport, Session_, Parsed, Context )
 module.exports = {
 	SESSION_OPTIONS: SESSION_OPTIONS,
 	RUN_OPTIONS: RUN_OPTIONS,
+	CHANGES_OPTION: CHANGES_OPTION,
 	RunExtras: RunExtras,
 	OpenSession: OpenSession,
 	FinishRun: FinishRun,

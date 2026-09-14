@@ -35,6 +35,14 @@ async function handler( Parsed, Context )
 		return 2;
 	}
 
+	// --changes says what an Update changed; on anything else it would be accepted and ignored.
+	if ( Context.Parser.Value( Context.Tree, Parsed, 'changes' ) === true && item.Entry.Kind !== 'Update' )
+	{
+		await opened.Session.Release();
+		Context.Out.Log( 'Option [--changes] has an effect only on an Update, and [' + name + '] is a ' + item.Entry.Kind + '.\n' );
+		return 2;
+	}
+
 	let report = null;
 	try
 	{
@@ -60,6 +68,6 @@ module.exports = {
 	],
 	Options: Object.assign( {
 		'input': { Type: 'json', Describe: 'The starting document of a Process with no DataSource.' },
-	}, SessionCommand.RUN_OPTIONS ),
+	}, SessionCommand.CHANGES_OPTION, SessionCommand.RUN_OPTIONS ),
 	Handler: handler,
 };

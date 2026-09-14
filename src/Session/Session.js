@@ -67,6 +67,7 @@ function stable_json( Value )
 //		Require        how the catalog loads adapter packages; `require` when absent
 //		MaxSteps, MaxCalls   process host limits
 //		Statistics     true to measure every storage call (--verbose)
+//		Changes        true for an Update to keep the documents it changed on its report (--changes)
 //		Trace          true to stack jsonstor-oplog over every data source and record its lines
 //		               on the report of the object making each call (--trace, plan F6.2)
 //		Traceable      true to stack jsonstor-oplog on every data source whether or not this run
@@ -179,7 +180,7 @@ function NewSession( Options )
 	}
 
 	session.Runner = Runner.NewRunner( {
-		Document: session.Document, DataSources: session.DataSources, Host: session.Host, Statistics: ( options.Statistics === true ),
+		Document: session.Document, DataSources: session.DataSources, Host: session.Host, Statistics: ( options.Statistics === true ), Changes: ( options.Changes === true ),
 	} );
 
 
@@ -237,13 +238,15 @@ function NewSession( Options )
 
 
 	//---------------------------------------------------------------------
-	// What the next run measures and records: Statistics (--verbose) and Trace (--trace). A held
-	// session sets them per request; Trace records only on a session built Traceable or with Trace.
+	// What the next run measures and records: Statistics (--verbose), Trace (--trace) and Changes
+	// (--changes). A held session sets them per request; Trace records only on a session built
+	// Traceable or with Trace.
 
 	session.SetRunOptions = function ( RunOptions )
 	{
 		let run_options = is_object( RunOptions ) ? RunOptions : {};
 		session.Runner.Statistics = ( run_options.Statistics === true );
+		session.Runner.Changes = ( run_options.Changes === true );
 		session.Trace = ( run_options.Trace === true );
 		return;
 	};
