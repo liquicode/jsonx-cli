@@ -181,6 +181,7 @@ describe( 'jsonx completion and --output text|table', function ()
 		}
 		LIB_ASSERT.strictEqual( cli( [ 'completion', 'fish' ] ).Code, 2 );
 		LIB_ASSERT.strictEqual( cli( [ 'completion', 'bash', '--output', 'text' ] ).Code, 2 );
+		LIB_ASSERT.strictEqual( cli( [ 'completion', 'bash', '--file', 'observatory.jsonx' ] ).Code, 2, 'a completion command reads no file of its own' );
 		LIB_ASSERT.ok( !cli( [ '--help' ] ).Stdout.includes( '__complete' ) );
 	} );
 

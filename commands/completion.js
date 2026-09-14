@@ -14,11 +14,16 @@
 
 const Complete = require( '../src/CommandLine/Complete.js' );
 const CompletionScripts = require( '../src/CommandLine/CompletionScripts.js' );
+const FileCommand = require( './file.js' );
 
 
 //---------------------------------------------------------------------
 function refuse_output( Parsed, Context, What )
 {
+	// A completion command reads no jsonx file of its own: `__complete` finds the file from the
+	// words it is handed, not from its own --file.
+	let refused = FileCommand.RefuseFile( Parsed, Context, What );
+	if ( refused !== null ) { return refused; }
 	if ( Parsed.Given.output !== true ) { return null; }
 	Context.Io.Stderr( 'Option [--output] does not apply to ' + What + ', which writes text for a shell.\n' );
 	return 2;

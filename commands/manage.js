@@ -156,6 +156,7 @@ function noun_group( Noun )
 		group.Aliases = [ 'data' ];
 		group.Commands.push( {
 			Command: 'info', Describe: 'What the data source says about itself: StorageInfo and the dialect boundary check.',
+			Library: [ 'jsonstor.StorageInfo' ],
 			Positionals: [ name_positional ], Options: Object.assign( {}, SessionCommand.SESSION_OPTIONS ), Handler: inspect_handler( 'info' ),
 		} );
 		group.Commands.push( {
