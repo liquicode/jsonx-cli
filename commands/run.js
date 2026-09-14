@@ -39,7 +39,8 @@ async function handler( Parsed, Context )
 	if ( Context.Parser.Value( Context.Tree, Parsed, 'changes' ) === true && item.Entry.Kind !== 'Update' )
 	{
 		await opened.Session.Release();
-		Context.Out.Log( 'Option [--changes] has an effect only on an Update, and [' + name + '] is a ' + item.Entry.Kind + '.\n' );
+		let article = /^[AEIOU]/.test( item.Entry.Kind ) ? 'an' : 'a';
+		Context.Out.Log( 'Option [--changes] has an effect only on an Update, and [' + name + '] is ' + article + ' ' + item.Entry.Kind + '.\n' );
 		return 2;
 	}
 

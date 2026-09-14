@@ -1,15 +1,15 @@
 # jsonx-cli
 
 The jsonx command line: validate, plan, run, debug and edit a `.jsonx` file, work with the
-documents in its data sources, use jsongin on its own, and serve the file to programs over HTTP or
-MCP.
+documents in its data sources, use jsongin on its own, serve the file to programs over HTTP, a
+WebSocket or MCP, and work with it in a terminal interface.
 
 A `.jsonx` file holds the data sources a piece of work uses, the operations on them, and the
 triggers that run a process when data changes. The format is defined in
 [the jsonx specification](docs/Jsonx-Specification.md). The examples below use its Appendix B, the
 observatory file, saved as `observatory.jsonx`.
 
-Requires Node 20 or later. From a checkout, run `npm install`, then `node bin/jsonx.js`.
+Requires Node 22 or later. From a checkout, run `npm install`, then `node bin/jsonx.js`.
 
 
 ## Choosing the file
@@ -50,8 +50,9 @@ says what it tried. `engine`, `adapters`, `new` and `completion` read no file, a
 | `jsonx new <kind>` | A skeleton to start from: a file, or one entry. |
 | `jsonx format` | Rewrite the file in canonical order. `--check` only reports. |
 | `jsonx completion <shell>` | The completion script for `bash`, `zsh` or `powershell`. |
-| `jsonx serve --api` | Serve the file's commands over HTTP until stopped. See [Serving the file](#serving-the-file). |
+| `jsonx serve --api` | Serve the file's commands over HTTP and a WebSocket until stopped. See [Serving the file](#serving-the-file). |
 | `jsonx mcp` | Serve the file's commands as MCP tools, over standard input and output or `--http`. |
+| `jsonx tui` | Work with the file in a terminal interface. See [The terminal interface](#the-terminal-interface). |
 
 The nouns are `datasource`, `query`, `insert`, `update`, `delete`, `process` and `trigger`.
 `data` is another name for `datasource`. `jsonx --help`, and `--help` after any command, lists
@@ -112,9 +113,9 @@ b-1      R. Okafor  B
 | Code | Meaning |
 |---|---|
 | 0 | Done. |
-| 1 | What ran failed, a debug was stopped before it finished, `format --check` found a change, the file could not be read, or a server could not use its port. |
-| 2 | A mistake in the command: an unknown option, a name that is not in the file, no file found, a change refused for want of `--yes`, or a server address other than loopback with no token. |
-| 3 | The file has errors, an edit was refused, or jsongin refused a criteria, update or schema. Nothing ran and nothing was written. |
+| 1 | What ran failed, a debug was stopped before it finished, `format --check` found a change, the file could not be read, a server could not use its port, or `tui` could not reach its process. |
+| 2 | A mistake in the command: an unknown option, a name that is not in the file, no file found, a change refused for want of `--yes`, a server address other than loopback with no token, or `tui --url` reaching a jsonx of another version. |
+| 3 | The file has errors, an edit was refused or `--check` found it would add an error, or jsongin refused a criteria, update or schema. Nothing ran and nothing was written. |
 
 ***A file with errors runs nothing.*** Every command that opens a data source validates the whole
 file first. Warnings and notes do not stop it.
@@ -131,7 +132,7 @@ takes its values as options; a JSON value is inline, `@file`, or `-` for standar
 | `find-one` | `--criteria`, `--projection` | Read the first document, or `null`. |
 | `count` | `--criteria` | Count documents. |
 | `insert` | `--documents` | Insert one document or an array of them. |
-| `update` | `--criteria`, `--update`, `--first-only` | Change documents. |
+| `update` | `--criteria`, `--update`, `--first-only`, `--changes` | Change documents. |
 | `replace` | `--criteria`, `--document` | Replace the first document selected. |
 | `delete` | `--criteria`, `--first-only` | Remove documents. |
 | `flush` | | Write out what the adapter holds in memory. |
@@ -161,6 +162,22 @@ jsonx run "Long nights"
 
 A save is checked like `add`: refused when it would add an error, unless `--force`. `--save` is
 available on `find`, `insert`, `update` and `delete`.
+
+`--changes`, on `update` and on `run` of an Update, adds each document the update changed to the
+result, as it was before and after:
+
+```
+jsonx data update Bookings --criteria @b-2.json --update @confirm.json --changes
+```
+
+```
+{ "Selected": 1, "Changed": 1,
+  "Changes": [ { "Before": { "_id": "b-2", ..., "Status": "requested" },
+                 "After":  { "_id": "b-2", ..., "Status": "confirmed" } } ] }
+```
+
+When nothing was selected, `Changes` is `[]`. When the selected documents carry no primary key
+value, they cannot be read back after the update, and `Changes` is left out.
 
 
 ## Explaining
@@ -356,6 +373,13 @@ jsonx datasource rename Bookings Reservations
 left as it was. An error the file already had does not block an edit, so a broken file can be
 fixed one change at a time. `--force` makes the change anyway.
 
+`--check` on `add` or `set` checks the change exactly as it would be made and writes nothing. It
+exits 3 when the change would add an error, and 0 otherwise.
+
+```
+jsonx query add --json @long-nights.json --check
+```
+
 The file is rewritten with tab indentation. Fields jsonx does not know are kept.
 
 ***In Windows PowerShell 5.1***, double quotes inside an argument are removed before `jsonx` sees
@@ -412,7 +436,16 @@ jsonx serve --api --file observatory.jsonx
 ```
 
 It serves at `http://127.0.0.1:3470` until Ctrl+C. `--port` picks another port, and `--port 0` a
-free one; the address is written to standard error.
+free one.
+
+When it is ready, it writes one line to standard output, for a program that started it:
+
+```
+{"File":"C:\\season\\observatory.jsonx","Url":"http://127.0.0.1:3470","Ws":"ws://127.0.0.1:3470/ws","Pid":24480}
+```
+
+`--attached` also stops it when its standard input ends, so the program that started it can stop it
+by closing that input. It stops the same way as on Ctrl+C: data sources are flushed and closed.
 
 - `GET /` lists every command it answers, with its route, arguments and options.
 - `POST /<command>` runs a command: `POST /run`, `POST /datasource/find`,
@@ -443,6 +476,54 @@ The HTTP status follows the exit code:
 A command whose result is a list answers one JSON line per item when the request sends
 `Accept: application/x-ndjson`, then a last line with `Ok`, `ExitCode`, `Findings` and `Log`.
 
+### The WebSocket
+
+`jsonx serve --api` also answers a WebSocket at `ws://127.0.0.1:3470/ws`. One connection carries
+commands and their answers, and the server tells the connection what happens while it is open:
+each object a run starts and finishes, and each change to the file. The connection passes the same
+checks as any other request (see [Who can call](#who-can-call)).
+
+Every message is one JSON object. The first message from the server is `Hello`: the version, the
+file, the file's contents as written, and the commands, as `GET /` lists them.
+
+A request carries an `Id` of your choosing, and everything the server sends about that request
+carries the same `Id`. The `Answer` always comes last.
+
+| Send | What it does |
+|---|---|
+| `{ "Id": "1", "Invoke": { "Command": "run", "name": "Prepare the season" } }` | Run a command. `Invoke` is the command's [JSON document](#a-whole-command-as-json), and `Answer` is the object above. |
+| `{ "Id": "2", "Read": "jsonx://entry/Bookings" }` | Read the file (`jsonx://file`) or one entry, as written. |
+| `{ "Id": "3", "Debug": { "process": "Prepare the season" } }` | Start debugging a Process. |
+| `{ "Id": "4", "Step": "step" }` | Send one [debug command](#debugging-a-process). Its `Answer` is where the Process is now. |
+
+| Received | When |
+|---|---|
+| `{ "Id", "Event": "report", "Phase": "open" or "close", "Name", "Kind", "Depth", ... }` | An object of the request starts or finishes. A close carries `Ok`, `Summary` and `Ms`. |
+| `{ "Id", "Event": "log", "Line" }` | A line of the request's report. |
+| `{ "Id", "Event": "finding", "Finding" }` | A finding of the request. |
+| `{ "Id", "Event": "debug", "Snapshot" }` | The debug has moved: first when it starts, then after each command. |
+| `{ "Id", "Answer" }` | The request is done. |
+| `{ "Event": "document" }` | The file changed. Read it again for what you need. |
+| `{ "Event": "reload", "Outcome" }` | The file was edited on disk; `Outcome` says whether it was picked up. |
+| `{ "Event": "queue", "HeldBy" }` | A debug started (`"debug"`) or ended (`null`). |
+
+- ***A debug holds the file for as long as it is open.*** While it is open, every request from every
+  program that opens a data source or changes the file waits, and the `queue` event says why.
+  `validate`, `plan`, `explain`, `list`, `show`, `engine`, `adapters` and `new` still answer at once.
+- One connection has at most one debug. It ends when the Process finishes, on `quit`, or when the
+  connection closes. The `Debug` request is answered then, with every snapshot as `Result` and the run
+  report as `Log`, as `jsonx debug` writes them.
+- A message that is not JSON closes the connection. A message that is JSON but not a request is
+  answered with exit code 2.
+
+Node 22's own `WebSocket` can connect:
+
+```
+const socket = new WebSocket( 'ws://127.0.0.1:3470/ws' );
+socket.onmessage = function ( Message ) { console.log( Message.data ); };
+socket.onopen = function () { socket.send( JSON.stringify( { Id: '1', Invoke: { Command: 'run', name: 'Prepare the season' } } ) ); };
+```
+
 ### MCP
 
 ```
@@ -472,8 +553,9 @@ claude mcp add jsonx -- node <checkout>/bin/jsonx.js mcp --file <path>/observato
 
 A request runs against the file and data sources the server was started with. `file`, `bind`,
 `set` and `quiet` are refused, and so is an `output` other than `json`. Give `--file`, `--bind` and
-`--set` to `jsonx serve` or `jsonx mcp` instead. `debug`, `completion`, `serve` and `mcp` are not
-served.
+`--set` to `jsonx serve` or `jsonx mcp` instead. `completion`, `serve`, `mcp` and `tui` are not
+served. `debug` is served only over the WebSocket, because a debug needs a connection that stays
+open.
 
 ### Who can call
 
@@ -505,6 +587,57 @@ jsonx serve --api --host 0.0.0.0 --token "a long random value"
 - ***A file with errors is still served***, so it can be fixed through requests. Until it is, every
   run answers 422.
 - An environment variable is read when its data source opens. Restart the server to use a new value.
+
+
+## The terminal interface
+
+```
+jsonx tui --file observatory.jsonx
+```
+
+`jsonx tui` starts `jsonx serve` for the file, connects to it over the WebSocket, and stops it when you
+quit. `--bind` and `--set` are passed on to that server.
+
+To work with a file that is already being served, attach to it instead. Quitting leaves that server
+running:
+
+```
+jsonx tui --url ws://127.0.0.1:3470/ws
+```
+
+`--token`, or `JSONX_TOKEN`, is the token that server needs. `--url` refuses `--file`, `--bind` and
+`--set`, since the server already holds its file. It also refuses a jsonx of a different version,
+because commands typed here are read with this version's command table.
+
+The screen has four panes:
+
+- ***Inventory*** lists the data sources, objects by kind, and triggers, each marked with its worst
+  finding. Enter, or a second click, on an entry opens its actions: run, debug, find, count, plan,
+  explain, validate and the rest. Run, debug and anything that only reads is sent straight away;
+  an action marked `…` that changes something is put in Input for you to finish. `edit` puts the
+  entry's JSON in Input.
+- ***Input*** takes a command as you would type it after `jsonx`, such as `data find Bookings --max 5`.
+  Tab completes commands, options and names. A line starting with `{` is an entry: it is checked as you
+  type, and Ctrl+S saves it, adding it or replacing the entry of that name.
+- ***Log*** shows each command's report and findings, and says when an edit saved on disk was
+  picked up. Inventory follows every change to the file, however it was made.
+- ***Data Rows*** shows a list result as rows. Enter on a row shows its JSON, and PgUp and PgDn page
+  through a `find`. An update run with `--changes` shows each document before and after.
+
+| Key | What it does |
+|---|---|
+| Tab, Shift+Tab | Move between panes. In Input, Tab completes. |
+| Esc | Leave Input. |
+| F1 | Help. |
+| F2 | Switch between the dark and light themes. |
+| F3 | Switch between the small, normal and large layouts. |
+| F5, F6, F7 | Hide or show Inventory, Log or Data Rows. |
+| Ctrl+Q | Quit. |
+| `s` `i` `c` `d` `t` `k` `x` | While debugging, outside Input: step, into, continue, decline, state, skip, quit. |
+
+A click moves to a pane, and the wheel scrolls. ***A command that needs `--yes` asks first***, and
+sends `yes` only when you answer `y`. The theme, the layout and the hidden panes are kept in
+`~/.jsonx/tui.json`.
 
 
 ## Using the library

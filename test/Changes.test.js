@@ -132,6 +132,9 @@ describe( '--changes', function ()
 			let on_process = await held.Invoke( { Command: 'run', name: 'Darken through a call', changes: true } );
 			LIB_ASSERT.strictEqual( on_process.ExitCode, 2 );
 			LIB_ASSERT.match( on_process.Log.join( '\n' ), /\[--changes\] has an effect only on an Update, and \[Darken through a call\] is a Process/ );
+			let on_insert = await held.Invoke( { Command: 'run', name: 'Seed', changes: true } );
+			LIB_ASSERT.strictEqual( on_insert.ExitCode, 2 );
+			LIB_ASSERT.match( on_insert.Log.join( '\n' ), /\[Seed\] is an Insert\./ );
 
 			let saved = await held.Invoke( { Command: 'data update', name: 'Items', criteria: { Color: 'red' }, update: { $set: { A: 1 } }, changes: true, save: 'Saved update' } );
 			LIB_ASSERT.strictEqual( saved.ExitCode, 2 );
