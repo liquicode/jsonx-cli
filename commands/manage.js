@@ -22,6 +22,8 @@ const TriggerCommand = require( './trigger.js' );
 
 
 const FORCE = { 'force': { Type: 'boolean', Describe: 'Make the change even when it adds an error.' } };
+// ***Decided (user, 2026-09-14)***, following `format --check`: validate the edit, write nothing.
+const CHECK = { 'check': { Type: 'boolean', Describe: 'Validate the change exactly as it would be made, and write nothing: exit 3 when it would add an error.' } };
 
 
 //---------------------------------------------------------------------
@@ -42,19 +44,30 @@ function edit_handler( Noun, Verb )
 		let out = Context.Out;
 		let value = values( Parsed, Context );
 
+		let checking = ( Verb === 'add' || Verb === 'set' ) && value( 'check' ) === true;
+		if ( checking && Parsed.Given.force === true )
+		{
+			out.Log( 'Option [--force] has no effect with --check, which writes nothing.\n' );
+			return 2;
+		}
+
 		let loaded = FileCommand.LoadFile( Parsed, Context );
 		if ( typeof loaded.ExitCode === 'number' ) { return loaded.ExitCode; }
 
-		let options = { Force: ( Verb === 'list' || Verb === 'show' ) ? false : value( 'force' ), Validate: loaded.ValidateOptions };
+		// ***A check edits a copy***: an edit changes the document in place, and a served command's
+		// document is the one the session holds (commands/file.js).
+		let document = checking ? JSON.parse( JSON.stringify( loaded.Document ) ) : loaded.Document;
+
+		let options = { Force: ( Verb === 'list' || Verb === 'show' || checking ) ? false : value( 'force' ), Validate: loaded.ValidateOptions };
 		let outcome = null;
 		try
 		{
-			if ( Verb === 'list' ) { outcome = { Ok: true, Result: Edit.List( loaded.Document, Noun ), Findings: [], Read: true }; }
-			if ( Verb === 'show' ) { outcome = { Ok: true, Result: Edit.Show( loaded.Document, Noun, value( 'name' ) ), Findings: [], Read: true }; }
-			if ( Verb === 'add' ) { outcome = Edit.Add( loaded.Document, Noun, value( 'json' ), options ); }
-			if ( Verb === 'set' ) { outcome = Edit.Set( loaded.Document, Noun, value( 'name' ), value( 'json' ), options ); }
-			if ( Verb === 'remove' ) { outcome = Edit.Remove( loaded.Document, Noun, value( 'name' ), options ); }
-			if ( Verb === 'rename' ) { outcome = Edit.Rename( loaded.Document, Noun, value( 'name' ), value( 'new-name' ), options ); }
+			if ( Verb === 'list' ) { outcome = { Ok: true, Result: Edit.List( document, Noun ), Findings: [], Read: true }; }
+			if ( Verb === 'show' ) { outcome = { Ok: true, Result: Edit.Show( document, Noun, value( 'name' ) ), Findings: [], Read: true }; }
+			if ( Verb === 'add' ) { outcome = Edit.Add( document, Noun, value( 'json' ), options ); }
+			if ( Verb === 'set' ) { outcome = Edit.Set( document, Noun, value( 'name' ), value( 'json' ), options ); }
+			if ( Verb === 'remove' ) { outcome = Edit.Remove( document, Noun, value( 'name' ), options ); }
+			if ( Verb === 'rename' ) { outcome = Edit.Rename( document, Noun, value( 'name' ), value( 'new-name' ), options ); }
 		}
 		catch ( error )
 		{
@@ -69,9 +82,17 @@ function edit_handler( Noun, Verb )
 			for ( let index = 0; index < outcome.Findings.length; index++ ) { out.Finding( outcome.Findings[ index ] ); }
 		}
 
+		let errors = outcome.Findings.length + ' error' + ( outcome.Findings.length === 1 ? '' : 's' );
+		if ( checking )
+		{
+			if ( !quiet ) { out.Log( outcome.Ok ? 'Checked: this ' + Verb + ' adds no error. Nothing was written.\n' : 'Checked: this ' + Verb + ' would add ' + errors + '. Nothing was written.\n' ); }
+			if ( outcome.Ok ) { out.Result( outcome.Result ); }
+			return outcome.Ok ? 0 : 3;
+		}
+
 		if ( !outcome.Ok )
 		{
-			if ( !quiet ) { out.Log( 'Refused: this ' + Verb + ' would add ' + outcome.Findings.length + ' error' + ( outcome.Findings.length === 1 ? '' : 's' ) + '. The file is unchanged; pass --force to make it anyway.\n' ); }
+			if ( !quiet ) { out.Log( 'Refused: this ' + Verb + ' would add ' + errors + '. The file is unchanged; pass --force to make it anyway.\n' ); }
 			return 3;
 		}
 
@@ -133,10 +154,10 @@ function noun_group( Noun )
 		Commands: [
 			{ Command: 'list', Describe: 'List every ' + label + '.', Concurrent: true, Handler: edit_handler( Noun, 'list' ) },
 			{ Command: 'show', Describe: 'Show one ' + label + '.', Concurrent: true, Positionals: [ name_positional ], Handler: edit_handler( Noun, 'show' ) },
-			{ Command: 'add', Describe: 'Add a ' + label + '.', Options: Object.assign( {}, body, FORCE ), Handler: edit_handler( Noun, 'add' ) },
+			{ Command: 'add', Describe: 'Add a ' + label + '.', Options: Object.assign( {}, body, FORCE, CHECK ), Handler: edit_handler( Noun, 'add' ) },
 			{
 				Command: 'set', Describe: 'Change fields of a ' + label + '; a field set to null is removed.',
-				Positionals: [ name_positional ], Options: Object.assign( {}, body, FORCE ), Handler: edit_handler( Noun, 'set' ),
+				Positionals: [ name_positional ], Options: Object.assign( {}, body, FORCE, CHECK ), Handler: edit_handler( Noun, 'set' ),
 			},
 			{
 				Command: 'remove', Describe: 'Remove a ' + label + '; refused while anything refers to it.',

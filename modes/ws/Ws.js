@@ -17,6 +17,7 @@
 		{ "Id": "1", "Invoke": { "Command": [ "datasource", "find" ], "name": "Bookings" } }
 		{ "Id": "2", "Debug": { "process": "Prepare the season" } }    opens this connection's debug
 		{ "Id": "3", "Step": "step" }                                  one debug command
+		{ "Id": "4", "Read": "jsonx://file" }                          the held document, as MCP's resource
 
 	From the server:
 
@@ -203,6 +204,7 @@ function AttachWs( App, Held, Options )
 				send( { Id: id, Answer: refusal( 'The Id [' + id + '] belongs to a request which has not been answered.' ) } );
 				return;
 			}
+			if ( typeof message.Read !== 'undefined' ) { return on_read( id, message.Read ); }
 			if ( typeof message.Step !== 'undefined' ) { return on_step( id, message.Step ); }
 			if ( typeof message.Debug !== 'undefined' ) { return on_debug( id, message.Debug ); }
 			if ( !is_object( message.Invoke ) )
@@ -229,6 +231,22 @@ function AttachWs( App, Held, Options )
 				send( { Id: id, Answer: { Ok: false, ExitCode: 1, Findings: [], Log: [ 'The request failed unexpectedly: ' + error.message ] } } );
 				return;
 			} );
+			return;
+		}
+
+
+		//---------------------------------------------------------------------
+		// The held document, or an entry of it, by the address MCP's resources use. Answered at once.
+
+		function on_read( Id, Uri )
+		{
+			let read = Held.ReadResource( Uri );
+			if ( !read.Found )
+			{
+				send( { Id: Id, Answer: refusal( 'Nothing is at [' + Uri + ']: Read takes jsonx://file, or jsonx://entry/<name> with the name URI-encoded.' ) } );
+				return;
+			}
+			send( { Id: Id, Answer: { Ok: true, ExitCode: 0, Result: read.Value, Findings: [], Log: [] } } );
 			return;
 		}
 

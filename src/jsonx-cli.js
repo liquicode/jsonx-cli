@@ -26,6 +26,7 @@ module.exports = {
 			InputJson: require( './CommandLine/InputJson.js' ),
 			Complete: require( './CommandLine/Complete.js' ),
 			CompletionScripts: require( './CommandLine/CompletionScripts.js' ),
+			Words: require( './CommandLine/Words.js' ),
 		},
 		File: {
 			Reader: require( './File/Reader.js' ),

@@ -53,7 +53,7 @@ function child_for( Node, Word )
 //---------------------------------------------------------------------
 // The names a positional's Complete declaration takes, from the file.
 
-function names_for( Complete, Words, Io )
+function names_for( Complete, Words, Io, Document )
 {
 	if ( Complete === 'adapters' )
 	{
@@ -66,7 +66,7 @@ function names_for( Complete, Words, Io )
 		return names;
 	}
 
-	let document = read_file( Words, Io );
+	let document = ( Document && typeof Document === 'object' ) ? Document : read_file( Words, Io );
 	if ( document === null ) { return []; }
 
 	let parts = String( Complete ).split( ':' );
@@ -125,10 +125,14 @@ function jsonx_files( Io )
 //---------------------------------------------------------------------
 // The completions for the words typed after the program name. The last word is the one being typed,
 // and may be empty. Answers the candidates which begin with it, in the tree's order.
+//
+// Options.Document, when given, is the jsonx file names come from instead of one read from disk (the
+// TUI, which may be attached to a process whose file it cannot read).
 
-function Candidates( Tree, Words, Io )
+function Candidates( Tree, Words, Io, Options )
 {
 	let io = Io || {};
+	let document = ( Options && typeof Options === 'object' ) ? Options.Document : null;
 	let words = Array.isArray( Words ) ? Words.slice() : [];
 	let current = ( words.length > 0 ) ? words.pop() : '';
 
@@ -195,7 +199,7 @@ function Candidates( Tree, Words, Io )
 		if ( positional && ( positionals < declared.length || positional.Repeat === true ) )
 		{
 			if ( Array.isArray( positional.Choices ) ) { candidates = candidates.concat( positional.Choices.map( String ) ); }
-			else if ( typeof positional.Complete === 'string' ) { candidates = candidates.concat( names_for( positional.Complete, words, io ) ); }
+			else if ( typeof positional.Complete === 'string' ) { candidates = candidates.concat( names_for( positional.Complete, words, io, document ) ); }
 		}
 	}
 

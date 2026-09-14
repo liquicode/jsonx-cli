@@ -11,8 +11,10 @@
 	program which starts it (the TUI, the desktop) to read instead of the prose. It is written as one
 	line whatever the result would be formatted as, because the reader reads a line.
 
-	***`--attached` also stops it when standard input ends***, so the program which started it cannot
-	leave it running by going away: on Windows a killed parent does not take its children with it.
+	***`--attached` also stops it when standard input ends***, so the program which started it can stop
+	it cleanly - flushed, released, `Stopped.` - by closing its end, and where a child outlives its
+	parent, it cannot be left running by that program going away. (On Windows a child a Node program
+	started dies with it anyway, measured 2026-09-14.)
 
 	***`--api` is required***, so adding the Web UI later (`--ui`) changes what no existing command
 	line does. ***A host other than loopback needs a token***, from --token or JSONX_TOKEN, and is

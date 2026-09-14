@@ -36,8 +36,9 @@ const SUPPORTED_VERSIONS = [ '2025-11-25', '2025-06-18', '2025-03-26', '2024-11-
 
 const SERVER_NAME = 'jsonx';
 
-const FILE_URI = 'jsonx://file';
-const ENTRY_URI = 'jsonx://entry/';
+// The resources' addresses, which the WebSocket's Read shares (src/Session/Held.js).
+const FILE_URI = Held.FILE_URI;
+const ENTRY_URI = Held.ENTRY_URI;
 
 // JSON-RPC and MCP error codes.
 const PARSE_ERROR = -32700;
@@ -232,23 +233,10 @@ function NewMcp( HeldSession, Options )
 	//---------------------------------------------------------------------
 	function resource_read( Id, Uri )
 	{
-		let document = HeldSession.Session.Document;
-		if ( Uri === FILE_URI )
+		let read = HeldSession.ReadResource( Uri );
+		if ( read.Found )
 		{
-			return success( Id, { contents: [ { uri: Uri, mimeType: 'application/json', text: JSON.stringify( document, null, '\t' ) } ] } );
-		}
-		if ( typeof Uri === 'string' && Uri.startsWith( ENTRY_URI ) )
-		{
-			let name = null;
-			try { name = decodeURIComponent( Uri.slice( ENTRY_URI.length ) ); }
-			catch ( error ) { name = null; }
-			let sections = [ 'DataSources', 'Objects', 'Triggers' ];
-			for ( let section = 0; name !== null && section < sections.length; section++ )
-			{
-				let entries = Array.isArray( document[ sections[ section ] ] ) ? document[ sections[ section ] ] : [];
-				let entry = entries.find( function ( Entry ) { return is_object( Entry ) && Entry.Name === name; } );
-				if ( entry ) { return success( Id, { contents: [ { uri: Uri, mimeType: 'application/json', text: JSON.stringify( entry, null, '\t' ) } ] } ); }
-			}
+			return success( Id, { contents: [ { uri: Uri, mimeType: 'application/json', text: JSON.stringify( read.Value, null, '\t' ) } ] } );
 		}
 		return failure( Id, RESOURCE_NOT_FOUND, 'Resource not found', { uri: Uri } );
 	}

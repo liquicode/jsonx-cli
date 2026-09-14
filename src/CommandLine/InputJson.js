@@ -208,8 +208,31 @@ function ParseInvocation( Tree, Argv, Io )
 
 
 //---------------------------------------------------------------------
+// The input document a parse came from, or would have (cut 4: the TUI parses what is typed where it is
+// typed - an @file is read there - and sends the document). Only what was given travels: positionals,
+// and the options marked Given, so defaults are applied again where the document is parsed.
+// ParseDocument of the answer is the parse again.
+
+function ToDocument( Parsed )
+{
+	let document = { Command: Parsed.Path.slice() };
+	let positionals = Object.keys( Parsed.Positionals || {} );
+	for ( let index = 0; index < positionals.length; index++ ) { document[ positionals[ index ] ] = Parsed.Positionals[ positionals[ index ] ]; }
+	let options = Object.keys( Parsed.Options || {} );
+	for ( let index = 0; index < options.length; index++ )
+	{
+		let name = options[ index ];
+		if ( Parsed.Given && Parsed.Given[ name ] === true ) { document[ name ] = Parsed.Options[ name ]; }
+	}
+	if ( Parsed.Help === true ) { document.help = true; }
+	return document;
+}
+
+
+//---------------------------------------------------------------------
 module.exports = {
 	OPTION_NAME: OPTION_NAME,
 	ParseDocument: ParseDocument,
 	ParseInvocation: ParseInvocation,
+	ToDocument: ToDocument,
 };

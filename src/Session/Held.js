@@ -64,6 +64,10 @@ const Report = require( '../Report.js' );
 // How long the watcher waits for a burst of file events to end before reading the file.
 const RELOAD_DEBOUNCE_MS = 200;
 
+// The held document's addresses, as MCP's resources and the WebSocket's Read name them.
+const FILE_URI = 'jsonx://file';
+const ENTRY_URI = 'jsonx://entry/';
+
 // Options a request cannot give: they are the held session's, or the envelope's.
 const REFUSED_OPTIONS = {
 	'file': 'the file is chosen when the session is held',
@@ -265,6 +269,30 @@ function NewHeld( Options )
 		if ( changed.length === 0 ) { return ''; }
 		return 'Changed data sources, opened again on their next use: ' + changed.join( ', ' ) + '.\n';
 	}
+
+
+	//---------------------------------------------------------------------
+	// The held document, or one entry of it, by address: `jsonx://file`, or `jsonx://entry/<name>` with
+	// the name URI-encoded. Answers { Found: true, Value } - as written, so an environment reference is
+	// never resolved (F6.4) - or { Found: false }. Reads nothing from disk and waits for nothing.
+
+	held.ReadResource = function ( Uri )
+	{
+		let document = session.Document;
+		if ( Uri === FILE_URI ) { return { Found: true, Value: document }; }
+		if ( typeof Uri !== 'string' || !Uri.startsWith( ENTRY_URI ) ) { return { Found: false }; }
+		let name = null;
+		try { name = decodeURIComponent( Uri.slice( ENTRY_URI.length ) ); }
+		catch ( error ) { return { Found: false }; }
+		let sections = [ 'DataSources', 'Objects', 'Triggers' ];
+		for ( let section = 0; section < sections.length; section++ )
+		{
+			let entries = Array.isArray( document[ sections[ section ] ] ) ? document[ sections[ section ] ] : [];
+			let entry = entries.find( function ( Entry ) { return Entry && typeof Entry === 'object' && Entry.Name === name; } );
+			if ( entry ) { return { Found: true, Value: entry }; }
+		}
+		return { Found: false };
+	};
 
 
 	//---------------------------------------------------------------------
@@ -711,6 +739,8 @@ function NewHeld( Options )
 //---------------------------------------------------------------------
 module.exports = {
 	RELOAD_DEBOUNCE_MS: RELOAD_DEBOUNCE_MS,
+	FILE_URI: FILE_URI,
+	ENTRY_URI: ENTRY_URI,
 	REFUSED_OPTIONS: REFUSED_OPTIONS,
 	HeldError: HeldError,
 	ServedCommands: ServedCommands,

@@ -256,7 +256,15 @@ declare module '@liquicode/jsonx-cli'
 		/** The mark the completion scripts put before the word being typed, so it is never empty. */
 		CURRENT_MARK: string;
 		/** The candidates for the words after the program name; the last word is the one being typed. */
-		Candidates( Tree: CommandNode, Words: string[], Io?: Io ): string[];
+		Candidates( Tree: CommandNode, Words: string[], Io?: Io, Options?: { Document?: JsonDocument } ): string[];
+	}
+
+	export interface WordsModule
+	{
+		/** A typed line as words: whitespace, quotes, and a word beginning with { or [ taken to its matching bracket. */
+		SplitWords( Text: string ): { Words: string[]; Open: '"' | '\'' | '{' | '[' | null; Current: string };
+		/** A word written so SplitWords reads it back as it is. */
+		QuoteWord( Word: string ): string;
 	}
 
 	export interface CompletionScriptsModule
@@ -270,6 +278,8 @@ declare module '@liquicode/jsonx-cli'
 		OPTION_NAME: string;
 		ParseDocument( Tree: CommandNode, Document: JsonDocument ): ParsedArguments;
 		ParseInvocation( Tree: CommandNode, Argv: string[], Io?: Io ): ParsedArguments;
+		/** The input document a parse came from: the command, its positionals, and the options given. */
+		ToDocument( Parsed: ParsedArguments ): JsonDocument;
 	}
 
 	export interface ReaderModule
@@ -612,6 +622,8 @@ declare module '@liquicode/jsonx-cli'
 		OnEvent( Listener: ( Event: HeldEvent ) => void ): () => void;
 		/** Reads the file and follows it, in the queue. */
 		Reload(): Promise<{ Reloaded: boolean; Reason?: 'unchanged' | 'kept'; Message?: string; Changed?: string[]; Findings?: Finding[] }>;
+		/** The held document (jsonx://file) or one entry (jsonx://entry/<name>), as written. */
+		ReadResource( Uri: string ): { Found: true; Value: any } | { Found: false };
 		/** Watches the file's folder and reloads when the file changes. */
 		Watch(): void;
 		/** Waits for the queue, then releases every data source. */
@@ -621,6 +633,10 @@ declare module '@liquicode/jsonx-cli'
 	export interface HeldModule
 	{
 		RELOAD_DEBOUNCE_MS: number;
+		/** The held document's address, as MCP's resources and the WebSocket's Read name it. */
+		FILE_URI: string;
+		/** An entry's address, followed by its URI-encoded name. */
+		ENTRY_URI: string;
 		REFUSED_OPTIONS: { [ Name: string ]: string };
 		/** ExitCode is what the command line answers: 2 usage, 1 unreadable, 3 not a jsonx file. */
 		HeldError: new ( Message: string, ExitCode?: number ) => Error & { ExitCode: number };
@@ -700,6 +716,7 @@ declare module '@liquicode/jsonx-cli'
 			InputJson: InputJsonModule;
 			Complete: CompleteModule;
 			CompletionScripts: CompletionScriptsModule;
+			Words: WordsModule;
 		};
 		File: {
 			Reader: ReaderModule;
