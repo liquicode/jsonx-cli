@@ -115,7 +115,7 @@ declare module '@liquicode/jsonx-cli'
 	/** An option of a command. */
 	export interface OptionDeclaration
 	{
-		Type?: 'string' | 'number' | 'integer' | 'boolean' | 'json';
+		Type?: 'string' | 'number' | 'integer' | 'boolean' | 'json' | 'jsonl';
 		Alias?: string;
 		Default?: any;
 		Repeat?: boolean;
@@ -405,6 +405,29 @@ declare module '@liquicode/jsonx-cli'
 		Run( Session: Session, Verb: string, DataSource: string, Values: JsonDocument ): Promise<RunReport>;
 	}
 
+	/** One engine verb. */
+	export interface EngineVerbDeclaration
+	{
+		/** A sub-group the verb sits in, such as 'schema'. */
+		Group?: string;
+		Describe: string;
+		Inputs: { [ Name: string ]: OptionDeclaration };
+		Positionals?: PositionalDeclaration[];
+		/** The jsongin members the verb reaches. */
+		Library: string[];
+		/** True when the result is a findings list. */
+		Findings?: boolean;
+		Run( Values: JsonDocument ): any;
+	}
+
+	export interface EngineModule
+	{
+		ENGINE_VERBS: { [ Verb: string ]: EngineVerbDeclaration };
+		EngineError: new ( Message: string ) => Error;
+		/** Throws EngineError for an input mistake; a refusal from jsongin is an error finding. */
+		Run( Verb: string, Values: JsonDocument ): { Result: any; Findings: Finding[] };
+	}
+
 	export interface ReportModule
 	{
 		FormatResult( Output: 'json' | 'jsonl', Value: any ): string;
@@ -450,6 +473,7 @@ declare module '@liquicode/jsonx-cli'
 		Storage: {
 			Verbs: VerbsModule;
 		};
+		Engine: EngineModule;
 		Report: ReportModule;
 	}
 

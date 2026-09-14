@@ -36,7 +36,9 @@ const TREE = {
 		require( './plan.js' ),
 		require( './run.js' ),
 		require( './explain.js' ),
-	].concat( require( './manage.js' ).Groups ),
+	].concat( require( './manage.js' ).Groups, [
+		require( './engine.js' ),
+	] ),
 };
 
 

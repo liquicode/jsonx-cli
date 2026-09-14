@@ -49,6 +49,7 @@ module.exports = {
 		Storage: {
 			Verbs: require( './Storage/Verbs.js' ),
 		},
+		Engine: require( './Engine/Engine.js' ),
 		Report: require( './Report.js' ),
 	},
 

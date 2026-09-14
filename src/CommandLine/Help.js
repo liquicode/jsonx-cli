@@ -33,6 +33,7 @@ function describe_value( Declaration )
 	if ( Declaration.Repeat === true ) { notes.push( 'repeatable' ); }
 	if ( Declaration.Required === true ) { notes.push( 'required' ); }
 	if ( ( Declaration.Type || 'string' ) === 'json' ) { notes.push( 'JSON, @file, or - for stdin' ); }
+	if ( ( Declaration.Type || 'string' ) === 'jsonl' ) { notes.push( 'JSON Lines, @file, or - for stdin' ); }
 
 	let text = Declaration.Describe || '';
 	if ( notes.length > 0 ) { text += ( text ? ' ' : '' ) + '(' + notes.join( ', ' ) + ')'; }

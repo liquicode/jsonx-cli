@@ -178,6 +178,17 @@ describe( 'Parser: json values', function ()
 		LIB_ASSERT.deepStrictEqual( parse( [ 'run', 'x', '--input', '-' ], {}, '[1,2]' ).Options.input, [ 1, 2 ] );
 	} );
 
+	it( 'reads a jsonl value as one element per non-blank line', function ()
+	{
+		let tree = Fixture.Tree();
+		tree.Commands[ 0 ].Options.rows = { Type: 'jsonl', Describe: 'Rows.' };
+		let parsed = Parser.ParseArgs( tree, [ 'run', 'x', '--rows', '@rows.jsonl' ], Fixture.MemoryIo( { 'rows.jsonl': '{"a":1}\r\n\n[2]\n"three"\n' } ) );
+		LIB_ASSERT.deepStrictEqual( parsed.Options.rows, [ { a: 1 }, [ 2 ], 'three' ] );
+		LIB_ASSERT.throws(
+			function () { Parser.ParseArgs( tree, [ 'run', 'x', '--rows', '{"a":1}\n{' ], Fixture.MemoryIo() ); },
+			/not valid JSON Lines \(inline, line 2\)/ );
+	} );
+
 	it( 'refuses invalid JSON and a missing file', function ()
 	{
 		refuses( [ 'run', 'x', '--input', '{nope' ], /is not valid JSON \(inline\)/ );

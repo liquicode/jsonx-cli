@@ -26,8 +26,10 @@
 			Handler: async function ( Parsed, Context ) { ... },
 		}
 
-	Types are `string`, `number`, `integer`, `boolean` and `json`. A `json` value is inline JSON,
-	`@path` to read a file, or `-` to read standard input. ***Reading goes through the Io handed
+	Types are `string`, `number`, `integer`, `boolean`, `json` and `jsonl`. A `json` value is inline
+	JSON, `@path` to read a file, or `-` to read standard input. A `jsonl` value is read the same
+	way and is JSON Lines: one JSON value per non-blank line, arriving as an array. ***The format is
+	the declaration's, never guessed from the text.*** ***Reading goes through the Io handed
 	in***, so a test parses a file reference without touching a disk.
 
 	***An option declared on a node applies to that node and every node below it***, unless it
@@ -43,7 +45,7 @@
 const LIB_FS = require( 'fs' );
 
 
-const TYPES = [ 'string', 'number', 'integer', 'boolean', 'json' ];
+const TYPES = [ 'string', 'number', 'integer', 'boolean', 'json', 'jsonl' ];
 
 
 //---------------------------------------------------------------------
@@ -248,7 +250,7 @@ function coerce( Declaration, Label, Text, Io, State, Path )
 		else if ( Text === 'false' ) { value = false; }
 		else { throw new UsageError( Label + ' takes true or false, not [' + Text + '].', Path ); }
 	}
-	else if ( type === 'json' )
+	else if ( type === 'json' || type === 'jsonl' )
 	{
 		let source = Text;
 		let where = 'inline';
@@ -267,8 +269,22 @@ function coerce( Declaration, Label, Text, Io, State, Path )
 			where = file_path;
 		}
 		if ( source.charCodeAt( 0 ) === 0xFEFF ) { source = source.slice( 1 ); }
-		try { value = JSON.parse( source ); }
-		catch ( error ) { throw new UsageError( Label + ' is not valid JSON (' + where + '): ' + error.message, Path ); }
+		if ( type === 'json' )
+		{
+			try { value = JSON.parse( source ); }
+			catch ( error ) { throw new UsageError( Label + ' is not valid JSON (' + where + '): ' + error.message, Path ); }
+		}
+		else
+		{
+			value = [];
+			let lines = source.split( /\r?\n/ );
+			for ( let line_index = 0; line_index < lines.length; line_index++ )
+			{
+				if ( lines[ line_index ].trim() === '' ) { continue; }
+				try { value.push( JSON.parse( lines[ line_index ] ) ); }
+				catch ( error ) { throw new UsageError( Label + ' is not valid JSON Lines (' + where + ', line ' + ( line_index + 1 ) + '): ' + error.message, Path ); }
+			}
+		}
 	}
 
 	check_choices( Declaration, Label, value, Path );

@@ -117,7 +117,12 @@ function ParseDocument( Tree, Document )
 		}
 		let label = positional ? 'Argument <' + key + '>' : 'Option [--' + key + ']';
 
-		if ( ( declaration.Type || 'string' ) !== 'json' )
+		let type = declaration.Type || 'string';
+		if ( type === 'jsonl' && !Array.isArray( value ) )
+		{
+			throw new Parser.UsageError( label + ' takes JSON Lines, so it must be an array in the input document.', path );
+		}
+		if ( type !== 'json' && type !== 'jsonl' )
 		{
 			if ( declaration.Repeat === true )
 			{
