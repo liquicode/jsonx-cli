@@ -201,7 +201,9 @@ function ParseInvocation( Tree, Argv, Io )
 	try { document = JSON.parse( text ); }
 	catch ( error ) { throw new Parser.UsageError( 'Option [--' + OPTION_NAME + '] did not read valid JSON: ' + error.message ); }
 
-	return ParseDocument( Tree, document );
+	let parsed = ParseDocument( Tree, document );
+	parsed.StdinRead = ( found.Value === '-' );
+	return parsed;
 }
 
 

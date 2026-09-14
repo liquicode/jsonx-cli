@@ -32,6 +32,8 @@ declare module '@liquicode/jsonx-cli'
 		ReadFile?: ( Path: string ) => string;
 		ReadStdin?: () => string;
 		ListDirectory?: ( Path: string ) => string[];
+		/** Standard input a line at a time, for jsonx debug. */
+		Lines?: () => AsyncIterable<string>;
 		WriteFile?: ( Path: string, Text: string ) => void;
 		Env?: { [ Name: string ]: string };
 		Cwd?: string;
@@ -157,6 +159,8 @@ declare module '@liquicode/jsonx-cli'
 		Options: { [ Name: string ]: any };
 		Given: { [ Name: string ]: boolean };
 		Help: boolean;
+		/** Whether a value, or the input document, was read from standard input. */
+		StdinRead?: boolean;
 	}
 
 	/** The answer of an edit. */
@@ -452,6 +456,50 @@ declare module '@liquicode/jsonx-cli'
 		NewAdapters( Options?: { Data?: JsonDocument[]; Require?: ( PackageName: string ) => any; Resolve?: ( PackageName: string ) => string } ): AdapterSet;
 	}
 
+	/** Where a debug is: a snapshot, written as one JSON line per command. */
+	export interface DebugSnapshot
+	{
+		Command?: string;
+		Depth?: number;
+		Process?: string;
+		Document?: { Index: number; Of: number };
+		Status?: 'ready' | 'waiting' | 'done' | 'failed';
+		Cursor?: any[];
+		/** The step the cursor points at, in English. */
+		Step?: string;
+		State?: JsonDocument;
+		Waiting?: { Name: string; With: JsonDocument; Into?: string };
+		/** What a declined call would have done. */
+		Declined?: JsonDocument;
+		Finished?: boolean;
+		Outcome?: 'done' | 'failed' | 'quit';
+		Result?: any;
+		Error?: any;
+	}
+
+	/** A Process debugged a step at a time over one session. */
+	export interface ProcessDebugger
+	{
+		Frames: JsonDocument[];
+		Finished: boolean;
+		Outcome: 'done' | 'failed' | 'quit' | null;
+		/** The debugged Process's run report, nested as jsonx run's would be. */
+		Report: RunReport | null;
+		Start(): Promise<DebugSnapshot>;
+		/** step, into, continue, decline, answer <json>, state, skip or quit. */
+		Command( Line: string ): Promise<DebugSnapshot>;
+		Snapshot(): DebugSnapshot;
+	}
+
+	export interface DebuggerModule
+	{
+		COMMANDS: string[];
+		DebugError: new ( Message: string ) => Error;
+		/** The step a cursor points at, or null. */
+		StepAt( Process: JsonDocument, Cursor: any[] ): JsonDocument | null;
+		NewDebugger( Session: Session, Name: string, Input?: JsonDocument ): ProcessDebugger;
+	}
+
 	export interface ReportModule
 	{
 		FormatResult( Output: 'json' | 'jsonl', Value: any ): string;
@@ -493,6 +541,7 @@ declare module '@liquicode/jsonx-cli'
 			Session: SessionModule;
 			Plan: PlanModule;
 			Inspect: InspectModule;
+			Debugger: DebuggerModule;
 		};
 		Storage: {
 			Verbs: VerbsModule;

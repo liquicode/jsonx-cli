@@ -39,6 +39,11 @@ function ProcessIo()
 	io.Stderr = function ( Text ) { process.stderr.write( Text ); };
 	io.Env = process.env;
 	io.Cwd = process.cwd();
+	// Standard input a line at a time, for a command which reads commands there (jsonx debug).
+	io.Lines = function ()
+	{
+		return require( 'readline' ).createInterface( { input: process.stdin, crlfDelay: Infinity } );
+	};
 	return io;
 }
 

@@ -14,8 +14,10 @@
 		make, because a process looping around a call makes progress on every Execute and would
 		never trip the step limit.
 
-	Debug mode (declining a call) and held runs are Studio's too, and arrive with `jsonx debug` in
-	cut 2.
+	***The debugger drives a run a step at a time*** (cut 2, src/Session/Debugger.js). It calls
+	jsonproc's Start, Step and Resume itself, so that a run can be held between the commands a
+	person types, and applies these same two limits. Studio's held runs and its declining a call
+	are precedents it follows.
 */
 
 const jsonproc = require( '@liquicode/jsonproc' );

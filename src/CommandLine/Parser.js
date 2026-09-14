@@ -467,12 +467,17 @@ function ParseArgs( Tree, Argv, Io )
 		parsed.Given[ name ] = true;
 	}
 
+	// ***Whether a value was read from standard input***, for a command which reads its own input
+	// there (`jsonx debug`) and would otherwise find it already consumed.
+	parsed.StdinRead = state.StdinRead;
+
 	// ***Help is answered before anything is required***, so `--help` on a command missing its
 	// arguments shows how to supply them instead of complaining that they are missing.
 	if ( parsed.Help ) { return parsed; }
 
 	assign_positionals( parsed, node, loose, io, state );
 	apply_defaults( parsed, Tree );
+	parsed.StdinRead = state.StdinRead;
 
 	return parsed;
 }

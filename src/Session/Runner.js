@@ -571,6 +571,41 @@ function NewRunner( Options )
 	};
 
 
+	//---------------------------------------------------------------------
+	// ***What the debugger needs to drive a Process itself*** (cut 2, Debugger.js), so that its
+	// reports, calls and trigger firings nest exactly as a run's do.
+
+	let started_at = new WeakMap();
+
+	// A report pushed as the running object: its calls and firings nest under it until closed.
+	runner.OpenReport = function ( Name, Kind )
+	{
+		let report = new_report( Name, Kind );
+		let parent = runner.Stack[ runner.Stack.length - 1 ];
+		if ( parent ) { parent.Calls.push( report ); }
+		runner.Stack.push( report );
+		started_at.set( report, Date.now() );
+		return report;
+	};
+
+	runner.CloseReport = function ( Report )
+	{
+		let index = runner.Stack.lastIndexOf( Report );
+		if ( index >= 0 ) { runner.Stack.splice( index, 1 ); }
+		if ( started_at.has( Report ) ) { Report.Ms = Date.now() - started_at.get( Report ); }
+		return;
+	};
+
+	// What a `$call` asks for, serviced as a run services it: throws when the call fails.
+	runner.ServiceCall = service_call;
+
+	// One storage call, measured and recorded like any other; throws when it fails.
+	runner.CallStorage = call_storage;
+
+	// `Into`: inserts documents into a data source. Answers the count.
+	runner.InsertInto = insert_into;
+
+
 	return runner;
 }
 
