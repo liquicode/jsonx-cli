@@ -114,7 +114,7 @@ describe( 'The TUI screen', function ()
 		try
 		{
 			let text = opened.Text();
-			LIB_ASSERT.match( text[ 0 ], /┌─ Inventory ─+┐┌─ Log ─+┐/ );
+			LIB_ASSERT.match( text[ 0 ], /┌─ Inventory - Enter: actions ─+┐┌─ Log ─+┐/ );
 			LIB_ASSERT.ok( text.some( function ( Line ) { return /┌─ Data Rows ─/.test( Line ); } ), text.join( '\n' ) );
 			LIB_ASSERT.ok( text.some( function ( Line ) { return /┌─ Input - Enter sends, Tab completes, Esc or Shift\+Tab leaves/.test( Line ); } ), text.join( '\n' ) );
 			LIB_ASSERT.ok( text.some( function ( Line ) { return /│ {2}Process Prepare the season/.test( Line ); } ), text.join( '\n' ) );
@@ -248,11 +248,19 @@ describe( 'The TUI screen', function ()
 			await opened.Type( 'q' );
 			LIB_ASSERT.strictEqual( opened.Model.State.Input.Text, '', 'what is typed goes where focus went' );
 
-			// A second click opens it: the entry is in Input, and Input has focus.
+			// A second click opens its actions, run first; ***one click on an action chooses it***, and focus
+			// stays in Inventory. The click is on plan, not the highlighted run: neo-blessed's list reads a click
+			// on its highlighted item as Enter, which would pass without the one-click handling (a probe showed).
 			await opened.Click( 12, row );
-			await until( function () { return opened.Model.State.Input.Mode === 'json'; }, 'the entry in Input' );
-			LIB_ASSERT.strictEqual( JSON.parse( opened.Model.State.Input.Text ).Name, 'Prepare the season' );
-			LIB_ASSERT.strictEqual( opened.Focused(), 'input' );
+			let menu = opened.Screen.focused;
+			LIB_ASSERT.strictEqual( opened.Focused(), 'other', 'the actions menu has focus' );
+			LIB_ASSERT.match( menu.getItem( 0 ).getText(), /^run\s+Run an object of the file by name/ );
+			let plan = opened.Model.Actions( 'Prepare the season' ).findIndex( function ( Action ) { return Action.Command === 'plan'; } );
+			LIB_ASSERT.ok( plan > 0 );
+			await opened.Click( menu.getItem( plan ).aleft + 2, menu.getItem( plan ).atop );
+			await until( function () { return opened.Model.State.Rows.Title === 'plan'; }, 'the plan answered' );
+			LIB_ASSERT.deepStrictEqual( opened.Model.State.Log.filter( function ( Line ) { return Line.Kind === 'command'; } ).map( function ( Line ) { return Line.Text; } ), [ '> plan Prepare the season' ], 'sent once' );
+			LIB_ASSERT.strictEqual( opened.Focused(), 'inventory' );
 
 			// The wheel over Inventory moves its selection.
 			let before = opened.Widgets.inventory.selected;
@@ -268,6 +276,48 @@ describe( 'The TUI screen', function ()
 			let held_text = opened.Model.State.Input.Text;
 			await opened.Type( ' ' );
 			LIB_ASSERT.strictEqual( opened.Model.State.Input.Text, held_text + ' ' );
+		}
+		finally { await opened.Close(); }
+	} );
+
+	it( 'opens an entry\'s actions from the keys: edit puts it in Input, and an action which needs more goes there to finish', { timeout: 20000 }, async function ()
+	{
+		let opened = await open_screen( root, 'actions.jsonx' );
+		try
+		{
+			let inventory = opened.Widgets.inventory;
+			let index = inventory.Names.indexOf( 'Prepare the season' );
+			await opened.Type( KEYS.Escape );
+			LIB_ASSERT.strictEqual( opened.Focused(), 'inventory' );
+			inventory.select( index );
+
+			// Enter opens the menu, and Escape closes it back to Inventory.
+			await opened.Type( KEYS.Enter );
+			LIB_ASSERT.strictEqual( opened.Focused(), 'other' );
+			LIB_ASSERT.ok( opened.Text().some( function ( Line ) { return /Prepare the season - Enter or click runs, Esc closes/.test( Line ); } ), opened.Text().join( '\n' ) );
+			await opened.Type( KEYS.Escape );
+			LIB_ASSERT.strictEqual( opened.Focused(), 'inventory' );
+
+			// The last action is edit: the entry is in Input as JSON, and Input has focus.
+			await opened.Type( KEYS.Enter );
+			let menu = opened.Screen.focused;
+			menu.select( menu.items.length - 1 );
+			await opened.Type( KEYS.Enter );
+			await until( function () { return opened.Model.State.Input.Mode === 'json'; }, 'the entry in Input' );
+			LIB_ASSERT.strictEqual( JSON.parse( opened.Model.State.Input.Text ).Name, 'Prepare the season' );
+			LIB_ASSERT.strictEqual( opened.Focused(), 'input' );
+
+			// rename needs a new name: its line goes to Input, and nothing is sent.
+			await opened.Type( KEYS.Escape );
+			inventory.select( index );
+			await opened.Type( KEYS.Enter );
+			menu = opened.Screen.focused;
+			let rename = opened.Model.Actions( 'Prepare the season' ).findIndex( function ( Action ) { return Action.Command === 'process rename'; } );
+			menu.select( rename );
+			await opened.Type( KEYS.Enter );
+			LIB_ASSERT.strictEqual( opened.Model.State.Input.Text, 'process rename "Prepare the season" ' );
+			LIB_ASSERT.strictEqual( opened.Focused(), 'input' );
+			LIB_ASSERT.strictEqual( opened.Model.State.Log.filter( function ( Line ) { return Line.Kind === 'command'; } ).length, 0 );
 		}
 		finally { await opened.Close(); }
 	} );

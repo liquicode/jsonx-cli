@@ -10,7 +10,8 @@
 	row when Data Rows replaces its rows.
 
 		Tab / Shift+Tab   move between Inventory, Log, Data Rows and Input (in Input, Tab completes)
-		Enter             Inventory: put the entry in Input.  Data Rows: the row as JSON.
+		Enter             Inventory: the entry's actions - run, debug, find, explain, ... and edit.
+		                  Data Rows: the row as JSON.
 		                  Input: send a command; in a JSON entry, a new line
 		Ctrl+S            Input: save the JSON entry
 		Escape            Input: leave it for Inventory
@@ -19,7 +20,8 @@
 		Ctrl+Q            quit
 		While debugging, outside Input:  s step  i into  c continue  d decline  t state  k skip  x quit
 		Mouse             click a pane to work in it; in Inventory and Data Rows, click an entry to
-		                  select it and again to open it; the wheel scrolls
+		                  select it and again to open it (Inventory: its actions); click an action to
+		                  choose it; the wheel scrolls
 
 	***Input is a box this screen edits, not neo-blessed's textarea*** (user found, 2026-09-14: no hotkey
 	worked from Input, and Input could not be left). Measured in neo-blessed 0.2.0's textarea.js:
@@ -61,7 +63,8 @@ const CHECK_DELAY_MS = 400;
 
 const HELP_TEXT = [
 	'Tab / Shift+Tab   move between the panes; in Input, Tab completes',
-	'Enter             Inventory: put the entry in Input',
+	'Enter             Inventory: the entry\'s actions - run, debug, find, explain, ...',
+	'                  (an action marked … goes to Input to finish; edit puts the entry there)',
 	'                  Data Rows: the row as JSON',
 	'                  Input: send a command (in a JSON entry: a new line)',
 	'Ctrl+S            save the JSON entry in Input',
@@ -70,7 +73,7 @@ const HELP_TEXT = [
 	'F2 theme   F3 scale   F5 / F6 / F7 collapse Inventory / Log / Data Rows',
 	'Ctrl+Q            quit',
 	'Mouse             click a pane to work in it; click an entry or a row to select it,',
-	'                  and again to open it; the wheel scrolls',
+	'                  and again to open it; click an action to choose it; the wheel scrolls',
 	'',
 	'Debugging, outside Input:',
 	'  s step  i into  c continue  d decline  t state  k skip  x quit',
@@ -305,6 +308,7 @@ function Run( Model, Options )
 			}
 			let page = ( rows.Max !== null && rows.Max !== undefined ) ? ' - rows ' + ( rows.Skip + 1 ) + '-' + ( rows.Skip + rows.Rows.length ) + ( rows.More ? ', PgDn for more' : '' ) : '';
 			widgets.rows.setLabel( ' Data Rows' + ( rows.Title ? ': ' + rows.Title : '' ) + page + ' ' );
+			widgets.inventory.setLabel( ' Inventory - Enter: actions ' );
 
 			// Input: its text with the cursor while it has focus, its mode, and what the check found.
 			let input = state.Input;
@@ -421,6 +425,52 @@ function Run( Model, Options )
 		}
 
 
+		// ***An entry's actions (Model.ActionsFor), then Edit in Input***. Enter or ***one click*** on an
+		// action chooses it: a menu item acts when clicked, unlike an entry in a pane, which a first click
+		// only selects. An action which sends leaves focus in Inventory, to run the next; one which puts
+		// its command in Input moves focus there.
+		function actions( Name )
+		{
+			close_popup();
+			let t = theme();
+			let list = Model.Actions( Name );
+			let width = 0;
+			list.forEach( function ( Action ) { width = Math.max( width, Action.Label.length + ( Action.Sends ? 0 : 1 ) ); } );
+			let items = list.map( function ( Action )
+			{
+				let label = Action.Label + ( Action.Sends ? '' : '…' );
+				return '{bold}' + escape_tags( label ) + '{/bold}' + ' '.repeat( width - label.length + 2 ) + '{' + t.dim + '-fg}' + escape_tags( Action.Describe ) + '{/}';
+			} );
+			items.push( '{bold}edit{/bold}' + ' '.repeat( Math.max( 0, width - 4 ) + 2 ) + '{' + t.dim + '-fg}Put the entry in Input as JSON.{/}' );
+
+			let chosen = false;
+			function choose_action( Index )
+			{
+				if ( chosen ) { return; }
+				chosen = true;
+				close_popup();
+				let action = list[ Index ];
+				if ( !action ) { Model.Select( Name ); focus( 3 ); return; }
+				// Act puts a line in Input before it first waits, so focus can move at once.
+				Model.Act( Name, action.Command ).then( function () { draw(); } );
+				focus( action.Sends ? focus_index : 3 );
+				return;
+			}
+
+			popup = blessed.list( {
+				parent: screen, top: 'center', left: 'center', width: Math.min( 90, width + 60 ), height: Math.min( 20, items.length + 2 ), border: { type: 'line' },
+				label: ' ' + escape_tags( Name ) + ' - Enter or click runs, Esc closes ', keys: true, mouse: true, tags: true, items: items,
+				style: { fg: t.fg, bg: t.bg, border: { fg: t.focus, bg: t.bg }, selected: { fg: t.selected_fg, bg: t.selected_bg } },
+			} );
+			popup.on( 'select', function ( Item, Index ) { choose_action( Index ); } );
+			popup.items.forEach( function ( Item, Index ) { Item.on( 'click', function () { choose_action( Index ); } ); } );
+			popup.key( [ 'escape' ], function () { close_popup(); focus( focus_index ); } );
+			popup.focus();
+			screen.render();
+			return;
+		}
+
+
 		//---------------------------------------------------------------------
 		// Focus: the next pane which is showing.
 
@@ -512,8 +562,7 @@ function Run( Model, Options )
 			{
 				let name = ( widgets.inventory.Names || [] )[ Index ];
 				if ( !name ) { return; }
-				Model.Select( name );
-				focus( 3 );
+				actions( name );
 			} );
 
 			widgets.rows.on( 'select', function ( Item, Index )

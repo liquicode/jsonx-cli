@@ -276,6 +276,49 @@ describe( 'The TUI model', function ()
 		finally { await opened.Close(); }
 	} );
 
+	it( 'lists an entry\'s actions from the command tree, and runs one as the same command typed', async function ()
+	{
+		let opened = await open_model( write( root, 'actions.jsonx', Spec.AppendixB() ), root );
+		let model = opened.Model;
+		try
+		{
+			let labels = function ( Name ) { return model.Actions( Name ).map( function ( Action ) { return Action.Label + ( Action.Sends ? '' : '…' ); } ); };
+			let first = function ( Section ) { return model.State.Inventory.find( function ( Item ) { return Item.Section === Section; } ).Name; };
+			let process = model.State.Inventory.find( function ( Item ) { return Item.Kind === 'Process'; } ).Name;
+			let update = model.State.Inventory.find( function ( Item ) { return Item.Kind === 'Update'; } ).Name;
+
+			LIB_ASSERT.deepStrictEqual( labels( process ).slice( 0, 5 ), [ 'run', 'debug', 'plan', 'explain', 'validate' ] );
+			LIB_ASSERT.ok( labels( process ).includes( 'rename…' ) && labels( process ).includes( 'remove…' ) && labels( process ).includes( 'show' ) );
+			LIB_ASSERT.deepStrictEqual( labels( update ).slice( 0, 4 ), [ 'run', 'plan', 'explain', 'validate' ], 'debug is a Process\'s only' );
+			LIB_ASSERT.deepStrictEqual( labels( first( 'Triggers' ) ).slice( 0, 3 ), [ 'run', 'explain', 'validate' ] );
+			LIB_ASSERT.strictEqual( model.Actions( first( 'Triggers' ) )[ 0 ].Command, 'trigger run' );
+			let source = labels( first( 'DataSources' ) );
+			LIB_ASSERT.deepStrictEqual( source.slice( 0, 2 ), [ 'find', 'count' ] );
+			[ 'describe', 'ping', 'drop…', 'flush…', 'update…', 'delete…' ].forEach( function ( Label ) { LIB_ASSERT.ok( source.includes( Label ), Label + ' in ' + source.join( ', ' ) ); } );
+			LIB_ASSERT.deepStrictEqual( model.Actions( 'No such entry' ), [] );
+
+			// ***Every command whose name positional completes to an entry is listed***, read from the tree.
+			let listed = model.Actions( process ).map( function ( Action ) { return Action.Command; } ).sort();
+			let expected = Held.ServedCommands( Commands.TREE ).map( function ( Command ) { return Command.Command; } )
+				.filter( function ( Command ) { return /^(run|plan|explain|validate|process [a-z-]+)$/.test( Command ) && Command !== 'process list' && Command !== 'process add'; } )
+				.concat( [ 'debug' ] ).sort();
+			LIB_ASSERT.deepStrictEqual( listed, expected );
+
+			// run is sent, as the typed line is.
+			let answer = await model.Act( 'Prepare the season', 'run' );
+			LIB_ASSERT.strictEqual( answer.ExitCode, 0, ( answer.Log || [] ).join( '\n' ) );
+			LIB_ASSERT.deepStrictEqual( model.State.Rows.Rows, [ { Booking: 'b-1', Observer: 'R. Okafor', Dome: 'B' } ] );
+			LIB_ASSERT.ok( model.State.Log.some( function ( Line ) { return Line.Kind === 'command' && Line.Text === '> run Prepare the season'; } ) );
+
+			// remove changes the file: it goes to Input, and the file keeps the entry.
+			LIB_ASSERT.deepStrictEqual( await model.Act( 'Prepare the season', 'process remove' ), { Input: true } );
+			LIB_ASSERT.strictEqual( model.State.Input.Text, 'process remove "Prepare the season" ' );
+			LIB_ASSERT.ok( model.State.Inventory.some( function ( Item ) { return Item.Name === 'Prepare the season'; } ) );
+			LIB_ASSERT.strictEqual( await model.Act( 'Prepare the season', 'no such command' ), null );
+		}
+		finally { await opened.Close(); }
+	} );
+
 	it( 'asks before a command which touches every document, and sends it only when confirmed', async function ()
 	{
 		let opened = await open_model( write( root, 'confirm.jsonx', Spec.AppendixB() ), root );

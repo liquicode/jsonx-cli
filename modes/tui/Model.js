@@ -12,7 +12,8 @@
 
 	The panes (F5):
 	-	Inventory: the file's data sources, objects by Kind and triggers, in file order, each with the
-		worst severity validation finds in it. Refreshed on every `document` event.
+		worst severity validation finds in it. Refreshed on every `document` event. Each entry's actions
+		(run, debug, find, explain, ...) are the commands the tree declares for its kind (ActionsFor).
 	-	Input: a command in the CLI grammar, or a JSON entry. Completions come from the command tree and
 		the file's names (Complete.Candidates), and inside JSON from operators, declared names and a
 		data source's fields.
@@ -36,6 +37,7 @@ const Help = require( '../../src/CommandLine/Help.js' );
 const Names = require( '../../src/File/Names.js' );
 const Edit = require( '../../src/File/Edit.js' );
 const Verbs = require( '../../src/Storage/Verbs.js' );
+const Protocol = require( '../mcp/Protocol.js' );
 
 
 const LOG_LIMIT = 2000;
@@ -47,6 +49,13 @@ const SEVERITY_RANK = { note: 1, warning: 2, error: 3 };
 
 // Commands a TUI does not send: they are front ends or shells of their own.
 const NOT_IN_TUI = [ 'serve', 'mcp', 'tui', 'completion', '__complete' ];
+
+// The actions an entry's menu lists first, in this order; the rest follow in the tree's order.
+const FIRST_ACTIONS = [ 'run', 'trigger run', 'debug', 'datasource find', 'datasource count', 'plan', 'explain', 'validate' ];
+
+// ***Actions which are the point of the menu***, sent at once although they change data: what the person
+// chose was to run it (user, 2026-09-14: "no way to run/execute any of the objects").
+const RUN_ACTIONS = [ 'run', 'trigger run', 'debug' ];
 
 
 //---------------------------------------------------------------------
@@ -108,6 +117,65 @@ function InventoryOf( Document, Findings )
 		} );
 	} );
 	return items;
+}
+
+
+//---------------------------------------------------------------------
+// ***An entry's actions are read from the command tree*** (plan F5.1: "actions come from F3.1/F3.2"):
+// every command, not hidden and not a front end, whose first positional declares it completes to this
+// kind of entry. A command added to the table with such a positional joins the menu with no change here.
+//
+//		{ Command: 'datasource find', Path, Label, Describe, Sends }
+//
+// `Sends` is true when the command can be sent with the entry's name alone and changes nothing, or is
+// one of RUN_ACTIONS. Otherwise choosing it puts the command in Input to finish or confirm with Enter:
+// it needs more (rename's new name, update's criteria), or it changes the file or the data (remove,
+// flush), judged by the words MCP marks destructive.
+
+function ActionsFor( Tree, Item )
+{
+	if ( !is_object( Item ) ) { return []; }
+	let actions = [];
+
+	function completes_to( Complete )
+	{
+		if ( Complete === 'entries' ) { return true; }
+		if ( Complete === 'objects' ) { return Item.Section === 'Objects'; }
+		if ( typeof Complete === 'string' && Complete.startsWith( 'objects:' ) ) { return Item.Section === 'Objects' && Item.Kind === Complete.slice( 'objects:'.length ); }
+		if ( Complete === 'datasources' ) { return Item.Section === 'DataSources'; }
+		if ( Complete === 'triggers' ) { return Item.Section === 'Triggers'; }
+		return false;
+	}
+
+	function visit( Node, Path )
+	{
+		if ( Node.Hidden === true || ( Path.length && NOT_IN_TUI.includes( Path[ 0 ] ) ) ) { return; }
+		let positionals = Array.isArray( Node.Positionals ) ? Node.Positionals : [];
+		if ( typeof Node.Handler === 'function' && positionals.length && completes_to( positionals[ 0 ].Complete ) )
+		{
+			let command = Path.join( ' ' );
+			let needs_more = positionals.slice( 1 ).some( function ( Each ) { return Each.Required === true; } );
+			let options = Parser.OptionsAt( Tree, Path );
+			if ( Object.keys( options ).some( function ( Name ) { return options[ Name ].Required === true; } ) ) { needs_more = true; }
+			let changes = Protocol.DESTRUCTIVE_WORDS.includes( Path[ Path.length - 1 ] );
+			actions.push( {
+				Command: command,
+				Path: Path.slice(),
+				Label: Path[ Path.length - 1 ],
+				Describe: Node.Describe || '',
+				Sends: RUN_ACTIONS.includes( command ) || ( !needs_more && !changes ),
+			} );
+		}
+		( Array.isArray( Node.Commands ) ? Node.Commands : [] ).forEach( function ( Child ) { visit( Child, Path.concat( [ Child.Command ] ) ); } );
+		return;
+	}
+	visit( Tree, [] );
+
+	let rank = function ( Action ) { let index = FIRST_ACTIONS.indexOf( Action.Command ); return ( index < 0 ) ? FIRST_ACTIONS.length : index; };
+	return actions
+		.map( function ( Action, Index ) { return { Action: Action, Index: Index }; } )
+		.sort( function ( A, B ) { return ( rank( A.Action ) - rank( B.Action ) ) || ( A.Index - B.Index ); } )
+		.map( function ( Each ) { return Each.Action; } );
 }
 
 
@@ -393,6 +461,31 @@ function NewModel( Options )
 		state.Selected = Name;
 		model.SetInput( JSON.stringify( item.Entry, null, '\t' ) );
 		return;
+	};
+
+	// The actions of an entry in the inventory (ActionsFor), by its name.
+	model.Actions = function ( Name )
+	{
+		let item = state.Inventory.find( function ( Each ) { return Each.Name === Name; } );
+		return item ? ActionsFor( tree, item ) : [];
+	};
+
+	// ***Acting goes through Input's own path***: the command line an action stands for is sent as if typed,
+	// so the --yes confirmation, a debug and the Log read the same. An action which does not send puts the
+	// line in Input instead, and answers { Input: true }.
+	model.Act = async function ( Name, Command )
+	{
+		let action = model.Actions( Name ).find( function ( Each ) { return Each.Command === Command; } );
+		if ( !action ) { return null; }
+		state.Selected = Name;
+		let line = action.Path.concat( [ Words.QuoteWord( Name ) ] ).join( ' ' );
+		if ( !action.Sends )
+		{
+			model.SetInput( line + ' ' );
+			return { Input: true };
+		}
+		model.SetInput( '' );
+		return await send_command( line );
 	};
 
 
@@ -853,6 +946,7 @@ module.exports = {
 	PANES: PANES,
 	ModelError: ModelError,
 	InventoryOf: InventoryOf,
+	ActionsFor: ActionsFor,
 	NounOf: NounOf,
 	ReplacementBody: ReplacementBody,
 	JsonContext: JsonContext,
