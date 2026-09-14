@@ -50,6 +50,7 @@ module.exports = {
 			Verbs: require( './Storage/Verbs.js' ),
 		},
 		Engine: require( './Engine/Engine.js' ),
+		Adapters: require( './Adapters/Adapters.js' ),
 		Report: require( './Report.js' ),
 	},
 

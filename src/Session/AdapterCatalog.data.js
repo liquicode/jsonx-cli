@@ -38,7 +38,13 @@ module.exports = [
 				"Description": "Keep an index of identifiers, so a search by identifier does not read the whole collection. If something else writes the store, call `RefreshIndex()`."
 			}
 		],
-		"Browser": true
+		"Browser": true,
+		"Targets": [
+			{
+				"Name": "jsonstor-memory",
+				"Version": null
+			}
+		]
 	},
 	{
 		"AdapterName": "jsonstor-jsonfile",
@@ -82,6 +88,12 @@ module.exports = [
 				"Default": "true",
 				"Description": "Write the whole file on every insert, update, replace, and delete."
 			}
+		],
+		"Targets": [
+			{
+				"Name": "jsonstor-jsonfile",
+				"Version": null
+			}
 		]
 	},
 	{
@@ -119,6 +131,12 @@ module.exports = [
 				"Default": "false",
 				"Description": "Keep an index of identifiers, so a search by identifier does not read the whole collection. If something else writes the store, call `RefreshIndex()`."
 			}
+		],
+		"Targets": [
+			{
+				"Name": "jsonstor-folder",
+				"Version": null
+			}
 		]
 	},
 	{
@@ -147,6 +165,48 @@ module.exports = [
 				"Required": true,
 				"Default": "-",
 				"Description": "The name of the collection to use."
+			}
+		],
+		"Driver": {
+			"Name": "mongodb",
+			"Url": "https://github.com/mongodb/node-mongodb-native",
+			"Description": "The official MongoDB driver for Node."
+		},
+		"Targets": [
+			{
+				"Name": "jsonstor-mongodb-v4.4",
+				"Version": [
+					4,
+					4
+				]
+			},
+			{
+				"Name": "jsonstor-mongodb-v5.0",
+				"Version": [
+					5,
+					0
+				]
+			},
+			{
+				"Name": "jsonstor-mongodb-v6.0",
+				"Version": [
+					6,
+					0
+				]
+			},
+			{
+				"Name": "jsonstor-mongodb-v7.0",
+				"Version": [
+					7,
+					0
+				]
+			},
+			{
+				"Name": "jsonstor-mongodb-v8.3",
+				"Version": [
+					8,
+					3
+				]
 			}
 		]
 	},
@@ -198,6 +258,17 @@ module.exports = [
 				"Required": false,
 				"Default": "false",
 				"Description": "Keep an index of identifiers, so a search by identifier does not read the whole collection. If something else writes the store, call `RefreshIndex()`."
+			}
+		],
+		"Driver": {
+			"Name": "xlsx",
+			"Url": "https://github.com/SheetJS/sheetjs",
+			"Description": "The SheetJS spreadsheet reader and writer."
+		},
+		"Targets": [
+			{
+				"Name": "jsonstor-excel",
+				"Version": null
 			}
 		]
 	},
@@ -305,6 +376,34 @@ module.exports = [
 				"Default": "[]",
 				"Description": "Columns to create, as `{ Name, Type, Key }`. Used only when this adapter creates the table; afterwards the table itself is the authority."
 			}
+		],
+		"Driver": {
+			"Name": "mysql2",
+			"Url": "https://github.com/sidorares/node-mysql2",
+			"Description": "The MySql driver for Node."
+		},
+		"Targets": [
+			{
+				"Name": "jsonstor-mysql-v5.7",
+				"Version": [
+					5,
+					7
+				]
+			},
+			{
+				"Name": "jsonstor-mysql-v8.0",
+				"Version": [
+					8,
+					0
+				]
+			},
+			{
+				"Name": "jsonstor-mysql-v8.4",
+				"Version": [
+					8,
+					4
+				]
+			}
 		]
 	},
 	{
@@ -369,6 +468,17 @@ module.exports = [
 				"Required": false,
 				"Default": "[]",
 				"Description": "Columns to create, as `{ Name, Type, Key }`. Used only when this adapter creates the table; afterwards the table itself is the authority."
+			}
+		],
+		"Driver": {
+			"Name": "better-sqlite3",
+			"Url": "https://github.com/WiseLibs/better-sqlite3",
+			"Description": "The fastest and simplest Sqlite3 library for Node."
+		},
+		"Targets": [
+			{
+				"Name": "jsonstor-sqlite",
+				"Version": null
 			}
 		]
 	},
@@ -490,6 +600,34 @@ module.exports = [
 				"Default": "[]",
 				"Description": "Columns to create, as `{ Name, Type, Key }`. Used only when this adapter creates the table; afterwards the table itself is the authority."
 			}
+		],
+		"Driver": {
+			"Name": "pg",
+			"Url": "https://github.com/brianc/node-postgres",
+			"Description": "The PostgreSql driver for Node."
+		},
+		"Targets": [
+			{
+				"Name": "jsonstor-postgres-v10.21",
+				"Version": [
+					10,
+					21
+				]
+			},
+			{
+				"Name": "jsonstor-postgres-v14.24",
+				"Version": [
+					14,
+					24
+				]
+			},
+			{
+				"Name": "jsonstor-postgres-v16.15",
+				"Version": [
+					16,
+					15
+				]
+			}
 		]
 	},
 	{
@@ -561,6 +699,17 @@ module.exports = [
 				"Required": false,
 				"Default": "[]",
 				"Description": "Columns to create, as `{ Name, Type, Key }`. Used only when this adapter creates the table; afterwards the table itself is the authority."
+			}
+		],
+		"Driver": {
+			"Name": "@duckdb/node-api",
+			"Url": "https://github.com/duckdb/duckdb-node-neo",
+			"Description": "The official DuckDB client for Node."
+		},
+		"Targets": [
+			{
+				"Name": "jsonstor-duckdb",
+				"Version": null
 			}
 		]
 	},
@@ -660,6 +809,34 @@ module.exports = [
 				"Required": false,
 				"Default": "[]",
 				"Description": "Columns to create, as `{ Name, Type, Key }`. Used only when this adapter creates the table; afterwards the table itself is the authority."
+			}
+		],
+		"Driver": {
+			"Name": "oracledb",
+			"Url": "https://github.com/oracle/node-oracledb",
+			"Description": "The Oracle Database driver for Node."
+		},
+		"Targets": [
+			{
+				"Name": "jsonstor-oracle-v18.0",
+				"Version": [
+					18,
+					0
+				]
+			},
+			{
+				"Name": "jsonstor-oracle-v21.3",
+				"Version": [
+					21,
+					3
+				]
+			},
+			{
+				"Name": "jsonstor-oracle-v23.26",
+				"Version": [
+					23,
+					26
+				]
 			}
 		]
 	},
@@ -774,6 +951,34 @@ module.exports = [
 				"Default": "[]",
 				"Description": "Columns to create, as `{ Name, Type, Key }`. Used only when this adapter creates the table; afterwards the table itself is the authority."
 			}
+		],
+		"Driver": {
+			"Name": "mssql",
+			"Url": "https://github.com/tediousjs/node-mssql",
+			"Description": "The Microsoft SQL Server client for Node."
+		},
+		"Targets": [
+			{
+				"Name": "jsonstor-mssql-v14.0",
+				"Version": [
+					14,
+					0
+				]
+			},
+			{
+				"Name": "jsonstor-mssql-v15.0",
+				"Version": [
+					15,
+					0
+				]
+			},
+			{
+				"Name": "jsonstor-mssql-v16.0",
+				"Version": [
+					16,
+					0
+				]
+			}
 		]
 	},
 	{
@@ -810,6 +1015,17 @@ module.exports = [
 				"Required": false,
 				"Default": "false",
 				"Description": "Allow an update or replacement to change the identifier. When `false`, such an operation is refused."
+			}
+		],
+		"Driver": {
+			"Name": "classic-level",
+			"Url": "https://github.com/Level/classic-level",
+			"Description": "The LevelDB binding for Node, maintained by the Level community."
+		},
+		"Targets": [
+			{
+				"Name": "jsonstor-leveldb",
+				"Version": null
 			}
 		]
 	},
@@ -889,6 +1105,48 @@ module.exports = [
 				"Default": "false",
 				"Description": "Allow an update or replacement to change the identifier. When `false`, such an operation is refused."
 			}
+		],
+		"Driver": {
+			"Name": "redis",
+			"Url": "https://github.com/redis/node-redis",
+			"Description": "The Redis driver for Node. It speaks RESP, so it reaches a Valkey server too."
+		},
+		"Targets": [
+			{
+				"Name": "jsonstor-redis-v6.2",
+				"Version": [
+					6,
+					2
+				]
+			},
+			{
+				"Name": "jsonstor-redis-v7.2",
+				"Version": [
+					7,
+					2
+				]
+			},
+			{
+				"Name": "jsonstor-redis-v8.10",
+				"Version": [
+					8,
+					10
+				]
+			},
+			{
+				"Name": "jsonstor-valkey-v7.2",
+				"Version": [
+					7,
+					2
+				]
+			},
+			{
+				"Name": "jsonstor-valkey-v8.1",
+				"Version": [
+					8,
+					1
+				]
+			}
 		]
 	},
 	{
@@ -959,6 +1217,22 @@ module.exports = [
 				"Required": false,
 				"Default": "\"\"",
 				"Description": "That user's password. Empty means none."
+			}
+		],
+		"Targets": [
+			{
+				"Name": "jsonstor-couchdb-v2.3",
+				"Version": [
+					2,
+					3
+				]
+			},
+			{
+				"Name": "jsonstor-couchdb-v3.5",
+				"Version": [
+					3,
+					5
+				]
 			}
 		]
 	},
@@ -1037,6 +1311,50 @@ module.exports = [
 				"Required": false,
 				"Default": "\"\"",
 				"Description": "That user's password. Empty means none."
+			}
+		],
+		"Targets": [
+			{
+				"Name": "jsonstor-elasticsearch-v7.17",
+				"Version": [
+					7,
+					17
+				]
+			},
+			{
+				"Name": "jsonstor-elasticsearch-v8.19",
+				"Version": [
+					8,
+					19
+				]
+			},
+			{
+				"Name": "jsonstor-elasticsearch-v9.5",
+				"Version": [
+					9,
+					5
+				]
+			},
+			{
+				"Name": "jsonstor-opensearch-v1.3",
+				"Version": [
+					1,
+					3
+				]
+			},
+			{
+				"Name": "jsonstor-opensearch-v2.19",
+				"Version": [
+					2,
+					19
+				]
+			},
+			{
+				"Name": "jsonstor-opensearch-v3.8",
+				"Version": [
+					3,
+					8
+				]
 			}
 		]
 	},
@@ -1130,6 +1448,17 @@ module.exports = [
 				"Default": "[]",
 				"Description": "The payload fields declared to hold a scalar, as `{ Name, Type }` where `Type` is `string`, `number` or `boolean`. This is a promise that the field never holds an array, and it is what lets `$gt` and its siblings be pushed down. See the notes."
 			}
+		],
+		"Driver": {
+			"Name": "@aws-sdk/client-dynamodb",
+			"Url": "https://github.com/aws/aws-sdk-js-v3",
+			"Description": "The official AWS SDK for JavaScript. `@aws-sdk/util-dynamodb` travels with it and versions separately."
+		},
+		"Targets": [
+			{
+				"Name": "jsonstor-dynamodb",
+				"Version": null
+			}
 		]
 	},
 	{
@@ -1201,6 +1530,22 @@ module.exports = [
 				"Default": "\"\"",
 				"Description": "That user's password. Empty means none."
 			}
+		],
+		"Targets": [
+			{
+				"Name": "jsonstor-couchbase-v5.0",
+				"Version": [
+					5,
+					0
+				]
+			},
+			{
+				"Name": "jsonstor-couchbase-v8.0",
+				"Version": [
+					8,
+					0
+				]
+			}
 		]
 	},
 	{
@@ -1266,6 +1611,20 @@ module.exports = [
 				"Description": "***The two blob storages only.*** Hold an index over the identifier, so a lookup by it costs one entry rather than the whole collection. Off by default, because an index over a store something else writes goes stale - call `RefreshIndex()` when it might have. `jsonstor-browser-indexeddb` hosts its own index and takes no such setting."
 			}
 		],
-		"Browser": true
+		"Browser": true,
+		"Targets": [
+			{
+				"Name": "jsonstor-browser-localstorage",
+				"Version": null
+			},
+			{
+				"Name": "jsonstor-browser-opfs",
+				"Version": null
+			},
+			{
+				"Name": "jsonstor-browser-indexeddb",
+				"Version": null
+			}
+		]
 	}
 ];

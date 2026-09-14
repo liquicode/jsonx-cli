@@ -26,6 +26,13 @@ const OUTPUT_FILE = LIB_PATH.join( __dirname, '..', 'src', 'Session', 'AdapterCa
 
 
 //---------------------------------------------------------------------
+function is_driver( Driver )
+{
+	return ( Driver !== null ) && ( typeof Driver === 'object' ) && ( typeof Driver.Name === 'string' );
+}
+
+
+//---------------------------------------------------------------------
 // What a session takes from an adapter entry: what a data source definition needs, and nothing
 // of the family's test plumbing.
 
@@ -40,6 +47,23 @@ function adapter_entry( Adapter )
 	};
 
 	if ( Adapter.Browser === true ) { entry.Browser = true; }
+
+	// ***What `jsonx adapters info` shows beside the settings*** (cut 2): the driver a package
+	// installs, and the servers it was measured against. A target's version is `null` for a store
+	// with no server, such as a file.
+	if ( is_driver( Adapter.Driver ) )
+	{
+		entry.Driver = { Name: Adapter.Driver.Name, Url: Adapter.Driver.Url, Description: Adapter.Driver.Description };
+	}
+	entry.Targets = [];
+	if ( Array.isArray( Adapter.Targets ) )
+	{
+		for ( let target_index = 0; target_index < Adapter.Targets.length; target_index++ )
+		{
+			let target = Adapter.Targets[ target_index ];
+			entry.Targets.push( { Name: target.Name, Version: Array.isArray( target.Version ) ? target.Version : null } );
+		}
+	}
 
 	if ( Array.isArray( Adapter.Settings ) )
 	{

@@ -11,6 +11,7 @@
 
 const Engine = require( '../src/Engine/Engine.js' );
 const Report = require( '../src/Report.js' );
+const FileCommand = require( './file.js' );
 
 
 //---------------------------------------------------------------------
@@ -24,13 +25,8 @@ function handler_for( Verb )
 		let io = Context.Io;
 		let value = function ( Name ) { return Context.Parser.Value( Context.Tree, Parsed, Name ); };
 
-		// ***--file is global, and an engine command reads no file***; accepting it would be the
-		// ignored option this parser refuses everywhere else.
-		if ( Parsed.Given.file === true )
-		{
-			io.Stderr( 'Option [--file] has no effect on an engine command, which reads no jsonx file.\n' );
-			return 2;
-		}
+		let refused = FileCommand.RefuseFile( Parsed, Context, 'an engine command' );
+		if ( refused !== null ) { return refused; }
 
 		let values = {};
 		for ( let index = 0; index < names.length; index++ ) { values[ names[ index ] ] = value( names[ index ] ); }

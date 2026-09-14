@@ -428,6 +428,30 @@ declare module '@liquicode/jsonx-cli'
 		Run( Verb: string, Values: JsonDocument ): { Result: any; Findings: Finding[] };
 	}
 
+	/** One name an adapter package answers to. */
+	export interface AdapterNameRow
+	{
+		Name: string;
+		/** The prime an alias resolves to; null for a prime or a package with no family. */
+		AliasOf: string | null;
+		/** The server version it was measured against, such as '8.4'; null when none. */
+		MeasuredAgainst: string | null;
+	}
+
+	/** The adapters a data source can name. */
+	export interface AdapterSet
+	{
+		List(): Array<{ AdapterName: string; Kind: 'built-in' | 'external'; Package: string; Installed: boolean; Description: string }>;
+		Info( Name: string ): { AdapterName: string; Kind: string; Package: string; Installed: boolean; Description: string; Requested?: string; Driver?: JsonDocument; Names?: AdapterNameRow[]; Settings: JsonDocument[] };
+		Settings( Name: string, DataSourceName?: string ): { Name: string; AdapterName: string; Settings: JsonDocument };
+	}
+
+	export interface AdaptersModule
+	{
+		AdaptersError: new ( Message: string ) => Error;
+		NewAdapters( Options?: { Data?: JsonDocument[]; Require?: ( PackageName: string ) => any; Resolve?: ( PackageName: string ) => string } ): AdapterSet;
+	}
+
 	export interface ReportModule
 	{
 		FormatResult( Output: 'json' | 'jsonl', Value: any ): string;
@@ -474,6 +498,7 @@ declare module '@liquicode/jsonx-cli'
 			Verbs: VerbsModule;
 		};
 		Engine: EngineModule;
+		Adapters: AdaptersModule;
 		Report: ReportModule;
 	}
 

@@ -38,6 +38,7 @@ const TREE = {
 		require( './explain.js' ),
 	].concat( require( './manage.js' ).Groups, [
 		require( './engine.js' ),
+		require( './adapters.js' ),
 	] ),
 };
 

@@ -60,6 +60,20 @@ function LoadFile( Parsed, Context )
 
 
 //---------------------------------------------------------------------
+// For a command which reads no jsonx file: --file is a global option, so it parses anywhere, and a
+// command which accepted and ignored it would look healthy while aimed at nothing. Returns an exit
+// code when --file was given, else null.
+
+function RefuseFile( Parsed, Context, What )
+{
+	if ( Parsed.Given.file !== true ) { return null; }
+	Context.Io.Stderr( 'Option [--file] has no effect on ' + What + ', which reads no jsonx file.\n' );
+	return 2;
+}
+
+
+//---------------------------------------------------------------------
 module.exports = {
 	LoadFile: LoadFile,
+	RefuseFile: RefuseFile,
 };
