@@ -50,6 +50,7 @@ module.exports = {
 			Plan: require( './Session/Plan.js' ),
 			Inspect: require( './Session/Inspect.js' ),
 			Debugger: require( './Session/Debugger.js' ),
+			Held: require( './Session/Held.js' ),
 		},
 		Storage: {
 			Verbs: require( './Storage/Verbs.js' ),

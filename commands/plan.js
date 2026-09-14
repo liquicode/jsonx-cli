@@ -30,7 +30,8 @@ async function handler( Parsed, Context )
 	try
 	{
 		plan = Plan.PlanObject( loaded.Document, name, Object.assign( {}, loaded.ValidateOptions, {
-			Catalog: loaded.Catalog, Binds: value( 'bind' ), Sets: value( 'set' ), Cwd: io.Cwd, FilePath: loaded.Path,
+			// A served plan uses the held session's overrides; a request cannot give its own.
+			Catalog: loaded.Catalog, Binds: loaded.Binds || value( 'bind' ), Sets: loaded.Sets || value( 'set' ), Cwd: io.Cwd, FilePath: loaded.Path,
 		} ) );
 	}
 	catch ( error )
@@ -57,6 +58,7 @@ async function handler( Parsed, Context )
 module.exports = {
 	Command: 'plan',
 	Describe: 'Show what running an object would do, opening nothing.',
+	Concurrent: true,
 	Positionals: [
 		{ Name: 'name', Type: 'string', Required: true, Complete: 'objects', Describe: 'The object to plan.' },
 	],

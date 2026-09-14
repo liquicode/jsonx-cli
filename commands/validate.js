@@ -32,20 +32,30 @@ async function handler( Parsed, Context )
 	let quiet = value( 'quiet' );
 
 	let resolved = null;
-	let text = null;
-	try
+	let read = null;
+	if ( Context.Held )
 	{
-		resolved = Reader.ResolvePath( value( 'file' ), io.Env, io.Cwd, io );
-		text = Reader.ReadText( resolved.Path, io );
+		// A served validate reads the document the session holds (commands/file.js).
+		resolved = { Path: Context.Held.Path };
+		read = { Document: Context.Held.Session.Document, Findings: [] };
 	}
-	catch ( error )
+	else
 	{
-		if ( !( error instanceof Reader.FileError ) ) { throw error; }
-		out.Log( error.message + '\n' );
-		return error.IsUsage ? 2 : 1;
+		let text = null;
+		try
+		{
+			resolved = Reader.ResolvePath( value( 'file' ), io.Env, io.Cwd, io );
+			text = Reader.ReadText( resolved.Path, io );
+		}
+		catch ( error )
+		{
+			if ( !( error instanceof Reader.FileError ) ) { throw error; }
+			out.Log( error.message + '\n' );
+			return error.IsUsage ? 2 : 1;
+		}
+		read = Reader.ParseText( text );
 	}
 
-	let read = Reader.ParseText( text );
 	let findings = read.Findings;
 
 	if ( typeof read.Document !== 'undefined' )
@@ -89,6 +99,7 @@ async function handler( Parsed, Context )
 module.exports = {
 	Command: 'validate',
 	Describe: 'Report the findings for the file, or for one entry of it.',
+	Concurrent: true,
 	Positionals: [
 		{ Name: 'name', Type: 'string', Complete: 'entries', Describe:'The data source, object or trigger to validate; absent means the whole file.' },
 	],

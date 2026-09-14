@@ -71,7 +71,7 @@ function command_for( Verb )
 //---------------------------------------------------------------------
 function build_group()
 {
-	let group = { Command: 'engine', Describe: 'Query, sort, project, update and validate documents with jsongin, with no file and no storage.', Commands: [] };
+	let group = { Command: 'engine', Describe: 'Query, sort, project, update and validate documents with jsongin, with no file and no storage.', Concurrent: true, Commands: [] };
 	let groups = {};
 
 	let verbs = Object.keys( Engine.ENGINE_VERBS );

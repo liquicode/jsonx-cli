@@ -93,6 +93,9 @@ module.exports = {
 	Command: 'debug',
 	Describe: 'Step a Process, reading commands from standard input: step, into, continue, decline, answer <json>, state, skip, quit.',
 	Library: [ 'jsonproc.Start', 'jsonproc.Step', 'jsonproc.Resume' ],
+	// Decided while planning cut 3 (user, 2026-09-13): served with the Web UI, in cut 5.
+	Served: false,
+	ServedReason: 'it reads its commands a line at a time from standard input; a served debug arrives with the Web UI',
 	Positionals: [
 		{ Name: 'process', Type: 'string', Required: true, Complete: 'objects:Process', Describe: 'The Process to debug.' },
 	],

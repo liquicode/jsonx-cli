@@ -71,6 +71,8 @@ module.exports = {
 		{
 			Command: 'completion',
 			Describe: 'Write the shell completion script for bash, zsh or powershell.',
+			Served: false,
+			ServedReason: 'it writes a script for a shell on this machine',
 			Positionals: [
 				{ Name: 'shell', Type: 'string', Required: true, Choices: CompletionScripts.SHELLS, Describe: 'The shell.' },
 			],
@@ -79,6 +81,8 @@ module.exports = {
 		{
 			Command: '__complete',
 			Hidden: true,
+			Served: false,
+			ServedReason: 'it answers a shell\'s completion callback',
 			Describe: 'The completion scripts\' callback: the candidates for the words typed, one per line.',
 			Positionals: [
 				{ Name: 'words', Type: 'string', Repeat: true, Describe: 'The words typed, the last marked with a leading colon.' },

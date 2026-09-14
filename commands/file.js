@@ -17,11 +17,29 @@ const AdapterCatalog = require( '../src/Session/AdapterCatalog.js' );
 
 
 //---------------------------------------------------------------------
-// Returns { Document, Path, Catalog, ValidateOptions } or { ExitCode }.
+// Returns { Document, Path, Catalog, ValidateOptions, Binds, Sets } or { ExitCode }. Binds and Sets
+// are the held session's overrides when a served command loads, and absent otherwise.
+//
+// ***A served command reads the document the session holds***, not the disk, so an edit changes
+// the file every later request sees.
 
 function LoadFile( Parsed, Context )
 {
 	let io = Context.Io;
+
+	if ( Context.Held )
+	{
+		let held = Context.Held;
+		return {
+			Document: held.Session.Document,
+			Path: held.Path,
+			Catalog: held.Session.Catalog,
+			ValidateOptions: { jsongin: jsongin, jsonproc: jsonproc, Env: io.Env, CheckSettings: held.Session.Catalog.ValidateSettings },
+			Binds: held.Binds,
+			Sets: held.Sets,
+		};
+	}
+
 	let file = Context.Parser.Value( Context.Tree, Parsed, 'file' );
 
 	let resolved = null;

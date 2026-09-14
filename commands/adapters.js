@@ -58,6 +58,7 @@ function handler_for( Which )
 module.exports = {
 	Command: 'adapters',
 	Describe: 'List the adapters a data source can name, and show what one needs.',
+	Concurrent: true,
 	Commands: [
 		{
 			Command: 'list',

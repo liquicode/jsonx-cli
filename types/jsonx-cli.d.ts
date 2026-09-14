@@ -191,6 +191,8 @@ declare module '@liquicode/jsonx-cli'
 		Names(): string[];
 		Open( Name: string ): any;
 		Opened(): string[];
+		/** Flushes everything open and keeps it open. Answers how many. */
+		Flush(): Promise<number>;
 		Release(): Promise<number>;
 	}
 
@@ -204,6 +206,10 @@ declare module '@liquicode/jsonx-cli'
 		DataSources: DataSourceSet;
 		Host: any;
 		Runner: any;
+		/** Whether the run in progress records trace lines. */
+		Trace: boolean;
+		/** What the next run measures (--verbose) and records (--trace). */
+		SetRunOptions( RunOptions: { Statistics?: boolean; Trace?: boolean } ): void;
 		Run( Name: string, Input?: JsonDocument ): Promise<RunReport>;
 		RunTrigger( Name: string ): Promise<RunReport>;
 		Release(): Promise<number>;
@@ -523,6 +529,35 @@ declare module '@liquicode/jsonx-cli'
 		Snapshot(): DebugSnapshot;
 	}
 
+	/** One file and one session, held for as long as a served mode runs. */
+	export interface HeldSession
+	{
+		Tree: any;
+		Io: Io;
+		Path: string;
+		Session: Session;
+		Binds?: string[];
+		Sets?: string[];
+		/** The file's findings when it was held; a file with errors is held, and runs nothing. */
+		StartFindings: Finding[];
+		/** Runs Work after everything queued before it. */
+		Exclusive<T>( Work: () => T | Promise<T> ): Promise<T>;
+		/** The session as a handler borrows it: Release flushes and keeps everything open. */
+		Lease(): Session;
+		/** One request, as an --input-json document. Never throws. */
+		Invoke( Invocation: JsonDocument ): Promise<ResultEnvelope>;
+		/** Waits for the queue, then releases every data source. */
+		Release(): Promise<number>;
+	}
+
+	export interface HeldModule
+	{
+		REFUSED_OPTIONS: { [ Name: string ]: string };
+		HeldError: new ( Message: string ) => Error;
+		/** Throws HeldError when there is no file to hold, or it is not a JSON object. */
+		NewHeld( Options: { Tree: any; File?: string; Binds?: string[]; Sets?: string[]; Io?: Io; jsonstor?: any; Require?: ( Name: string ) => any; MaxSteps?: number; MaxCalls?: number } ): HeldSession;
+	}
+
 	export interface DebuggerModule
 	{
 		COMMANDS: string[];
@@ -615,6 +650,7 @@ declare module '@liquicode/jsonx-cli'
 			Plan: PlanModule;
 			Inspect: InspectModule;
 			Debugger: DebuggerModule;
+			Held: HeldModule;
 		};
 		Storage: {
 			Verbs: VerbsModule;

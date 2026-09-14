@@ -59,6 +59,16 @@ async function OpenSession( Parsed, Context, Extra )
 	let extra = ( Extra && typeof Extra === 'object' ) ? Extra : {};
 	let value = function ( Name ) { return Context.Parser.Value( Context.Tree, Parsed, Name ); };
 
+	// ***A served command borrows the held session*** (src/Session/Held.js): nothing is read or
+	// built, the file is validated as it is held now, and this run's --verbose and --trace are set.
+	if ( Context.Held )
+	{
+		let held = Context.Held;
+		if ( refuse_errors( out, held.Path, held.Session.Document, io, held.Session.Catalog ) ) { return { ExitCode: 3 }; }
+		held.Session.SetRunOptions( { Statistics: ( extra.Statistics === true ), Trace: ( extra.Trace === true ) } );
+		return { Session: held.Lease(), Path: held.Path };
+	}
+
 	let resolved = null;
 	let text = null;
 	try
@@ -102,17 +112,24 @@ async function OpenSession( Parsed, Context, Extra )
 		return { ExitCode: 2 };
 	}
 
-	let findings = Validate.ValidateFile( read.Document, {
-		jsongin: jsongin, jsonproc: jsonproc, Env: io.Env, CheckSettings: session.Catalog.ValidateSettings,
-	} );
-	if ( Validate.Summarize( findings ).Errors > 0 )
-	{
-		write_findings( out, resolved.Path, findings.filter( function ( Finding ) { return Finding.Severity === 'error'; } ) );
-		out.Log( 'Nothing ran: the file has errors. Run jsonx validate for every finding.\n' );
-		return { ExitCode: 3 };
-	}
+	if ( refuse_errors( out, resolved.Path, read.Document, io, session.Catalog ) ) { return { ExitCode: 3 }; }
 
 	return { Session: session, Path: resolved.Path };
+}
+
+
+//---------------------------------------------------------------------
+// Validates the file; when it has errors, writes them and answers true.
+
+function refuse_errors( Out, Path, Document, Io, Catalog )
+{
+	let findings = Validate.ValidateFile( Document, {
+		jsongin: jsongin, jsonproc: jsonproc, Env: Io.Env, CheckSettings: Catalog.ValidateSettings,
+	} );
+	if ( Validate.Summarize( findings ).Errors === 0 ) { return false; }
+	write_findings( Out, Path, findings.filter( function ( Finding ) { return Finding.Severity === 'error'; } ) );
+	Out.Log( 'Nothing ran: the file has errors. Run jsonx validate for every finding.\n' );
+	return true;
 }
 
 

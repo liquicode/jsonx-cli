@@ -203,6 +203,22 @@ function NewDataSources( Options )
 
 
 	//---------------------------------------------------------------------
+	// Everything open, flushed and kept open: what a held session does after each request, so a
+	// write reaches the store without losing what an in-memory store holds.
+
+	sources.Flush = async function ()
+	{
+		let names = Object.keys( sources.Cache );
+		for ( let index = 0; index < names.length; index++ )
+		{
+			try { await sources.Cache[ names[ index ] ].Storage.FlushStorage(); }
+			catch ( error ) { /* nothing to flush */ }
+		}
+		return names.length;
+	};
+
+
+	//---------------------------------------------------------------------
 	// Everything open, flushed and dropped. A storage with nothing to flush is not a failure.
 
 	sources.Release = async function ()

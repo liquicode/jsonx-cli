@@ -131,8 +131,8 @@ function noun_group( Noun )
 		Command: Noun,
 		Describe: 'List, show, add, change, remove and rename the file\'s ' + Edit.NOUNS[ Noun ].Plural + '.',
 		Commands: [
-			{ Command: 'list', Describe: 'List every ' + label + '.', Handler: edit_handler( Noun, 'list' ) },
-			{ Command: 'show', Describe: 'Show one ' + label + '.', Positionals: [ name_positional ], Handler: edit_handler( Noun, 'show' ) },
+			{ Command: 'list', Describe: 'List every ' + label + '.', Concurrent: true, Handler: edit_handler( Noun, 'list' ) },
+			{ Command: 'show', Describe: 'Show one ' + label + '.', Concurrent: true, Positionals: [ name_positional ], Handler: edit_handler( Noun, 'show' ) },
 			{ Command: 'add', Describe: 'Add a ' + label + '.', Options: Object.assign( {}, body, FORCE ), Handler: edit_handler( Noun, 'add' ) },
 			{
 				Command: 'set', Describe: 'Change fields of a ' + label + '; a field set to null is removed.',

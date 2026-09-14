@@ -55,6 +55,9 @@ function is_object( Value )
 //		Statistics     true to measure every storage call (--verbose)
 //		Trace          true to stack jsonstor-oplog over every data source and record its lines
 //		               on the report of the object making each call (--trace, plan F6.2)
+//		Traceable      true to stack jsonstor-oplog on every data source whether or not this run
+//		               traces, so a held session can trace one run and not the next
+//		               (SetRunOptions); the filter is stacked when a source opens, which is once
 
 function NewSession( Options )
 {
@@ -68,6 +71,8 @@ function NewSession( Options )
 		Document: options.Document,
 		Path: options.Path || null,
 		jsonstor: jsonstor,
+		// Whether the run in progress records trace lines.
+		Trace: ( options.Trace === true ),
 	};
 
 	session.Catalog = AdapterCatalog.NewAdapterCatalog( { jsonstor: jsonstor, Require: options.Require } );
@@ -130,7 +135,7 @@ function NewSession( Options )
 		},
 		OuterFilters: function ()
 		{
-			if ( options.Trace !== true ) { return []; }
+			if ( options.Trace !== true && options.Traceable !== true ) { return []; }
 			return [ {
 				FilterName: TRACE_FILTER,
 				Settings: {
@@ -153,6 +158,7 @@ function NewSession( Options )
 
 	function record_trace( Line )
 	{
+		if ( !session.Trace ) { return; }
 		if ( typeof Line !== 'string' || Line.trim() === '' ) { return; }
 		session.Runner.RecordTrace( Line );
 		return;
@@ -161,6 +167,19 @@ function NewSession( Options )
 	session.Runner = Runner.NewRunner( {
 		Document: session.Document, DataSources: session.DataSources, Host: session.Host, Statistics: ( options.Statistics === true ),
 	} );
+
+
+	//---------------------------------------------------------------------
+	// What the next run measures and records: Statistics (--verbose) and Trace (--trace). A held
+	// session sets them per request; Trace records only on a session built Traceable or with Trace.
+
+	session.SetRunOptions = function ( RunOptions )
+	{
+		let run_options = is_object( RunOptions ) ? RunOptions : {};
+		session.Runner.Statistics = ( run_options.Statistics === true );
+		session.Trace = ( run_options.Trace === true );
+		return;
+	};
 
 
 	//---------------------------------------------------------------------

@@ -33,6 +33,7 @@ async function handler( Parsed, Context )
 module.exports = {
 	Command: 'new',
 	Describe: 'Write a skeleton to start from: a whole file, or one data source, object or trigger.',
+	Concurrent: true,
 	Positionals: [
 		{ Name: 'kind', Type: 'string', Required: true, Choices: Skeletons.KINDS, Describe: 'What to write.' },
 	],
