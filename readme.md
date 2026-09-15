@@ -2,7 +2,7 @@
 
 The jsonx command line: validate, plan, run, debug and edit a `.jsonx` file, work with the
 documents in its data sources, use jsongin on its own, serve the file to programs over HTTP, a
-WebSocket or MCP, and work with it in a terminal interface.
+WebSocket or MCP, and work with it in a terminal interface or a browser.
 
 A `.jsonx` file holds the data sources a piece of work uses, the operations on them, and the
 triggers that run a process when data changes. The format is defined in
@@ -51,6 +51,7 @@ says what it tried. `engine`, `adapters`, `new` and `completion` read no file, a
 | `jsonx format` | Rewrite the file in canonical order. `--check` only reports. |
 | `jsonx completion <shell>` | The completion script for `bash`, `zsh` or `powershell`. |
 | `jsonx serve --api` | Serve the file's commands over HTTP and a WebSocket until stopped. See [Serving the file](#serving-the-file). |
+| `jsonx serve --ui` | The same, and the Web UI for a browser. See [The Web UI](#the-web-ui). |
 | `jsonx mcp` | Serve the file's commands as MCP tools, over standard input and output or `--http`. |
 | `jsonx tui` | Work with the file in a terminal interface. See [The terminal interface](#the-terminal-interface). |
 
@@ -418,8 +419,8 @@ option is.
 
 ## Serving the file
 
-`jsonx serve --api` and `jsonx mcp` hold the file open and answer its commands for other programs
-until they are stopped. Every served command answers the same object:
+`jsonx serve` and `jsonx mcp` hold the file open and answer its commands for other programs until
+they are stopped. Every served command answers the same object:
 
 ```
 { "Ok": true, "ExitCode": 0, "Result": [ ... ], "Findings": [], "Log": [ "Prepare the season  Process  ran once  9 ms", ... ] }
@@ -443,6 +444,8 @@ When it is ready, it writes one line to standard output, for a program that star
 ```
 {"File":"C:\\season\\observatory.jsonx","Url":"http://127.0.0.1:3470","Ws":"ws://127.0.0.1:3470/ws","Pid":24480}
 ```
+
+With `--ui` the line also carries `Ui`, the address of the [Web UI](#the-web-ui).
 
 `--attached` also stops it when its standard input ends, so the program that started it can stop it
 by closing that input. It stops the same way as on Ctrl+C: data sources are flushed and closed.
@@ -495,6 +498,17 @@ carries the same `Id`. The `Answer` always comes last.
 | `{ "Id": "2", "Read": "jsonx://entry/Bookings" }` | Read the file (`jsonx://file`) or one entry, as written. |
 | `{ "Id": "3", "Debug": { "process": "Prepare the season" } }` | Start debugging a Process. |
 | `{ "Id": "4", "Step": "step" }` | Send one [debug command](#debugging-a-process). Its `Answer` is where the Process is now. |
+
+A program drawing its own front end, as the Web UI does, can also ask the server to read what a person
+types. These run nothing and answer at once, even while a debug is open:
+
+| Send | Its `Result` |
+|---|---|
+| `{ "Id": "5", "Line": "data find Bookings --max 5" }` | What sending the line would do: `Outcome` is `invoke` or `debug` with the `Document` to send, `confirm` when `--yes` would be needed, `help` with its `Text`, `usage` with `Findings`, or `refused` for a command a front end does not send, such as `serve` or `tui`. A line cannot read `@file` or `-`. |
+| `{ "Id": "6", "Entry": "{ \"Kind\": \"Query\", ... }" }` | Whether typed JSON is an entry, which one (`Target`), and the `Save` and `Check` commands to send for it. |
+| `{ "Id": "7", "Complete": "run \"Prep" }` | Completions for the end of the text; each item says what to insert and how many characters it replaces. |
+| `{ "Id": "8", "Actions": "Bookings" }` | The commands an entry offers, each with its command `Line`. |
+| `{ "Id": "9", "Inventory": true }` | Every entry, with the worst finding in each. |
 
 | Received | When |
 |---|---|
@@ -569,6 +583,18 @@ open.
 jsonx serve --api --host 0.0.0.0 --token "a long random value"
 ```
 
+A browser cannot send that header when it opens a WebSocket, so a page asks for a ticket first:
+
+- `POST /ws/ticket`, with the token, answers `{ "Ticket": "...", "ExpiresInMs": 30000 }`.
+- `ws://host:port/ws?ticket=<ticket>` then connects without the header. A ticket opens one connection
+  within 30 seconds, and nothing else.
+- `GET /ui/config.json` answers `{ "TokenRequired": true }` or `false`, without a token, so a page
+  knows whether to ask.
+
+```
+curl -s -X POST http://127.0.0.1:3470/ws/ticket -H "Authorization: Bearer a long random value"
+```
+
 ### While it serves
 
 - ***Requests take turns*** for anything that opens a data source or changes the file, so each run
@@ -638,6 +664,55 @@ The screen has four panes:
 A click moves to a pane, and the wheel scrolls. ***A command that needs `--yes` asks first***, and
 sends `yes` only when you answer `y`. The theme, the layout and the hidden panes are kept in
 `~/.jsonx/tui.json`.
+
+
+## The Web UI
+
+```
+jsonx serve --ui --file observatory.jsonx
+```
+
+Then open `http://127.0.0.1:3470/ui/` in a browser; opening `http://127.0.0.1:3470/` goes there too.
+`--ui` serves everything `--api` does as well. The page works with the file through the server it came
+from, so it shows the same file, and a change made from the page, the TUI, the command line or an
+editor shows in all of them.
+
+When the server was started with a token, the page asks for it. It is kept for that browser tab until
+the tab is closed.
+
+The page has the same four panes as the [terminal interface](#the-terminal-interface):
+
+- ***Inventory*** lists the entries, each marked with its worst finding. Double click an entry, or
+  select it and press Enter, for its actions: run, debug, find, plan, explain, `edit` and the rest.
+  Actions marked `…` go to Input for you to finish.
+- ***Input*** takes a command as you would type it after `jsonx`. Enter sends it, and Tab completes
+  commands, options and names. Text starting with `{` is an entry: it is checked a moment after you stop
+  typing, with any finding shown under Input and underlined in the text, and Ctrl+S saves it. `edit`
+  puts an entry's JSON here.
+- ***Log*** shows each command's report and findings. While a Process is debugged, a strip above it
+  shows the step in English, with a button for each [debug command](#debugging-a-process).
+- ***Data Rows*** shows a list result as rows. Click a row for its JSON, which you can copy or save;
+  Previous and Next page through a `find`; an update run with `--changes` shows each document before
+  and after; Save as JSON saves the rows.
+
+| Key | What it does |
+|---|---|
+| Enter | In Input, send the command. On an entry, open its actions. |
+| Tab | In Input, complete. |
+| Ctrl+S | In Input, save the entry. |
+| Esc | Leave Input, or close a dialog. |
+| `y`, `n` | Answer a confirmation. |
+| `s` `i` `c` `d` `t` `k` `x` | While debugging, outside Input: step, into, continue, decline, state, skip, quit. |
+
+***A command that needs `--yes` asks first***, and sends `yes` only when you answer yes.
+
+The buttons at the top switch between the light, dark and system themes and three text sizes. The ▾
+in each pane's header hides or shows it. Drag the line between two panes to resize them; with the
+line selected, the arrow keys move it, and a double click puts it back. The page remembers these in
+the browser.
+
+If the server stops, the page says it is disconnected and does not reconnect; reload it once the
+server is running again.
 
 
 ## Using the library
