@@ -165,7 +165,10 @@ function NewFrontRequests( Held )
 			{
 				if ( typeof Message.Complete !== 'string' ) { return refusal( 'Complete takes Input\'s text as a string.' ); }
 				let options = { Document: Held.Session.Document, Operators: await known_operators(), Fields: fields_of };
-				return answered( Front.Completion.CompleteText( Held.Tree, Message.Complete, Front.Line.ServedIo(), options ) );
+				let completion = Front.Completion.CompleteText( Held.Tree, Message.Complete, Front.Line.ServedIo(), options );
+				// What choosing each does to the text, so a page inserts rather than quotes.
+				completion.Items = Front.Completion.CompletionItems( Message.Complete, completion );
+				return answered( completion );
 			}
 			if ( typeof Message.Actions !== 'undefined' )
 			{

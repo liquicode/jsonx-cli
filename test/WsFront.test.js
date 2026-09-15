@@ -71,7 +71,11 @@ describe( 'Front requests on the WebSocket', function ()
 			LIB_ASSERT.strictEqual( served.Held.Session.Document.Objects.some( function ( Each ) { return Each.Name === 'Long nights'; } ), false );
 
 			let complete = await client.Ask( { Complete: 'run "Prep' } );
-			LIB_ASSERT.deepStrictEqual( complete.Result, Front.Completion.CompleteText( tree, 'run "Prep', Front.Line.ServedIo(), { Document: document } ) );
+			let expected_completion = Front.Completion.CompleteText( tree, 'run "Prep', Front.Line.ServedIo(), { Document: document } );
+			expected_completion.Items = Front.Completion.CompletionItems( 'run "Prep', expected_completion );
+			LIB_ASSERT.deepStrictEqual( complete.Result, expected_completion );
+			// The page inserts what it is given: the quote already typed is replaced, and the name quoted.
+			LIB_ASSERT.deepStrictEqual( complete.Result.Items.find( function ( Item ) { return Item.Label === 'Prepare the season'; } ), { Label: 'Prepare the season', Insert: '"Prepare the season"', Replace: 5 } );
 			LIB_ASSERT.ok( complete.Result.Candidates.includes( 'Prepare the season' ) );
 			let operator = await client.Ask( { Complete: '{ "Criteria": { "Hours": { "$gt' } );
 			LIB_ASSERT.ok( operator.Result.Candidates.includes( '$gte' ), JSON.stringify( operator.Result ) );

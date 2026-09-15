@@ -290,9 +290,26 @@ body
 
 /* Input. */
 
-.jsonx-input-form input
+.jsonx-input-head
 {
-	font-family: var( --bs-font-monospace );
+	font-weight: 600;
+	padding-bottom: 0.2rem;
+}
+
+.jsonx-input-head .is-ok { color: var( --bs-success ); }
+.jsonx-input-head .is-bad { color: var( --bs-danger ); }
+
+.jsonx-editor
+{
+	height: 1.9rem;
+	border: 1px solid var( --bs-border-color );
+	border-radius: var( --bs-border-radius-sm );
+	padding: 0.2rem 0.3rem;
+}
+
+.jsonx-input.is-json .jsonx-editor
+{
+	height: 14rem;
 }
 
 .jsonx-input-finding
@@ -300,6 +317,45 @@ body
 	padding-top: 0.2rem;
 	font-size: 0.8rem;
 }
+
+.jsonx-input-finding-path
+{
+	font-family: var( --bs-font-monospace );
+	color: var( --bs-secondary-color );
+}
+
+
+/* The debug strip. */
+
+.jsonx-debug
+{
+	padding: 0.4rem 0.75rem;
+	border-bottom: 1px solid var( --bs-border-color );
+	background: var( --bs-warning-bg-subtle );
+}
+
+.jsonx-debug-step
+{
+	margin: 0.25rem 0;
+	font-family: var( --bs-font-monospace );
+	font-size: 0.8rem;
+}
+
+.jsonx-debug-commands
+{
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.3rem;
+}
+
+.jsonx-debug-answer input
+{
+	width: 14rem;
+	font-family: var( --bs-font-monospace );
+}
+
+.jsonx-log-line.is-debug { color: var( --bs-warning-text-emphasis ); }
 
 .jsonx-input-finding.is-error { color: var( --bs-danger ); }
 .jsonx-input-finding.is-warning { color: var( --bs-warning-text-emphasis ); }

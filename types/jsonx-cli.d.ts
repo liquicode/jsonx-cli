@@ -781,6 +781,9 @@ declare module '@liquicode/jsonx-cli'
 	{
 		JsonContext( Text: string ): { In: 'string'; Prefix: string; Key: string | null; IsKey: boolean } | { In: 'none' };
 		CompleteText( Tree: CommandNode, Text: string, Io?: Io, Options?: { Document?: any; Operators?: string[] | null; Fields?: ( DataSource: string ) => string[] | null } ): { Prefix: string; Candidates: string[]; Json: boolean };
+		/** What choosing each candidate does: Replace characters before the end become Insert, a name quoted as the parser reads it. */
+		CompletionItems( Text: string, Completion: { Prefix: string; Candidates: string[]; Json: boolean } ): Array<{ Label: string; Insert: string; Replace: number }>;
+		ApplyItem( Text: string, Item: { Insert: string; Replace: number } ): string;
 	}
 
 

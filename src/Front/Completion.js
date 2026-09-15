@@ -124,7 +124,36 @@ function CompleteText( Tree, Text, Io, Options )
 
 
 //---------------------------------------------------------------------
+// What choosing each candidate does to the text: { Label, Insert, Replace } - Replace characters before the
+// end are replaced by Insert. A name is quoted as SplitWords reads it back, and a quoted name replaces a
+// quote already typed (moved from the TUI model's ApplyCompletion, cut 5, step 5).
+
+function CompletionItems( Text, Completion )
+{
+	let text = String( ( typeof Text === 'undefined' || Text === null ) ? '' : Text );
+	let prefix = String( Completion.Prefix || '' );
+	return ( Completion.Candidates || [] ).map( function ( Candidate )
+	{
+		let insert = Completion.Json ? String( Candidate ) : Words.QuoteWord( String( Candidate ) );
+		let replace = prefix.length;
+		let base = text.slice( 0, text.length - replace );
+		if ( !Completion.Json && insert[ 0 ] === '"' && /["']$/.test( base ) ) { replace++; }
+		return { Label: String( Candidate ), Insert: insert, Replace: replace };
+	} );
+}
+
+// The text with a candidate's item applied.
+function ApplyItem( Text, Item )
+{
+	let text = String( ( typeof Text === 'undefined' || Text === null ) ? '' : Text );
+	return text.slice( 0, text.length - Item.Replace ) + Item.Insert;
+}
+
+
+//---------------------------------------------------------------------
 module.exports = {
 	JsonContext: JsonContext,
 	CompleteText: CompleteText,
+	CompletionItems: CompletionItems,
+	ApplyItem: ApplyItem,
 };

@@ -176,6 +176,16 @@ describe( 'Front', function ()
 		LIB_ASSERT.deepStrictEqual( asked, [ 'Bookings' ] );
 		LIB_ASSERT.deepStrictEqual( Completion.CompleteText( TREE, '{ "DataSource": "Bookings", "Criteria": { "Ho', null, { Document: document } ).Candidates, [] );
 
+		// What choosing a candidate does: a name with spaces quoted, a quote already typed replaced, JSON as is.
+		let typed = 'run "Prep';
+		let items = Completion.CompletionItems( typed, run );
+		let season_item = items.find( function ( Item ) { return Item.Label === 'Prepare the season'; } );
+		LIB_ASSERT.strictEqual( Completion.ApplyItem( typed, season_item ), 'run "Prepare the season"' );
+		LIB_ASSERT.strictEqual( Completion.ApplyItem( 'run Prep', Completion.CompletionItems( 'run Prep', Completion.CompleteText( TREE, 'run Prep', null, { Document: document } ) ).find( function ( Item ) { return Item.Label === 'Prepare the season'; } ) ), 'run "Prepare the season"' );
+		LIB_ASSERT.strictEqual( Completion.ApplyItem( 'data fi', Completion.CompletionItems( 'data fi', Completion.CompleteText( TREE, 'data fi', null, { Document: document } ) )[ 0 ] ), 'data find' );
+		LIB_ASSERT.strictEqual( Completion.ApplyItem( source_text(), Completion.CompletionItems( source_text(), source )[ 0 ] ), '{ "Kind": "Query", "DataSource": "Bookings' );
+		function source_text() { return '{ "Kind": "Query", "DataSource": "Bo'; }
+
 		// A JSON option still being typed completes as JSON does.
 		let option = Completion.CompleteText( TREE, 'data find Bookings --criteria {"$an', null, { Document: document, Operators: [ '$and' ] } );
 		LIB_ASSERT.deepStrictEqual( option, { Prefix: '$an', Candidates: [ '$and' ], Json: true } );

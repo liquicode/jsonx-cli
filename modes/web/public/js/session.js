@@ -11,7 +11,8 @@
 		State.Inventory   { Items, Findings } from Inventory
 		State.Selected    the name of the entry selected
 		State.Menu        { Name, Actions } while an entry's actions are open
-		State.Input       { Text, Findings } - the command line (Monaco replaces it in step 5)
+		State.Input       { Text, Mode: 'empty' | 'command' | 'json', Findings, Target, Checked }
+		State.Debug       { Process, Snapshot } while a debug is open
 		State.Log         [ { Kind, Text, Depth } ], newest last
 		State.Rows        { Title, Columns, Rows, Changes, Skip, Max, More }
 		State.Running     the objects running now, outermost first, from report events
@@ -21,12 +22,14 @@
 		State.Json        { Title, Text } while a row's JSON is shown
 */
 
-angular.module( 'JsonxWeb' ).factory( 'JsonxSession', [ 'JsonxClient', '$q',
-	function ( JsonxClient, $q )
+angular.module( 'JsonxWeb' ).factory( 'JsonxSession', [ 'JsonxClient', '$q', '$timeout',
+	function ( JsonxClient, $q, $timeout )
 	{
 		const LOG_LIMIT = 2000;
 		const PAGE_ROWS = 100;
 		const FRONT = 'the Web UI';
+		// How long typing pauses before a JSON entry is checked.
+		const CHECK_DELAY_MS = 400;
 
 		let state = {
 			Connection: 'connecting',
@@ -35,7 +38,8 @@ angular.module( 'JsonxWeb' ).factory( 'JsonxSession', [ 'JsonxClient', '$q',
 			Inventory: { Items: [], Findings: [] },
 			Selected: null,
 			Menu: null,
-			Input: { Text: '', Findings: [] },
+			Input: { Text: '', Mode: 'empty', Findings: [], Target: null, Checked: null },
+			Debug: null,
 			Log: [],
 			Rows: { Title: '', Columns: [], Rows: [], Changes: null, Skip: 0, Max: null, More: false },
 			Running: [],
@@ -49,6 +53,8 @@ angular.module( 'JsonxWeb' ).factory( 'JsonxSession', [ 'JsonxClient', '$q',
 
 		// The last find, for paging.
 		let last_find = null;
+		// The check waiting for typing to pause.
+		let check_timer = null;
 
 
 		//---------------------------------------------------------------------
@@ -179,11 +185,98 @@ angular.module( 'JsonxWeb' ).factory( 'JsonxSession', [ 'JsonxClient', '$q',
 		//---------------------------------------------------------------------
 		// Input.
 
+		// Input's text: its mode read from its first character, and a JSON entry checked once typing pauses.
 		session.SetInput = function ( Text )
 		{
-			state.Input.Text = String( Text );
-			state.Input.Findings = [];
+			let text = String( Text );
+			let input = state.Input;
+			input.Text = text;
+			input.Findings = [];
+			input.Target = null;
+			input.Checked = null;
+			input.Mode = ( text.trim() === '' ) ? 'empty' : ( text.trim()[ 0 ] === '{' ? 'json' : 'command' );
+			if ( check_timer !== null ) { $timeout.cancel( check_timer ); check_timer = null; }
+			if ( input.Mode === 'json' ) { check_timer = $timeout( session.CheckEntry, CHECK_DELAY_MS ); }
 			return;
+		};
+
+		// ***A live check***: the process reads the entry (Entry) and runs its `add --check` or `set --check`.
+		// Nothing is written. An answer about text typed since is dropped.
+		session.CheckEntry = function ()
+		{
+			check_timer = null;
+			let text = state.Input.Text;
+			if ( state.Input.Mode !== 'json' ) { return $q.resolve( null ); }
+			return JsonxClient.Send( { Entry: text } ).then( function ( Answer )
+			{
+				if ( state.Input.Text !== text || !Answer.Ok ) { return null; }
+				let read = Answer.Result;
+				if ( read.Syntax )
+				{
+					state.Input.Findings = [ { Severity: 'error', Path: '', Message: read.Syntax.Message } ];
+					return null;
+				}
+				state.Input.Target = read.Target;
+				return JsonxClient.Invoke( read.Check ).then( function ( Checked )
+				{
+					if ( state.Input.Text !== text ) { return null; }
+					state.Input.Findings = Array.isArray( Checked.Findings ) ? Checked.Findings : [];
+					state.Input.Checked = { ExitCode: Checked.ExitCode, Log: Checked.Log };
+					return Checked;
+				} );
+			} );
+		};
+
+		// Input submitted: a command is sent; a JSON entry is saved.
+		session.Submit = function ()
+		{
+			if ( state.Input.Mode === 'json' ) { return session.SaveEntry(); }
+			if ( state.Input.Mode === 'command' ) { return session.SendLine(); }
+			return $q.resolve( null );
+		};
+
+		// Saves the entry typed: `add`, or `set` making the file's entry exactly the typed one, as the process
+		// reads it now.
+		session.SaveEntry = function ()
+		{
+			let text = state.Input.Text;
+			return JsonxClient.Send( { Entry: text } ).then( function ( Answer )
+			{
+				if ( !Answer.Ok ) { log( 'error', ( Answer.Log || [] ).join( ' ' ) ); return null; }
+				let read = Answer.Result;
+				if ( read.Syntax || !read.Target )
+				{
+					log( 'error', 'Not saved: ' + ( read.Syntax ? read.Syntax.Message : 'this is not an entry.' ) );
+					return null;
+				}
+				return run( read.Save, read.Save.Command.join( ' ' ) + ' ' + read.Target.Name ).then( function ( Saved )
+				{
+					if ( Saved && Saved.Ok ) { state.Selected = read.Target.Name; }
+					return Saved;
+				} );
+			} );
+		};
+
+		// An entry's JSON in Input, as the file holds it now.
+		session.Edit = function ( Name )
+		{
+			state.Menu = null;
+			return JsonxClient.Send( { Read: 'jsonx://entry/' + encodeURIComponent( Name ) } ).then( function ( Answer )
+			{
+				if ( !Answer.Ok ) { log( 'error', ( Answer.Log || [] ).join( ' ' ) ); return null; }
+				state.Selected = Name;
+				session.SetInput( JSON.stringify( Answer.Result, null, '\t' ) );
+				return Answer.Result;
+			} );
+		};
+
+		// The candidates for text ending where the cursor is: { Prefix, Candidates, Json, Items }.
+		session.Complete = function ( Text )
+		{
+			return JsonxClient.Send( { Complete: String( Text ) } ).then( function ( Answer )
+			{
+				return Answer.Ok ? Answer.Result : null;
+			} );
 		};
 
 		// A typed line, read by the process, then done as it says.
@@ -205,9 +298,9 @@ angular.module( 'JsonxWeb' ).factory( 'JsonxSession', [ 'JsonxClient', '$q',
 					return null;
 				}
 				state.Input.Findings = [];
-				if ( typeof Text !== 'string' ) { state.Input.Text = ''; }
+				if ( typeof Text !== 'string' ) { session.SetInput( '' ); }
 				if ( read.Outcome === 'help' ) { log( 'text', read.Text ); return null; }
-				if ( read.Outcome === 'debug' ) { log( 'text', 'Debugging from the page arrives with Input (cut 5, step 5).' ); return null; }
+				if ( read.Outcome === 'debug' ) { return session.StartDebug( read.Document, text.trim() ); }
 				if ( read.Outcome === 'confirm' )
 				{
 					state.Confirm = { Message: read.Message, Document: read.Document, Label: text.trim() };
@@ -314,6 +407,57 @@ angular.module( 'JsonxWeb' ).factory( 'JsonxSession', [ 'JsonxClient', '$q',
 			if ( typeof last_find.max !== 'number' && Direction < 0 ) { skip = 0; }
 			return run( Object.assign( {}, last_find, { skip: skip, max: max } ), 'page ' + ( Math.floor( skip / max ) + 1 ) );
 		};
+
+		//---------------------------------------------------------------------
+		// Debug: `jsonx debug` served as a conversation on this connection (cut 4). Its snapshots arrive as
+		// debug events; its answer comes when it ends, with the run report.
+
+		session.StartDebug = function ( Document, Label )
+		{
+			if ( state.Debug !== null ) { log( 'error', 'A debug is already open: quit it first.' ); return $q.resolve( null ); }
+			let options = Object.assign( {}, Document );
+			delete options.Command;
+			state.Debug = { Process: options.process, Snapshot: null };
+			log( 'command', '> ' + ( Label || 'debug ' + options.process ) );
+
+			return JsonxClient.Send( { Debug: options }, function ( Message )
+			{
+				if ( Message.Event === 'debug' && state.Debug ) { state.Debug.Snapshot = Message.Snapshot; }
+				else if ( Message.Event === 'report' )
+				{
+					if ( Message.Phase === 'open' ) { state.Running = state.Running.slice( 0, Message.Depth ).concat( [ Message.Name ] ); }
+					else { state.Running = state.Running.slice( 0, Message.Depth ); }
+				}
+				return;
+			} ).then( function ( Answer )
+			{
+				( Answer.Findings || [] ).forEach( function ( Finding ) { log( 'finding', finding_text( Finding ) ); } );
+				( Answer.Log || [] ).forEach( function ( Line ) { log( Answer.Ok ? 'log' : 'error', Line ); } );
+				log( Answer.Ok ? 'debug' : 'error', 'The debug ended' + ( Answer.Ok ? '.' : ', exit ' + Answer.ExitCode + '.' ) );
+				let last = Array.isArray( Answer.Result ) ? Answer.Result[ Answer.Result.length - 1 ] : null;
+				state.Debug = null;
+				state.Running = [];
+				if ( last && typeof last.Result !== 'undefined' ) { return show_rows( { Command: [ 'debug' ] }, last.Result ).then( function () { return Answer; } ); }
+				return Answer;
+			} );
+		};
+
+		// One debug command: step, into, continue, decline, answer <json>, state, skip, quit.
+		session.StepDebug = function ( Line )
+		{
+			if ( state.Debug === null ) { return $q.resolve( null ); }
+			log( 'debug', '> ' + Line );
+			return JsonxClient.Send( { Step: Line } ).then( function ( Answer )
+			{
+				if ( !Answer.Ok ) { log( 'error', ( Answer.Log || [] ).join( ' ' ) ); return Answer; }
+				let snapshot = Answer.Result;
+				if ( state.Debug ) { state.Debug.Snapshot = snapshot; }
+				if ( snapshot && snapshot.Error ) { log( 'error', typeof snapshot.Error === 'string' ? snapshot.Error : JSON.stringify( snapshot.Error ) ); }
+				else if ( snapshot && snapshot.Step ) { log( 'debug', ( snapshot.Process ? snapshot.Process + ': ' : '' ) + snapshot.Step, snapshot.Depth || 0 ); }
+				return Answer;
+			} );
+		};
+
 
 		// A value shown whole, as JSON.
 		session.ShowJson = function ( Title, Value )

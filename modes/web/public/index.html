@@ -66,6 +66,24 @@
 	---------------------------------------------------------- -->
 	<section class="jsonx-pane jsonx-log" id="jsonx-log" aria-label="Log">
 		<div class="jsonx-pane-head">Log</div>
+
+		<!-- The debug (F3.5): where the Process is, its step in English, and the commands. -->
+		<div class="jsonx-debug" id="jsonx-debug" ng-if="Main.State.Debug">
+			<div class="jsonx-debug-where">
+				<strong>Debugging</strong> <span id="jsonx-debug-process" ng-bind="Main.State.Debug.Snapshot.Process || Main.State.Debug.Process"></span>
+				<span class="jsonx-hint" ng-if="Main.State.Debug.Snapshot.Document">document {{ Main.State.Debug.Snapshot.Document.Index + 1 }} of {{ Main.State.Debug.Snapshot.Document.Of }}</span>
+				<span class="jsonx-hint" id="jsonx-debug-status" ng-bind="Main.DebugStatus()"></span>
+			</div>
+			<div class="jsonx-debug-step" id="jsonx-debug-step" ng-if="Main.State.Debug.Snapshot.Step" ng-bind="Main.State.Debug.Snapshot.Step"></div>
+			<div class="jsonx-debug-commands">
+				<button type="button" class="btn btn-sm btn-outline-primary jsonx-debug-command" ng-repeat="Command in Main.DEBUG_COMMANDS"
+					data-command="{{ Command.Word }}" ng-click="Main.S.StepDebug( Command.Word )" title="{{ Command.Describe }} ({{ Command.Key }})">{{ Command.Word }}</button>
+				<form class="jsonx-debug-answer" ng-submit="Main.AnswerDebug()">
+					<input class="form-control form-control-sm" id="jsonx-debug-answer" placeholder="answer with JSON" ng-model="Main.DebugAnswer" spellcheck="false">
+				</form>
+			</div>
+		</div>
+
 		<div class="jsonx-pane-body" jsonx-scroll-bottom="Main.State.Log.length">
 			<div class="jsonx-log-line" ng-repeat="Line in Main.State.Log track by $index"
 				ng-class="'is-' + Line.Kind" ng-style="{ 'padding-left': ( 0.75 + Line.Depth * 1.25 ) + 'rem' }"
@@ -111,15 +129,20 @@
 
 
 	<!-- ----------------------------------------------------------
-		Input (F5.2): a command line, read by the process. Monaco replaces this box in step 5.
+		Input (F5.2): one Monaco editor - a command, or a JSON entry once it begins with {.
 	---------------------------------------------------------- -->
 	<section class="jsonx-pane jsonx-input" aria-label="Input">
-		<form class="jsonx-input-form" ng-submit="Main.S.SendLine()">
-			<input class="form-control form-control-sm" id="jsonx-input" autocomplete="off" spellcheck="false"
-				placeholder="A command, as after jsonx: run &quot;Prepare the season&quot;"
-				ng-model="Main.State.Input.Text">
-		</form>
-		<div class="jsonx-input-finding" ng-repeat="Finding in Main.State.Input.Findings" ng-class="'is-' + Finding.Severity" ng-bind="Finding.Message"></div>
+		<div class="jsonx-input-head">
+			<span ng-if="Main.State.Input.Mode !== 'json'">Input <span class="jsonx-hint">a command as after jsonx - Enter sends, Tab completes, Esc leaves</span></span>
+			<span ng-if="Main.State.Input.Mode === 'json'">Entry
+				<span class="jsonx-hint" id="jsonx-entry-target" ng-if="Main.State.Input.Target">{{ Main.State.Input.Target.Exists ? 'set' : 'add' }} {{ Main.State.Input.Target.Noun }} [{{ Main.State.Input.Target.Name }}] - Ctrl+S saves</span>
+				<span class="jsonx-hint" id="jsonx-entry-checked" ng-if="Main.State.Input.Checked" ng-class="Main.State.Input.Checked.ExitCode === 0 ? 'is-ok' : 'is-bad'">{{ Main.State.Input.Checked.ExitCode === 0 ? 'checked: no new error' : 'checked: it would add an error' }}</span>
+			</span>
+		</div>
+		<div class="jsonx-editor" id="jsonx-input" jsonx-input></div>
+		<div class="jsonx-input-finding" ng-repeat="Finding in Main.State.Input.Findings" ng-class="'is-' + Finding.Severity">
+			<span class="jsonx-input-finding-path" ng-if="Finding.Path" ng-bind="Finding.Path"></span> <span ng-bind="Finding.Message"></span>
+		</div>
 	</section>
 
 </main>
@@ -132,6 +155,7 @@
 	<span ng-bind="Main.ConnectionText()"></span>
 	<span class="jsonx-queue" id="jsonx-queue" ng-if="Main.State.Queue">queue held by {{ Main.State.Queue }}</span>
 	<span class="jsonx-running" id="jsonx-running" ng-if="Main.State.Busy > 0">running {{ Main.State.Running.join( ' > ' ) || '...' }}</span>
+	<span class="jsonx-running" ng-if="Main.State.Debug">debugging {{ Main.State.Debug.Process }} - outside Input: s step, i into, c continue, d decline, t state, k skip, x quit</span>
 	<span class="jsonx-spacer"></span>
 	<span ng-if="Main.State.Hello">{{ Main.State.Inventory.Items.length }} entries, {{ Main.State.Hello.Commands.length }} commands</span>
 </footer>
@@ -150,6 +174,8 @@
 			ng-click="Main.S.Act( Action )" title="{{ Action.Describe }}">
 			<span ng-bind="Action.Command"></span><span class="jsonx-action-more" ng-if="!Action.Sends"> …</span>
 		</button>
+		<button type="button" class="list-group-item list-group-item-action jsonx-action" data-command="edit"
+			ng-click="Main.Edit( Main.State.Menu.Name )" title="Put the entry's JSON in Input, to change and save">edit</button>
 	</div>
 </div>
 
@@ -165,7 +191,7 @@
 	</div>
 </div>
 
-<div class="jsonx-dialog jsonx-json" id="jsonx-json" role="dialog" ng-if="Main.State.Json">
+<div class="jsonx-dialog jsonx-json" id="jsonx-json" role="dialog" tabindex="-1" ng-if="Main.State.Json">
 	<div class="jsonx-dialog-head"><span ng-bind="Main.State.Json.Title"></span><span class="jsonx-hint">Esc closes</span></div>
 	<pre class="jsonx-dialog-body jsonx-json-text" id="jsonx-json-text" ng-bind="Main.State.Json.Text"></pre>
 </div>
@@ -175,6 +201,7 @@
 <script src="js/app.js"></script>
 <script src="js/client.js"></script>
 <script src="js/session.js"></script>
+<script src="js/editor.js"></script>
 <script src="js/main-controller.js"></script>
 
 </body>

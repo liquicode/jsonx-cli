@@ -401,11 +401,9 @@ function NewModel( Options )
 	{
 		let completion = model.Complete();
 		let text = state.Input.Text;
-		let base = text.slice( 0, text.length - completion.Prefix.length );
-		let word = completion.Json ? String( Candidate ) : Words.QuoteWord( Candidate );
-		// A quoted word replaces its opening quote too.
-		if ( !completion.Json && word[ 0 ] === '"' && /["']$/.test( base ) ) { base = base.slice( 0, -1 ); }
-		model.SetInput( base + word );
+		let items = Completion.CompletionItems( text, completion );
+		let item = items[ completion.Candidates.indexOf( Candidate ) ] || Completion.CompletionItems( text, { Prefix: completion.Prefix, Json: completion.Json, Candidates: [ Candidate ] } )[ 0 ];
+		model.SetInput( Completion.ApplyItem( text, item ) );
 		return state.Input.Text;
 	};
 
