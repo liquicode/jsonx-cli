@@ -7,6 +7,7 @@
 
 	Step 3: the page connects. Step 4: Inventory, Log, Data Rows, the status bar and the confirmation.
 	Step 5: Input as Monaco - completion, JSON entries checked and saved, edit - and the debug.
+	Step 6: theme, scale, collapsed and resized panes, the token prompt, and the host interface.
 */
 
 const LIB_ASSERT = require( 'assert' );
@@ -164,20 +165,54 @@ describe( 'The Web UI in a browser', function ()
 			LIB_ASSERT.ok( rewritten >= 5, 'the page\'s requests went through the rewrite: ' + rewritten );
 			await send( page, 'run "Prepare the season"' );
 			await page.WaitFor( count_of( '.jsonx-row' ) + ' === 1' );
+
+			// ***Monaco's worker loads under the same rewrite***: its JSON diagnostics come back. It is waited for,
+			// because the worker starts a moment after the page; asserting before it did let a worker refused by
+			// the guard pass one run in six (found 2026-09-15, when the worker came from a data: URL).
+			await type_input( page, '{ "Kind": }' );
+			await page.WaitFor( 'monaco.editor.getModelMarkers( { owner: "json" } ).length > 0', 15000 );
 			LIB_ASSERT.deepStrictEqual( page.Errors, [] );
 		}
 		finally { await served.Close(); }
 	} );
 
 
-	it( 'says so when the process needs a token', async function ()
+	it( 'asks for the token when the process needs one, and connects with a ticket bought with it', async function ()
 	{
-		let opened = await open( null, { Token: 'a long random value' } );
+		let opened = await open( null, { Token: 'the right token' } );
+		let page = opened.Page;
 		try
 		{
-			await opened.Page.WaitFor( text_of( '#jsonx-message' ) + ' === "This jsonx process needs a token."' );
-			LIB_ASSERT.strictEqual( await opened.Page.Evaluate( text_of( '#jsonx-connection' ) ), 'disconnected' );
-			LIB_ASSERT.deepStrictEqual( opened.Page.Errors, [] );
+			await page.WaitFor( text_of( '#jsonx-message' ) + ' === "This jsonx process needs a token."' );
+			LIB_ASSERT.strictEqual( await page.Evaluate( text_of( '#jsonx-connection' ) ), 'disconnected' );
+			await page.WaitFor( 'document.activeElement && document.activeElement.id === "jsonx-token-value"' );
+			LIB_ASSERT.strictEqual( await page.Evaluate( 'document.getElementById( "jsonx-token-value" ).type' ), 'password' );
+
+			// A wrong token is refused, and asked for again.
+			await page.Type( 'a wrong token' );
+			await page.Press( 'Enter' );
+			await page.WaitFor( text_of( '#jsonx-message' ) + ' === "The token was refused (401)."' );
+			LIB_ASSERT.ok( await page.Evaluate( '!!document.getElementById( "jsonx-token-value" )' ) );
+			LIB_ASSERT.strictEqual( await page.Evaluate( 'document.getElementById( "jsonx-token-value" ).value' ), '' );
+
+			// The right one buys a ticket, and the ticket opens the WebSocket.
+			await page.Click( '#jsonx-token-value' );
+			await page.Type( 'the right token' );
+			await page.Click( '#jsonx-token-connect' );
+			await ready( page, 12 );
+			LIB_ASSERT.strictEqual( await page.Evaluate( text_of( '#jsonx-connection' ) ), 'connected' );
+			LIB_ASSERT.strictEqual( await page.Evaluate( '!!document.getElementById( "jsonx-token-value" )' ), false );
+			await send( page, 'run "Prepare the season"' );
+			await page.WaitFor( count_of( '.jsonx-row' ) + ' === 1' );
+
+			// A reload in the same tab uses the token kept for it, with a fresh ticket.
+			await page.Navigate( opened.Served.Base + '/ui/' );
+			await ready( page, 12 );
+			LIB_ASSERT.strictEqual( await page.Evaluate( '!!document.getElementById( "jsonx-token-value" )' ), false );
+
+			// The only console error is the browser reporting the refused ticket request.
+			LIB_ASSERT.deepStrictEqual( page.Errors.filter( function ( Error_ ) { return !/401 \(Unauthorized\).*\/ws\/ticket/.test( Error_ ); } ), [] );
+			LIB_ASSERT.strictEqual( page.Errors.length, 1, JSON.stringify( page.Errors ) );
 		}
 		finally { await opened.Served.Close(); }
 	} );
@@ -268,18 +303,30 @@ describe( 'The Web UI in a browser', function ()
 			await page.WaitFor( texts_of( '.jsonx-log-line.is-text' ) + '.includes( "Not sent." )' );
 			LIB_ASSERT.strictEqual( ( await served.Held.Invoke( { Command: 'datasource count', name: 'Bookings' } ) ).Result, 3 );
 
-			// n and Escape decline too; y sends it.
+			// n and Escape decline too; y sends it. ***Each with focus put back in Input's editor***, which is where a
+			// key pressed straight after the dialog draws lands, and which swallows Escape (found one run in several).
 			await send( page, 'data delete Bookings --criteria {}' );
 			await page.WaitFor( '!!document.getElementById( "jsonx-confirm" )' );
+			await page.Evaluate( 'monaco.editor.getEditors()[ 0 ].focus()' );
 			await page.Press( 'Escape' );
 			await page.WaitFor( '!document.getElementById( "jsonx-confirm" )' );
 			LIB_ASSERT.strictEqual( ( await served.Held.Invoke( { Command: 'datasource count', name: 'Bookings' } ) ).Result, 3 );
 
 			await send( page, 'data delete Bookings --criteria {}' );
 			await page.WaitFor( '!!document.getElementById( "jsonx-confirm" )' );
+			await page.Evaluate( 'monaco.editor.getEditors()[ 0 ].focus()' );
+			await page.Press( 'n' );
+			await page.WaitFor( '!document.getElementById( "jsonx-confirm" )' );
+			LIB_ASSERT.strictEqual( await page.Evaluate( EDITOR_VALUE ), '' );
+
+			await send( page, 'data delete Bookings --criteria {}' );
+			await page.WaitFor( '!!document.getElementById( "jsonx-confirm" )' );
+			await page.Evaluate( 'monaco.editor.getEditors()[ 0 ].focus()' );
 			await page.Press( 'y' );
 			await page.WaitFor( texts_of( '.jsonx-log-line.is-command' ) + '.includes( "> data delete Bookings --criteria {} (confirmed)" )' );
 			await page.WaitFor( texts_of( '.jsonx-row td' ) + '.join( " " ) === "3"' );
+			// The y answered the dialog, and was not typed into Input.
+			LIB_ASSERT.strictEqual( await page.Evaluate( EDITOR_VALUE ), '' );
 			LIB_ASSERT.strictEqual( ( await served.Held.Invoke( { Command: 'datasource count', name: 'Bookings' } ) ).Result, 0 );
 
 			LIB_ASSERT.deepStrictEqual( page.Errors, [] );
@@ -485,6 +532,177 @@ describe( 'The Web UI in a browser', function ()
 			LIB_ASSERT.deepStrictEqual( page.Errors, [] );
 		}
 		finally { await opened.Served.Close(); }
+	} );
+
+
+	//---------------------------------------------------------------------
+	// Step 6.
+
+	const VIEW = '( { Theme: document.documentElement.getAttribute( "data-bs-theme" ), Font: getComputedStyle( document.documentElement ).fontSize, MonacoDark: !!document.querySelector( ".monaco-editor.vs-dark" ), EditorFont: monaco.editor.getEditors()[ 0 ].getOption( monaco.editor.EditorOption.fontSize ) } )';
+
+	it( 'switches theme and scale, follows the system in system mode, and keeps them over a reload', async function ()
+	{
+		let opened = await open();
+		let page = opened.Page;
+		try
+		{
+			await ready( page, 12 );
+			await page.Send( 'Emulation.setEmulatedMedia', { features: [ { name: 'prefers-color-scheme', value: 'light' } ] } );
+			await page.WaitFor( VIEW + '.Theme === "light"' );
+			LIB_ASSERT.deepStrictEqual( await page.Evaluate( VIEW ), { Theme: 'light', Font: '14px', MonacoDark: false, EditorFont: 13 } );
+
+			await page.Click( '#jsonx-theme [data-mode="dark"]' );
+			await page.Click( '#jsonx-scale [data-scale="large"]' );
+			await page.WaitFor( VIEW + '.MonacoDark === true' );
+			LIB_ASSERT.deepStrictEqual( await page.Evaluate( VIEW ), { Theme: 'dark', Font: '17px', MonacoDark: true, EditorFont: 16 } );
+			await page.Click( '#jsonx-scale [data-scale="small"]' );
+			await page.WaitFor( VIEW + '.Font === "12px"' );
+			LIB_ASSERT.strictEqual( ( await page.Evaluate( VIEW ) ).EditorFont, 11 );
+
+			// Kept over a reload.
+			await page.Navigate( opened.Served.Base + '/ui/' );
+			await ready( page, 12 );
+			await page.WaitFor( VIEW + '.MonacoDark === true' );
+			LIB_ASSERT.deepStrictEqual( await page.Evaluate( VIEW ), { Theme: 'dark', Font: '12px', MonacoDark: true, EditorFont: 11 } );
+
+			// System follows the machine, and changes when it does.
+			await page.Click( '#jsonx-theme [data-mode="system"]' );
+			await page.WaitFor( VIEW + '.Theme === "light"' );
+			await page.Send( 'Emulation.setEmulatedMedia', { features: [ { name: 'prefers-color-scheme', value: 'dark' } ] } );
+			await page.WaitFor( VIEW + '.Theme === "dark" && ' + VIEW + '.MonacoDark === true' );
+			// An explicit choice does not follow it.
+			await page.Click( '#jsonx-theme [data-mode="light"]' );
+			await page.WaitFor( VIEW + '.Theme === "light"' );
+
+			LIB_ASSERT.deepStrictEqual( page.Errors, [] );
+		}
+		finally { await opened.Served.Close(); }
+	} );
+
+
+	it( 'resizes the panes by dragging, keys and double click, collapses them, and keeps both over a reload', async function ()
+	{
+		let opened = await open();
+		let page = opened.Page;
+		const WIDTH = 'document.getElementById( "jsonx-inventory" ).getBoundingClientRect().width';
+		const LOG = 'document.getElementById( "jsonx-log" ).getBoundingClientRect().height';
+		const INPUT = 'document.getElementById( "jsonx-input" ).getBoundingClientRect().height';
+		try
+		{
+			await ready( page, 12 );
+			LIB_ASSERT.strictEqual( await page.Evaluate( WIDTH ), 300 );
+			LIB_ASSERT.strictEqual( await page.Evaluate( LOG ), 260 );
+
+			await page.Drag( '#jsonx-split-inventory', 100, 0 );
+			await page.WaitFor( WIDTH + ' === 400' );
+			await page.Drag( '#jsonx-split-log', 0, -60 );
+			await page.WaitFor( LOG + ' === 200' );
+
+			// The arrow keys move a splitter, Shift further; the limits hold.
+			await page.Click( '#jsonx-split-inventory' );
+			await page.Press( 'ArrowLeft' );
+			await page.WaitFor( WIDTH + ' === 390' );
+			await page.Drag( '#jsonx-split-inventory', -1000, 0 );
+			await page.WaitFor( WIDTH + ' === 180' );
+
+			// Input's splitter sizes a JSON entry, and grows it upwards.
+			await type_input( page, '{ "Kind": "Query" }' );
+			await page.WaitFor( INPUT + ' === 220' );
+			await page.Drag( '#jsonx-split-input', 0, -80 );
+			await page.WaitFor( INPUT + ' === 300' );
+
+			// Collapsing keeps a pane's header.
+			await page.Click( '.jsonx-collapse[data-pane="Log"]' );
+			await page.WaitFor( 'getComputedStyle( document.querySelector( "#jsonx-log .jsonx-pane-body" ) ).display === "none"' );
+			LIB_ASSERT.ok( ( await page.Evaluate( 'document.querySelector( "#jsonx-log .jsonx-pane-head" ).getBoundingClientRect().height' ) ) > 0 );
+			await page.Click( '.jsonx-collapse[data-pane="Inventory"]' );
+			await page.WaitFor( WIDTH + ' < 60' );
+
+			// All kept over a reload.
+			await page.Navigate( opened.Served.Base + '/ui/' );
+			await ready( page, 12 );
+			LIB_ASSERT.ok( ( await page.Evaluate( WIDTH ) ) < 60 );
+			LIB_ASSERT.strictEqual( await page.Evaluate( 'getComputedStyle( document.querySelector( "#jsonx-log .jsonx-pane-body" ) ).display' ), 'none' );
+			await page.Click( '.jsonx-collapse[data-pane="Inventory"]' );
+			await page.WaitFor( WIDTH + ' === 180' );
+			await page.Click( '.jsonx-collapse[data-pane="Log"]' );
+			await page.WaitFor( LOG + ' === 200' );
+			await type_input( page, '{ "Kind": "Query" }' );
+			await page.WaitFor( INPUT + ' === 300' );
+
+			// A double click restores a boundary's default.
+			await page.Click( '#jsonx-split-inventory', 2 );
+			await page.WaitFor( WIDTH + ' === 300' );
+
+			LIB_ASSERT.deepStrictEqual( page.Errors, [] );
+		}
+		finally { await opened.Served.Close(); }
+	} );
+
+
+	it( 'asks the host for what only it can do, and shows a control only for what the host lists', async function ()
+	{
+		let opened = await open();
+		let page = opened.Page;
+		let downloads = LIB_FS.mkdtempSync( LIB_PATH.join( root, 'downloads-' ) );
+		try
+		{
+			await ready( page, 12 );
+			// A browser lists no desktop capability.
+			LIB_ASSERT.strictEqual( await page.Evaluate( '!!document.getElementById( "jsonx-open-file" ) || !!document.getElementById( "jsonx-open-terminal" )' ), false );
+
+			await send( page, 'run "Prepare the season"' );
+			await page.WaitFor( count_of( '.jsonx-row' ) + ' === 1' );
+
+			// Copy puts the row on the clipboard.
+			await page.Send( 'Browser.grantPermissions', { origin: opened.Served.Base, permissions: [ 'clipboardReadWrite', 'clipboardSanitizedWrite' ] } );
+			await page.Click( '.jsonx-row' );
+			await page.WaitFor( '!!document.getElementById( "jsonx-json-copy" )' );
+			await page.Click( '#jsonx-json-copy' );
+			await page.WaitFor( text_of( '#jsonx-host-said' ) + ' === "copied"' );
+			LIB_ASSERT.deepStrictEqual( JSON.parse( await page.Evaluate( 'navigator.clipboard.readText()' ) ), { Booking: 'b-1', Observer: 'R. Okafor', Dome: 'B' } );
+			await page.Press( 'Escape' );
+			// ***The dialog closes a tick after Escape***: a click before then lands on its backdrop, which closes
+			// dialogs rather than saving (why the download sometimes never began).
+			await page.WaitFor( '!document.getElementById( "jsonx-json" ) && !document.querySelector( ".jsonx-backdrop" )' );
+
+			// Save as JSON downloads the rows. ***Chrome writes a download as .crdownload and renames it when it has
+			// finished***, so the test waits for that rename, up to 30 s, rather than for a file to appear within a
+			// guessed 5 s (which failed under the full suite's load). The download events of the DevTools protocol
+			// go to the browser's session, not a page's (measured: none arrived here).
+			await page.Send( 'Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloads } );
+			await page.Click( '#jsonx-rows-save' );
+			let listing = [];
+			for ( let waited = 0; waited < 30000; waited += 100 )
+			{
+				listing = LIB_FS.readdirSync( downloads );
+				if ( listing.includes( 'run.json' ) && !listing.some( function ( Name ) { return Name.endsWith( '.crdownload' ); } ) ) { break; }
+				await WsClient.Wait( 100 );
+			}
+			LIB_ASSERT.deepStrictEqual( listing, [ 'run.json' ] );
+			let saved = LIB_FS.readFileSync( LIB_PATH.join( downloads, 'run.json' ), 'utf8' );
+			LIB_ASSERT.deepStrictEqual( JSON.parse( saved ), [ { Booking: 'b-1', Observer: 'R. Okafor', Dome: 'B' } ] );
+
+			LIB_ASSERT.deepStrictEqual( page.Errors, [] );
+		}
+		finally { await opened.Served.Close(); }
+
+		// A desktop host, as its preload would provide: its capabilities appear, and choosing one calls it.
+		file_number++;
+		let file = WsClient.Write( root, 'file-' + file_number + '.jsonx', Spec.AppendixB() );
+		let served = await WsClient.Serve( file, { Api: { Ui: true, Version: jsonx_cli.Version } } );
+		let desktop = await browser.OpenPage();
+		try
+		{
+			await desktop.Send( 'Page.addScriptToEvaluateOnNewDocument', { source: 'window.JsonxHost = { Kind: "desktop", Opened: 0, Capabilities: function () { return [ "Notify", "CopyText", "SaveText", "OpenFile", "OpenTerminal" ]; }, Notify: function () { return Promise.resolve( true ); }, CopyText: function () { return Promise.resolve( true ); }, SaveText: function () { return Promise.resolve( true ); }, OpenFile: function () { this.Opened++; return Promise.resolve( null ); }, OpenTerminal: function () { return Promise.resolve( true ); } };' } );
+			await desktop.Navigate( served.Base + '/ui/' );
+			await ready( desktop, 12 );
+			await desktop.WaitFor( '!!document.getElementById( "jsonx-open-file" ) && !!document.getElementById( "jsonx-open-terminal" )' );
+			await desktop.Click( '#jsonx-open-file' );
+			await desktop.WaitFor( 'window.JsonxHost.Opened === 1' );
+			LIB_ASSERT.deepStrictEqual( desktop.Errors, [] );
+		}
+		finally { await served.Close(); }
 	} );
 
 } );

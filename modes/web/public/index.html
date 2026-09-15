@@ -21,25 +21,54 @@
 	<span class="jsonx-name">jsonx</span>
 	<span class="jsonx-file" id="jsonx-file" ng-bind="Main.State.Hello.File"></span>
 	<span class="jsonx-spacer"></span>
+
+	<!-- What only the host can do: shown when it lists the capability (the desktop, cut 6). -->
+	<button type="button" class="btn btn-sm btn-outline-secondary" id="jsonx-open-file" ng-if="Main.Host.Has( 'OpenFile' )" ng-click="Main.Host.OpenFile()">Open file</button>
+	<button type="button" class="btn btn-sm btn-outline-secondary" id="jsonx-open-terminal" ng-if="Main.Host.Has( 'OpenTerminal' )" ng-click="Main.Host.OpenTerminal()">Terminal</button>
+
+	<!-- Scale: small, normal, large. -->
+	<div class="btn-group btn-group-sm" role="group" aria-label="Scale" id="jsonx-scale">
+		<button type="button" class="btn btn-outline-secondary" data-scale="small" ng-class="{ active: Main.View.Scale === 'small' }" ng-click="Main.View.SetScale( 'small' )" title="Small">A<sup>-</sup></button>
+		<button type="button" class="btn btn-outline-secondary" data-scale="normal" ng-class="{ active: Main.View.Scale === 'normal' }" ng-click="Main.View.SetScale( 'normal' )" title="Normal">A</button>
+		<button type="button" class="btn btn-outline-secondary" data-scale="large" ng-class="{ active: Main.View.Scale === 'large' }" ng-click="Main.View.SetScale( 'large' )" title="Large">A<sup>+</sup></button>
+	</div>
+
+	<!-- Theme: light, the system's, dark. -->
+	<div class="btn-group btn-group-sm" role="group" aria-label="Theme" id="jsonx-theme">
+		<button type="button" class="btn btn-outline-secondary" data-mode="light" ng-class="{ active: Main.View.Mode === 'light' }" ng-click="Main.View.SetMode( 'light' )" title="Light">&#9788;</button>
+		<button type="button" class="btn btn-outline-secondary" data-mode="system" ng-class="{ active: Main.View.Mode === 'system' }" ng-click="Main.View.SetMode( 'system' )" title="Follow the system">&#9673;</button>
+		<button type="button" class="btn btn-outline-secondary" data-mode="dark" ng-class="{ active: Main.View.Mode === 'dark' }" ng-click="Main.View.SetMode( 'dark' )" title="Dark">&#9789;</button>
+	</div>
+
 	<span class="jsonx-connection" id="jsonx-connection" ng-class="'is-' + Main.State.Connection" ng-bind="Main.ConnectionText()"></span>
 </header>
 
 <div class="jsonx-message" id="jsonx-message" ng-if="Main.State.Message" ng-bind="Main.State.Message"></div>
 
+<!-- A browser's token (cut 5): asked for when the process needs one, and exchanged for a one-use ticket. -->
+<form class="jsonx-token" id="jsonx-token" ng-if="Main.State.TokenNeeded" ng-submit="Main.UseToken()">
+	<label for="jsonx-token-value">Token</label>
+	<input type="password" class="form-control form-control-sm" id="jsonx-token-value" autocomplete="off" ng-model="Main.TokenText" placeholder="the token jsonx serve was started with">
+	<button type="submit" class="btn btn-sm btn-primary" id="jsonx-token-connect">Connect</button>
+</form>
+
 
 <!-- ===================================================================
 	The panes (F5): Inventory on the left; Log and Data Rows on the right; Input under them.
 =================================================================== -->
-<main class="jsonx-panes">
+<main class="jsonx-panes" ng-class="{ 'is-inventory-collapsed': Main.View.Collapsed.Inventory, 'is-log-collapsed': Main.View.Collapsed.Log, 'is-rows-collapsed': Main.View.Collapsed.Rows, 'is-json': Main.State.Input.Mode === 'json' }">
 
 	<!-- ----------------------------------------------------------
 		Inventory (F5.1): every entry with its worst finding. A click selects; a double click or
 		Enter opens its actions.
 	---------------------------------------------------------- -->
 	<section class="jsonx-pane jsonx-inventory" id="jsonx-inventory" aria-label="Inventory">
-		<div class="jsonx-pane-head">Inventory <span class="jsonx-hint">Enter or double click: actions</span></div>
+		<div class="jsonx-pane-head">
+			<button type="button" class="jsonx-collapse" data-pane="Inventory" ng-click="Main.View.TogglePane( 'Inventory' )" title="{{ Main.View.Collapsed.Inventory ? 'Show' : 'Hide' }} Inventory" aria-expanded="{{ !Main.View.Collapsed.Inventory }}">{{ Main.View.Collapsed.Inventory ? '&#9656;' : '&#9662;' }}</button>
+			<span class="jsonx-pane-title">Inventory</span> <span class="jsonx-hint">Enter or double click: actions</span>
+		</div>
 		<div class="jsonx-pane-body">
-			<div class="jsonx-section" ng-repeat="Section in Main.SECTIONS">
+			<div class="jsonx-section" ng-repeat="Section in Main.SECTIONS" ng-if="( Main.State.Inventory.Items | filter: { Section: Section.Name } : true ).length">
 				<div class="jsonx-section-head" ng-bind="Section.Title"></div>
 				<ul class="jsonx-entries">
 					<li class="jsonx-entry" tabindex="0"
@@ -60,12 +89,18 @@
 		</div>
 	</section>
 
+	<!-- Inventory's width. -->
+	<div class="jsonx-vsplit" id="jsonx-split-inventory" jsonx-split="--inventory-width"></div>
+
 
 	<!-- ----------------------------------------------------------
 		Log (F5.3): each command's report and findings, and what happened to the file.
 	---------------------------------------------------------- -->
 	<section class="jsonx-pane jsonx-log" id="jsonx-log" aria-label="Log">
-		<div class="jsonx-pane-head">Log</div>
+		<div class="jsonx-pane-head">
+			<button type="button" class="jsonx-collapse" data-pane="Log" ng-click="Main.View.TogglePane( 'Log' )" title="{{ Main.View.Collapsed.Log ? 'Show' : 'Hide' }} Log" aria-expanded="{{ !Main.View.Collapsed.Log }}">{{ Main.View.Collapsed.Log ? '&#9656;' : '&#9662;' }}</button>
+			<span class="jsonx-pane-title">Log</span>
+		</div>
 
 		<!-- The debug (F3.5): where the Process is, its step in English, and the commands. -->
 		<div class="jsonx-debug" id="jsonx-debug" ng-if="Main.State.Debug">
@@ -91,14 +126,19 @@
 		</div>
 	</section>
 
+	<!-- Log's height against Data Rows. -->
+	<div class="jsonx-hsplit" id="jsonx-split-log" jsonx-split="--log-height"></div>
+
 
 	<!-- ----------------------------------------------------------
 		Data Rows (F5.4): a result as rows; a find's pages; an Update's changes.
 	---------------------------------------------------------- -->
 	<section class="jsonx-pane jsonx-rows" id="jsonx-rows" aria-label="Data Rows">
 		<div class="jsonx-pane-head">
-			Data Rows <span class="jsonx-rows-title" ng-bind="Main.State.Rows.Title"></span>
+			<button type="button" class="jsonx-collapse" data-pane="Rows" ng-click="Main.View.TogglePane( 'Rows' )" title="{{ Main.View.Collapsed.Rows ? 'Show' : 'Hide' }} Data Rows" aria-expanded="{{ !Main.View.Collapsed.Rows }}">{{ Main.View.Collapsed.Rows ? '&#9656;' : '&#9662;' }}</button>
+			<span class="jsonx-pane-title">Data Rows</span> <span class="jsonx-rows-title" ng-bind="Main.State.Rows.Title"></span>
 			<span class="jsonx-spacer"></span>
+			<button type="button" class="btn btn-sm btn-outline-secondary" id="jsonx-rows-save" ng-if="Main.Host.Has( 'SaveText' ) && Main.State.Rows.Rows.length" ng-click="Main.SaveRows()">Save as JSON</button>
 			<span class="jsonx-paging" ng-if="Main.State.Rows.Max !== null || Main.State.Rows.Skip > 0">
 				<button class="btn btn-sm btn-outline-secondary" id="jsonx-page-previous" ng-click="Main.S.Page( -1 )" ng-disabled="Main.State.Rows.Skip === 0">Previous</button>
 				<span class="jsonx-page" id="jsonx-page" ng-bind="Main.PageText()"></span>
@@ -127,6 +167,9 @@
 		</div>
 	</section>
 
+
+	<!-- Input's height, while it holds a JSON entry. -->
+	<div class="jsonx-isplit" id="jsonx-split-input" jsonx-split="--input-height" grows="after"></div>
 
 	<!-- ----------------------------------------------------------
 		Input (F5.2): one Monaco editor - a command, or a JSON entry once it begins with {.
@@ -194,11 +237,19 @@
 <div class="jsonx-dialog jsonx-json" id="jsonx-json" role="dialog" tabindex="-1" ng-if="Main.State.Json">
 	<div class="jsonx-dialog-head"><span ng-bind="Main.State.Json.Title"></span><span class="jsonx-hint">Esc closes</span></div>
 	<pre class="jsonx-dialog-body jsonx-json-text" id="jsonx-json-text" ng-bind="Main.State.Json.Text"></pre>
+	<div class="jsonx-dialog-foot" ng-if="Main.Host.Has( 'CopyText' ) || Main.Host.Has( 'SaveText' )">
+		<span class="jsonx-hint jsonx-host-said" id="jsonx-host-said" ng-bind="Main.HostSaid"></span>
+		<button type="button" class="btn btn-sm btn-outline-secondary" id="jsonx-json-copy" ng-if="Main.Host.Has( 'CopyText' )" ng-click="Main.CopyJson()">Copy</button>
+		<button type="button" class="btn btn-sm btn-outline-secondary" id="jsonx-json-save" ng-if="Main.Host.Has( 'SaveText' )" ng-click="Main.SaveJson()">Save</button>
+	</div>
 </div>
 
 
 <script src="vendor/angular/angular.min.js"></script>
 <script src="js/app.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/host.js"></script>
 <script src="js/client.js"></script>
 <script src="js/session.js"></script>
 <script src="js/editor.js"></script>

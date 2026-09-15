@@ -1,7 +1,20 @@
 /*
-	The Web UI's own styles, over Bootstrap. Themes, scaling, collapsing and splitters arrive in step 6
-	(cut 5); the layout below is the one they will adjust.
+	The Web UI's own styles, over Bootstrap.
+
+	-	***Every colour is a Bootstrap variable***, so `data-bs-theme` on the root themes the whole page
+		(js/theme.js), and the scale is the root font size, with everything in rem.
+	-	***The panes are sized by three variables***, which the splitters write (js/layout.js):
+		--inventory-width, --log-height, and --input-height while Input holds JSON.
+	-	A collapsed pane keeps its header, so it can be opened again where it was.
 */
+
+:root
+{
+	--inventory-width: 300px;
+	--log-height: 260px;
+	--input-height: 220px;
+	--split: 5px;
+}
 
 html, body
 {
@@ -13,7 +26,7 @@ body
 {
 	display: flex;
 	flex-direction: column;
-	font-size: 0.875rem;
+	font-size: 1rem;
 	overflow: hidden;
 }
 
@@ -28,6 +41,14 @@ body
 	font-weight: 400;
 	font-size: 0.75rem;
 	margin-left: 0.5rem;
+}
+
+.jsonx-pane-head .jsonx-hint
+{
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 
@@ -100,18 +121,86 @@ body
 	flex: 1;
 	min-height: 0;
 	display: grid;
-	grid-template-columns: minmax( 16rem, 22% ) 1fr;
-	grid-template-rows: 1fr 1fr auto;
+	grid-template-columns: var( --inventory-width ) var( --split ) minmax( 0, 1fr );
+	grid-template-rows: var( --log-height ) var( --split ) minmax( 0, 1fr ) var( --split ) auto;
 	grid-template-areas:
-		"inventory log"
-		"inventory rows"
-		"input input";
+		"inventory vsplit log"
+		"inventory vsplit hsplit"
+		"inventory vsplit rows"
+		"isplit isplit isplit"
+		"input input input";
 }
 
-.jsonx-inventory { grid-area: inventory; border-right: 1px solid var( --bs-border-color ); }
-.jsonx-log { grid-area: log; border-bottom: 1px solid var( --bs-border-color ); }
+.jsonx-inventory { grid-area: inventory; }
+.jsonx-vsplit { grid-area: vsplit; }
+.jsonx-log { grid-area: log; }
+.jsonx-hsplit { grid-area: hsplit; }
 .jsonx-rows { grid-area: rows; }
-.jsonx-input { grid-area: input; border-top: 1px solid var( --bs-border-color ); padding: 0.4rem 0.75rem; }
+.jsonx-isplit { grid-area: isplit; }
+.jsonx-input { grid-area: input; padding: 0.4rem 0.75rem; }
+
+/* The splitters: a thin line which is easy to grab. */
+.jsonx-split
+{
+	background: var( --bs-border-color );
+	outline: none;
+	touch-action: none;
+}
+
+.jsonx-split-x { cursor: col-resize; }
+.jsonx-split-y { cursor: row-resize; }
+.jsonx-split:hover, .jsonx-split:focus, .jsonx-split.is-dragging { background: var( --bs-primary ); }
+body.is-splitting { user-select: none; }
+
+/* Input's splitter only while it holds JSON; a command line keeps one line. */
+.jsonx-panes:not( .is-json ) .jsonx-isplit { visibility: hidden; height: 1px; }
+.jsonx-panes:not( .is-json ) { grid-template-rows: var( --log-height ) var( --split ) minmax( 0, 1fr ) 1px auto; }
+
+/* Collapsed panes keep their header. */
+.jsonx-panes.is-inventory-collapsed { grid-template-columns: 2.25rem 0 minmax( 0, 1fr ); }
+.jsonx-panes.is-inventory-collapsed .jsonx-vsplit { visibility: hidden; }
+.jsonx-panes.is-inventory-collapsed .jsonx-inventory .jsonx-pane-body,
+.jsonx-panes.is-inventory-collapsed .jsonx-inventory .jsonx-hint,
+.jsonx-panes.is-inventory-collapsed .jsonx-inventory .jsonx-pane-title { display: none; }
+
+.jsonx-panes.is-log-collapsed .jsonx-log > :not( .jsonx-pane-head ) { display: none; }
+.jsonx-panes.is-log-collapsed .jsonx-hsplit { visibility: hidden; }
+.jsonx-panes.is-rows-collapsed .jsonx-rows > :not( .jsonx-pane-head ) { display: none; }
+.jsonx-panes.is-rows-collapsed .jsonx-hsplit { visibility: hidden; }
+
+.jsonx-panes.is-log-collapsed { grid-template-rows: auto 0 minmax( 0, 1fr ) var( --split ) auto; }
+.jsonx-panes.is-rows-collapsed { grid-template-rows: minmax( 0, 1fr ) 0 auto var( --split ) auto; }
+.jsonx-panes.is-log-collapsed.is-rows-collapsed { grid-template-rows: auto 0 auto var( --split ) auto; align-content: start; }
+.jsonx-panes.is-log-collapsed:not( .is-json ) { grid-template-rows: auto 0 minmax( 0, 1fr ) 1px auto; }
+.jsonx-panes.is-rows-collapsed:not( .is-json ) { grid-template-rows: minmax( 0, 1fr ) 0 auto 1px auto; }
+.jsonx-panes.is-log-collapsed.is-rows-collapsed:not( .is-json ) { grid-template-rows: auto 0 auto 1px auto; }
+
+.jsonx-collapse
+{
+	border: none;
+	background: transparent;
+	color: var( --bs-secondary-color );
+	padding: 0 0.25rem;
+	line-height: 1;
+	font-size: 0.9rem;
+}
+
+.jsonx-collapse:hover { color: var( --bs-body-color ); }
+
+/* The token. */
+.jsonx-token
+{
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.4rem 0.75rem;
+	border-bottom: 1px solid var( --bs-border-color );
+}
+
+.jsonx-token input
+{
+	width: min( 24rem, 60vw );
+}
 
 .jsonx-pane
 {
@@ -309,7 +398,7 @@ body
 
 .jsonx-input.is-json .jsonx-editor
 {
-	height: 14rem;
+	height: var( --input-height );
 }
 
 .jsonx-input-finding
@@ -407,9 +496,15 @@ body
 	margin: 0;
 }
 
+.jsonx-host-said
+{
+	margin-right: auto;
+}
+
 .jsonx-dialog-foot
 {
 	display: flex;
+	align-items: center;
 	gap: 0.5rem;
 	justify-content: flex-end;
 	padding: 0.5rem 0.75rem;

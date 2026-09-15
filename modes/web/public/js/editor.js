@@ -3,8 +3,8 @@
 /*
 	Input (plan F5.2) as one Monaco editor: a command line, or a JSON entry once the text begins with {.
 
-	-	***Monaco loads once***, with Studio's inline worker so its JSON worker gets an absolute URL
-		(measured under headless Chrome in step 3: the worker's diagnostics arrive).
+	-	***Monaco loads once***, and its worker starts from js/monaco-worker.js on the page's origin, which
+		gives it an absolute base (step 6 replaced Studio's data: URL worker, whose requests were cross-site).
 	-	***Completion is the process's***: Tab or Ctrl+Space asks `Complete` with the text up to the cursor,
 		and each suggestion inserts what the answer's Items say - a name already quoted - over what they say
 		it replaces. Monaco's own JSON completion is turned off, so the suggestions are jsonx's alone.
@@ -25,12 +25,12 @@ angular.module( 'JsonxWeb' ).factory( 'Monaco', [ '$q', '$window',
 				let deferred = $q.defer();
 				loading = deferred.promise;
 
-				let base = $window.location.origin + '/ui/vendor/monaco/min/';
+				// ***The worker starts from a file on the page's own origin***, not Studio's data: URL, whose
+				// requests are cross-site and can be refused by the loopback guard (js/monaco-worker.js says why).
 				$window.MonacoEnvironment = {
 					getWorkerUrl: function ()
 					{
-						let source = 'self.MonacoEnvironment = { baseUrl: "' + base + '" };' + 'importScripts( "' + base + 'vs/base/worker/workerMain.js" );';
-						return 'data:text/javascript;charset=utf-8,' + encodeURIComponent( source );
+						return $window.location.origin + '/ui/js/monaco-worker.js';
 					},
 				};
 
@@ -57,8 +57,8 @@ angular.module( 'JsonxWeb' ).factory( 'Monaco', [ '$q', '$window',
 
 
 //---------------------------------------------------------------------
-angular.module( 'JsonxWeb' ).directive( 'jsonxInput', [ 'Monaco', 'JsonxSession', '$timeout',
-	function ( Monaco, JsonxSession, $timeout )
+angular.module( 'JsonxWeb' ).directive( 'jsonxInput', [ 'Monaco', 'JsonxSession', 'JsonxView', '$timeout',
+	function ( Monaco, JsonxSession, JsonxView, $timeout )
 	{
 		return {
 			restrict: 'A',
@@ -85,7 +85,9 @@ angular.module( 'JsonxWeb' ).directive( 'jsonxInput', [ 'Monaco', 'JsonxSession'
 						folding: false,
 						scrollBeyondLastLine: false,
 						wordWrap: 'on',
-						fontSize: 13,
+						// Monaco paints itself, so the page's theme and scale are handed to it.
+						theme: JsonxView.Monaco,
+						fontSize: JsonxView.EditorFontSize,
 						renderLineHighlight: 'none',
 						quickSuggestions: false,
 						suggestOnTriggerCharacters: false,
@@ -129,6 +131,12 @@ angular.module( 'JsonxWeb' ).directive( 'jsonxInput', [ 'Monaco', 'JsonxSession'
 
 					Scope.$watchCollection( function () { return state.Input.Findings; }, draw_markers );
 					Scope.$on( 'jsonx.focus-input', function () { if ( editor ) { editor.focus(); } } );
+					Scope.$on( 'jsonx.view-changed', function ( Event, View )
+					{
+						monaco.editor.setTheme( View.Monaco );
+						editor.updateOptions( { fontSize: View.EditorFontSize } );
+						return;
+					} );
 
 					set_mode( editor.getValue() );
 					host.setAttribute( 'data-ready', 'true' );

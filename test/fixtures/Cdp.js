@@ -210,6 +210,20 @@ async function open_target( WebSocketUrl )
 		return;
 	};
 
+	// A drag with the left button from the centre of an element, by Dx and Dy, in a few moves.
+	page.Drag = async function ( Selector, Dx, Dy )
+	{
+		let box = await page.Evaluate( '( function () { let e = document.querySelector( ' + JSON.stringify( Selector ) + ' ); if ( !e ) { return null; } let r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; } )()' );
+		if ( !box ) { throw new Error( 'Nothing on the page matches [' + Selector + '].' ); }
+		await page.Send( 'Input.dispatchMouseEvent', { type: 'mousePressed', x: box.x, y: box.y, button: 'left', buttons: 1, clickCount: 1 } );
+		for ( let step = 1; step <= 5; step++ )
+		{
+			await page.Send( 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: box.x + Dx * step / 5, y: box.y + Dy * step / 5, button: 'left', buttons: 1 } );
+		}
+		await page.Send( 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: box.x + Dx, y: box.y + Dy, button: 'left', buttons: 0, clickCount: 1 } );
+		return;
+	};
+
 	page.Close = function ()
 	{
 		try { socket.close(); } catch ( error ) { /* already closed */ }

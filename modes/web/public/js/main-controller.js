@@ -5,11 +5,41 @@
 	how a badge, a cell or a page number reads.
 */
 
-angular.module( 'JsonxWeb' ).controller( 'MainController', [ 'JsonxSession', '$timeout', '$document', '$scope',
-	function ( JsonxSession, $timeout, $document, $scope )
+angular.module( 'JsonxWeb' ).controller( 'MainController', [ 'JsonxSession', 'JsonxView', 'JsonxHost', '$timeout', '$document', '$scope',
+	function ( JsonxSession, JsonxView, JsonxHost, $timeout, $document, $scope )
 	{
 		let main = this;
 		let state = JsonxSession.State;
+
+		// Theme, scale and collapsed panes; and what the host can do.
+		main.View = JsonxView;
+		main.Host = JsonxHost;
+		main.TokenText = '';
+		main.HostSaid = '';
+
+		main.UseToken = function ()
+		{
+			let token = main.TokenText;
+			main.TokenText = '';
+			JsonxSession.UseToken( token );
+			return;
+		};
+
+		function host_said( Promise_, Done, Failed )
+		{
+			main.HostSaid = '';
+			Promise.resolve( Promise_ ).then( function ( Ok ) { $scope.$applyAsync( function () { main.HostSaid = Ok ? Done : Failed; } ); } );
+			return;
+		}
+
+		main.CopyJson = function () { host_said( JsonxHost.CopyText( state.Json.Text ), 'copied', 'could not copy' ); return; };
+		main.SaveJson = function () { host_said( JsonxHost.SaveText( 'row.json', state.Json.Text ), 'saved', 'could not save' ); return; };
+		main.SaveRows = function ()
+		{
+			let name = String( state.Rows.Title || 'rows' ).replace( /[^A-Za-z0-9_-]+/g, '-' ) + '.json';
+			JsonxHost.SaveText( name, JSON.stringify( state.Rows.Rows, null, '\t' ) );
+			return;
+		};
 
 		// The panes read State, and call the session's flows on S.
 		main.State = state;
@@ -100,22 +130,31 @@ angular.module( 'JsonxWeb' ).controller( 'MainController', [ 'JsonxSession', '$t
 			return;
 		};
 
-		// While a dialog is open it takes the keys: y and n answer a confirmation, Escape closes.
-		main.OnKey = function ( Event )
+		// ***While a dialog is open it takes its keys before anything else can*** - y and n answer a
+		// confirmation, Escape closes - heard on the document in the capture phase. Moving focus into the dialog
+		// was not enough: it happens a tick after the dialog draws, and a key pressed in that tick went to Input's
+		// editor, which swallows Escape and would type a y (found by the browser test, one run in several).
+		function on_dialog_key( Event )
 		{
+			let handled = false;
 			if ( state.Confirm )
 			{
-				if ( Event.key === 'y' || Event.key === 'Y' ) { Event.preventDefault(); JsonxSession.Confirm( true ); }
-				else if ( Event.key === 'n' || Event.key === 'N' || Event.key === 'Escape' ) { Event.preventDefault(); JsonxSession.Confirm( false ); }
-				return;
+				if ( Event.key === 'y' || Event.key === 'Y' ) { handled = true; $scope.$applyAsync( function () { JsonxSession.Confirm( true ); } ); }
+				else if ( Event.key === 'n' || Event.key === 'N' || Event.key === 'Escape' ) { handled = true; $scope.$applyAsync( function () { JsonxSession.Confirm( false ); } ); }
 			}
-			if ( ( state.Menu || state.Json ) && Event.key === 'Escape' )
+			else if ( ( state.Menu || state.Json ) && Event.key === 'Escape' )
 			{
-				Event.preventDefault();
-				JsonxSession.CloseActions();
-				JsonxSession.CloseJson();
-				return;
+				handled = true;
+				$scope.$applyAsync( function () { JsonxSession.CloseActions(); JsonxSession.CloseJson(); } );
 			}
+			if ( handled ) { Event.preventDefault(); Event.stopPropagation(); }
+			return;
+		}
+		$document[ 0 ].addEventListener( 'keydown', on_dialog_key, true );
+		$scope.$on( '$destroy', function () { $document[ 0 ].removeEventListener( 'keydown', on_dialog_key, true ); } );
+
+		main.OnKey = function ( Event )
+		{
 			// While debugging, a debug command's letter outside anything typed into.
 			if ( state.Debug && !state.Menu && !state.Json && !Event.ctrlKey && !Event.metaKey && !Event.altKey && !is_typing( Event.target ) )
 			{
@@ -170,7 +209,8 @@ angular.module( 'JsonxWeb' ).controller( 'MainController', [ 'JsonxSession', '$t
 		// ***A dialog takes focus when it opens***, so its keys reach it: Input's editor handles Escape itself,
 		// and a y or n would otherwise be typed into it (found by the step 5 browser test).
 		$scope.$watch( function () { return state.Confirm; }, function ( Confirm ) { if ( Confirm ) { focus_first( '#jsonx-confirm-no' ); } } );
-		$scope.$watch( function () { return state.Json; }, function ( Json ) { if ( Json ) { focus_first( '#jsonx-json' ); } } );
+		$scope.$watch( function () { return state.Json; }, function ( Json ) { main.HostSaid = ''; if ( Json ) { focus_first( '#jsonx-json' ); } } );
+		$scope.$watch( function () { return state.TokenNeeded; }, function ( Needed ) { if ( Needed ) { focus_first( '#jsonx-token-value' ); } } );
 
 
 		//---------------------------------------------------------------------

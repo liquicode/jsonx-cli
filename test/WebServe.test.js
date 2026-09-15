@@ -79,7 +79,7 @@ describe( 'jsonx serve --ui', function ()
 			LIB_ASSERT.strictEqual( ( await fetch( base + '/ui', { redirect: 'manual' } ) ).headers.get( 'location' ), Web.ROUTE );
 
 			// Every vendor file the page loads is found, through the resolver.
-			for ( let asset of [ 'vendor/angular/angular.min.js', 'vendor/bootstrap/dist/css/bootstrap.min.css', 'vendor/monaco/min/vs/loader.js', 'vendor/monaco/min/vs/base/worker/workerMain.js', 'js/client.js', 'css/jsonx.css' ] )
+			for ( let asset of [ 'vendor/angular/angular.min.js', 'vendor/bootstrap/dist/css/bootstrap.min.css', 'vendor/monaco/min/vs/loader.js', 'vendor/monaco/min/vs/base/worker/workerMain.js', 'js/monaco-worker.js', 'js/client.js', 'js/host.js', 'css/jsonx.css' ] )
 			{
 				let response = await fetch( base + Web.ROUTE + asset );
 				LIB_ASSERT.strictEqual( response.status, 200, asset );

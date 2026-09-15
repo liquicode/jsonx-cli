@@ -22,8 +22,8 @@
 		State.Json        { Title, Text } while a row's JSON is shown
 */
 
-angular.module( 'JsonxWeb' ).factory( 'JsonxSession', [ 'JsonxClient', '$q', '$timeout',
-	function ( JsonxClient, $q, $timeout )
+angular.module( 'JsonxWeb' ).factory( 'JsonxSession', [ 'JsonxClient', 'JsonxHost', '$q', '$timeout', '$window',
+	function ( JsonxClient, JsonxHost, $q, $timeout, $window )
 	{
 		const LOG_LIMIT = 2000;
 		const PAGE_ROWS = 100;
@@ -35,6 +35,7 @@ angular.module( 'JsonxWeb' ).factory( 'JsonxSession', [ 'JsonxClient', '$q', '$t
 			Connection: 'connecting',
 			Hello: null,
 			Message: null,
+			TokenNeeded: false,
 			Inventory: { Items: [], Findings: [] },
 			Selected: null,
 			Menu: null,
@@ -112,15 +113,12 @@ angular.module( 'JsonxWeb' ).factory( 'JsonxSession', [ 'JsonxClient', '$q', '$t
 				if ( Config.TokenRequired )
 				{
 					state.Connection = 'closed';
+					state.TokenNeeded = true;
 					state.Message = 'This jsonx process needs a token.';
-					return null;
+					let kept = read_token();
+					return kept ? session.UseToken( kept ) : null;
 				}
-				return JsonxClient.Connect().then( function ( Hello )
-				{
-					state.Connection = 'open';
-					state.Hello = Hello;
-					return session.RefreshInventory();
-				} );
+				return connected( JsonxClient.Connect() );
 			} ).catch( function ( error )
 			{
 				state.Connection = 'closed';
@@ -128,6 +126,45 @@ angular.module( 'JsonxWeb' ).factory( 'JsonxSession', [ 'JsonxClient', '$q', '$t
 				return null;
 			} );
 		};
+
+		function connected( Connecting )
+		{
+			return Connecting.then( function ( Hello )
+			{
+				state.Connection = 'open';
+				state.Hello = Hello;
+				state.Message = null;
+				state.TokenNeeded = false;
+				return session.RefreshInventory();
+			} );
+		}
+
+		// ***A browser's token*** (cut 5): the token buys a one-use ticket, and the ticket opens the WebSocket.
+		// A token which worked is kept for this tab only (sessionStorage), so a reload does not ask again and
+		// closing the tab forgets it.
+		session.UseToken = function ( Token )
+		{
+			let token = String( Token || '' ).trim();
+			if ( token === '' ) { return $q.resolve( null ); }
+			state.Message = null;
+			state.Connection = 'connecting';
+			return JsonxClient.Ticket( token ).then( function ( Issued )
+			{
+				return connected( JsonxClient.Connect( Issued.Ticket ) ).then( function ( Result ) { keep_token( token ); return Result; } );
+			} ).catch( function ( error )
+			{
+				forget_token();
+				state.Connection = 'closed';
+				state.TokenNeeded = true;
+				state.Message = error.message;
+				return null;
+			} );
+		};
+
+		const TOKEN_STORE = 'jsonx-web.token';
+		function read_token() { try { return $window.sessionStorage.getItem( TOKEN_STORE ); } catch ( error ) { return null; } }
+		function keep_token( Token ) { try { $window.sessionStorage.setItem( TOKEN_STORE, Token ); } catch ( error ) { /* asked again next time */ } return; }
+		function forget_token() { try { $window.sessionStorage.removeItem( TOKEN_STORE ); } catch ( error ) { /* nothing kept */ } return; }
 
 
 		//---------------------------------------------------------------------
@@ -339,6 +376,8 @@ angular.module( 'JsonxWeb' ).factory( 'JsonxSession', [ 'JsonxClient', '$q', '$t
 			{
 				state.Busy--;
 				state.Running = [];
+				// A command which finishes while the page is out of sight says so through the host, when it can.
+				if ( $window.document.hidden && JsonxHost.Has( 'Notify' ) ) { JsonxHost.Notify( 'jsonx', Label + ( Answer.Ok ? ' finished' : ' failed, exit ' + Answer.ExitCode ) ); }
 				( Answer.Findings || [] ).forEach( function ( Finding ) { log( 'finding', finding_text( Finding ) ); } );
 				( Answer.Log || [] ).forEach( function ( Line ) { log( Answer.Ok ? 'log' : 'error', Line ); } );
 				if ( !Answer.Ok ) { log( 'error', 'exit ' + Answer.ExitCode ); }
