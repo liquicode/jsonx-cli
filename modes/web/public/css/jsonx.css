@@ -1,5 +1,6 @@
 /*
-	The Web UI's own styles, over Bootstrap. Themes and scaling arrive with the panes (cut 5, step 6).
+	The Web UI's own styles, over Bootstrap. Themes, scaling, collapsing and splitters arrive in step 6
+	(cut 5); the layout below is the one they will adjust.
 */
 
 html, body
@@ -12,22 +13,53 @@ body
 {
 	display: flex;
 	flex-direction: column;
-	font-size: 0.9rem;
+	font-size: 0.875rem;
+	overflow: hidden;
 }
 
-.jsonx-header
+.jsonx-spacer
+{
+	flex: 1;
+}
+
+.jsonx-hint
+{
+	color: var( --bs-secondary-color );
+	font-weight: 400;
+	font-size: 0.75rem;
+	margin-left: 0.5rem;
+}
+
+
+/* ---------------------------------------------------------------------
+	The header and the status bar.
+--------------------------------------------------------------------- */
+
+.jsonx-header, .jsonx-status
 {
 	display: flex;
 	align-items: center;
 	gap: 0.75rem;
-	padding: 0.4rem 0.75rem;
+	padding: 0.3rem 0.75rem;
+}
+
+.jsonx-header
+{
 	border-bottom: 1px solid var( --bs-border-color );
+}
+
+.jsonx-status
+{
+	border-top: 1px solid var( --bs-border-color );
+	color: var( --bs-secondary-color );
+	font-size: 0.8rem;
 }
 
 .jsonx-mark
 {
 	font-family: var( --bs-font-monospace );
 	font-weight: 700;
+	white-space: nowrap;
 }
 
 .jsonx-name
@@ -44,31 +76,308 @@ body
 	white-space: nowrap;
 }
 
-.jsonx-spacer
-{
-	flex: 1;
-}
-
 .jsonx-connection.is-connecting { color: var( --bs-secondary-color ); }
 .jsonx-connection.is-open { color: var( --bs-success ); }
 .jsonx-connection.is-closed { color: var( --bs-danger ); }
 
-.jsonx-body
+.jsonx-message
+{
+	padding: 0.4rem 0.75rem;
+	color: var( --bs-danger );
+	border-bottom: 1px solid var( --bs-border-color );
+}
+
+.jsonx-queue { color: var( --bs-warning-text-emphasis ); }
+.jsonx-running { color: var( --bs-primary ); }
+
+
+/* ---------------------------------------------------------------------
+	The panes: Inventory on the left, Log over Data Rows on the right, Input along the bottom.
+--------------------------------------------------------------------- */
+
+.jsonx-panes
 {
 	flex: 1;
+	min-height: 0;
+	display: grid;
+	grid-template-columns: minmax( 16rem, 22% ) 1fr;
+	grid-template-rows: 1fr 1fr auto;
+	grid-template-areas:
+		"inventory log"
+		"inventory rows"
+		"input input";
+}
+
+.jsonx-inventory { grid-area: inventory; border-right: 1px solid var( --bs-border-color ); }
+.jsonx-log { grid-area: log; border-bottom: 1px solid var( --bs-border-color ); }
+.jsonx-rows { grid-area: rows; }
+.jsonx-input { grid-area: input; border-top: 1px solid var( --bs-border-color ); padding: 0.4rem 0.75rem; }
+
+.jsonx-pane
+{
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	min-width: 0;
+}
+
+.jsonx-pane-head
+{
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.25rem 0.75rem;
+	font-weight: 600;
+	background: var( --bs-tertiary-bg );
+	border-bottom: 1px solid var( --bs-border-color );
+}
+
+.jsonx-pane-body
+{
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: 0.25rem 0;
+}
+
+.jsonx-empty
+{
+	padding: 0.5rem 0.75rem;
+	color: var( --bs-secondary-color );
+}
+
+
+/* Inventory. */
+
+.jsonx-section-head
+{
+	padding: 0.35rem 0.75rem 0.1rem;
+	color: var( --bs-secondary-color );
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.jsonx-entries
+{
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.jsonx-entry
+{
+	display: flex;
+	align-items: baseline;
+	gap: 0.4rem;
+	padding: 0.15rem 0.75rem;
+	cursor: pointer;
+	white-space: nowrap;
+	user-select: none;
+}
+
+.jsonx-entry:hover { background: var( --bs-tertiary-bg ); }
+.jsonx-entry:focus { outline: 2px solid var( --bs-primary ); outline-offset: -2px; }
+.jsonx-entry.selected { background: var( --bs-primary-bg-subtle ); }
+
+.jsonx-badge
+{
+	flex: none;
+	display: inline-block;
+	width: 1em;
+	text-align: center;
+	font-weight: 700;
+}
+
+.jsonx-badge.is-error { color: var( --bs-danger ); }
+.jsonx-badge.is-warning { color: var( --bs-warning ); }
+.jsonx-badge.is-note { color: var( --bs-info ); }
+
+.jsonx-entry-name
+{
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.jsonx-entry-kind, .jsonx-entry-label
+{
+	flex: none;
+	color: var( --bs-secondary-color );
+	font-size: 0.75rem;
+}
+
+
+/* Log. */
+
+.jsonx-log-line
+{
+	padding: 0 0.75rem;
+	font-family: var( --bs-font-monospace );
+	font-size: 0.8rem;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.jsonx-log-line.is-command { color: var( --bs-primary ); margin-top: 0.25rem; }
+.jsonx-log-line.is-error { color: var( --bs-danger ); }
+.jsonx-log-line.is-finding { color: var( --bs-warning-text-emphasis ); }
+.jsonx-log-line.is-reload { color: var( --bs-info-text-emphasis ); }
+.jsonx-log-line.is-text { color: var( --bs-body-color ); }
+
+
+/* Data Rows. */
+
+.jsonx-rows-title
+{
+	font-weight: 400;
+	font-family: var( --bs-font-monospace );
+	color: var( --bs-secondary-color );
+}
+
+.jsonx-paging
+{
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	font-weight: 400;
+}
+
+.jsonx-table
+{
+	margin: 0;
+	font-size: 0.8rem;
+}
+
+.jsonx-table th
+{
+	position: sticky;
+	top: 0;
+	background: var( --bs-body-bg );
+	white-space: nowrap;
+}
+
+.jsonx-table td
+{
+	font-family: var( --bs-font-monospace );
+	white-space: nowrap;
+}
+
+.jsonx-row { cursor: pointer; }
+
+.jsonx-change
+{
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	gap: 0.5rem;
+	padding: 0.25rem 0.75rem;
+	border-bottom: 1px solid var( --bs-border-color );
+}
+
+.jsonx-change-head
+{
+	color: var( --bs-secondary-color );
+	font-size: 0.75rem;
+}
+
+.jsonx-change pre
+{
+	margin: 0;
+	font-size: 0.75rem;
+}
+
+
+/* Input. */
+
+.jsonx-input-form input
+{
+	font-family: var( --bs-font-monospace );
+}
+
+.jsonx-input-finding
+{
+	padding-top: 0.2rem;
+	font-size: 0.8rem;
+}
+
+.jsonx-input-finding.is-error { color: var( --bs-danger ); }
+.jsonx-input-finding.is-warning { color: var( --bs-warning-text-emphasis ); }
+
+
+/* ---------------------------------------------------------------------
+	Dialogs.
+--------------------------------------------------------------------- */
+
+.jsonx-backdrop
+{
+	position: fixed;
+	inset: 0;
+	background: rgba( 0, 0, 0, 0.35 );
+	z-index: 1040;
+}
+
+.jsonx-dialog
+{
+	position: fixed;
+	top: 12vh;
+	left: 50%;
+	transform: translateX( -50% );
+	width: min( 36rem, 92vw );
+	max-height: 76vh;
+	display: flex;
+	flex-direction: column;
+	background: var( --bs-body-bg );
+	border: 1px solid var( --bs-border-color );
+	border-radius: var( --bs-border-radius );
+	box-shadow: 0 0.5rem 1.5rem rgba( 0, 0, 0, 0.25 );
+	z-index: 1050;
+}
+
+.jsonx-dialog-head
+{
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	padding: 0.5rem 0.75rem;
+	font-weight: 600;
+	border-bottom: 1px solid var( --bs-border-color );
+}
+
+.jsonx-dialog-body
+{
 	padding: 0.75rem;
+	overflow: auto;
+	margin: 0;
+}
+
+.jsonx-dialog-foot
+{
+	display: flex;
+	gap: 0.5rem;
+	justify-content: flex-end;
+	padding: 0.5rem 0.75rem;
+	border-top: 1px solid var( --bs-border-color );
+}
+
+.jsonx-menu .list-group
+{
 	overflow: auto;
 }
 
-.jsonx-message
+.jsonx-action
 {
-	margin-bottom: 0.75rem;
-	color: var( --bs-danger );
+	font-family: var( --bs-font-monospace );
+	font-size: 0.85rem;
+	padding: 0.3rem 0.75rem;
 }
 
-.jsonx-hello
+.jsonx-action-more
 {
-	display: grid;
-	grid-template-columns: max-content auto;
-	gap: 0.25rem 1rem;
+	color: var( --bs-secondary-color );
+}
+
+.jsonx-json-text
+{
+	font-size: 0.8rem;
 }

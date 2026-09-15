@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="css/jsonx.css">
 </head>
 
-<body ng-controller="MainController as Main">
+<body ng-controller="MainController as Main" ng-keydown="Main.OnKey( $event )">
 
 <!-- ===================================================================
 	The header: the file this process holds, and whether the page is connected to it.
@@ -19,29 +19,162 @@
 <header class="jsonx-header">
 	<span class="jsonx-mark">{ }</span>
 	<span class="jsonx-name">jsonx</span>
-	<span class="jsonx-file" id="jsonx-file" ng-bind="Main.Hello.File"></span>
+	<span class="jsonx-file" id="jsonx-file" ng-bind="Main.State.Hello.File"></span>
 	<span class="jsonx-spacer"></span>
-	<span class="jsonx-connection" id="jsonx-connection" ng-class="'is-' + Main.Connection" ng-bind="Main.ConnectionText()"></span>
+	<span class="jsonx-connection" id="jsonx-connection" ng-class="'is-' + Main.State.Connection" ng-bind="Main.ConnectionText()"></span>
 </header>
+
+<div class="jsonx-message" id="jsonx-message" ng-if="Main.State.Message" ng-bind="Main.State.Message"></div>
 
 
 <!-- ===================================================================
-	The body. Filled in by the panes in later steps.
+	The panes (F5): Inventory on the left; Log and Data Rows on the right; Input under them.
 =================================================================== -->
-<main class="jsonx-body">
-	<div class="jsonx-message" id="jsonx-message" ng-if="Main.Message" ng-bind="Main.Message"></div>
+<main class="jsonx-panes">
 
-	<dl class="jsonx-hello" id="jsonx-hello" ng-if="Main.Hello">
-		<dt>Version</dt><dd id="jsonx-version" ng-bind="Main.Hello.Version"></dd>
-		<dt>Commands</dt><dd id="jsonx-commands" ng-bind="Main.Hello.Commands.length"></dd>
-		<dt>Entries</dt><dd id="jsonx-entries" ng-bind="Main.Inventory.Items.length"></dd>
-	</dl>
+	<!-- ----------------------------------------------------------
+		Inventory (F5.1): every entry with its worst finding. A click selects; a double click or
+		Enter opens its actions.
+	---------------------------------------------------------- -->
+	<section class="jsonx-pane jsonx-inventory" id="jsonx-inventory" aria-label="Inventory">
+		<div class="jsonx-pane-head">Inventory <span class="jsonx-hint">Enter or double click: actions</span></div>
+		<div class="jsonx-pane-body">
+			<div class="jsonx-section" ng-repeat="Section in Main.SECTIONS">
+				<div class="jsonx-section-head" ng-bind="Section.Title"></div>
+				<ul class="jsonx-entries">
+					<li class="jsonx-entry" tabindex="0"
+						ng-repeat="Item in Main.State.Inventory.Items | filter: { Section: Section.Name } : true"
+						ng-class="{ selected: Main.State.Selected === Item.Name }"
+						data-name="{{ Item.Name }}"
+						ng-click="Main.S.Select( Item.Name )"
+						ng-dblclick="Main.S.OpenActions( Item.Name )"
+						ng-keydown="Main.OnEntryKey( $event, Item )">
+						<span class="jsonx-badge" ng-class="'is-' + ( Item.Severity || 'none' )" ng-bind="Main.Badge( Item.Severity )" title="{{ Item.Severity || 'no findings' }}"></span>
+						<span class="jsonx-entry-name" ng-bind="Item.Name"></span>
+						<span class="jsonx-entry-kind" ng-if="Item.Section === 'Objects'" ng-bind="Item.Kind"></span>
+						<span class="jsonx-entry-label" ng-bind="Item.Label"></span>
+					</li>
+				</ul>
+			</div>
+			<div class="jsonx-empty" ng-if="Main.State.Connection === 'open' && !Main.State.Inventory.Items.length">The file has no entries.</div>
+		</div>
+	</section>
+
+
+	<!-- ----------------------------------------------------------
+		Log (F5.3): each command's report and findings, and what happened to the file.
+	---------------------------------------------------------- -->
+	<section class="jsonx-pane jsonx-log" id="jsonx-log" aria-label="Log">
+		<div class="jsonx-pane-head">Log</div>
+		<div class="jsonx-pane-body" jsonx-scroll-bottom="Main.State.Log.length">
+			<div class="jsonx-log-line" ng-repeat="Line in Main.State.Log track by $index"
+				ng-class="'is-' + Line.Kind" ng-style="{ 'padding-left': ( 0.75 + Line.Depth * 1.25 ) + 'rem' }"
+				ng-bind="Line.Text"></div>
+		</div>
+	</section>
+
+
+	<!-- ----------------------------------------------------------
+		Data Rows (F5.4): a result as rows; a find's pages; an Update's changes.
+	---------------------------------------------------------- -->
+	<section class="jsonx-pane jsonx-rows" id="jsonx-rows" aria-label="Data Rows">
+		<div class="jsonx-pane-head">
+			Data Rows <span class="jsonx-rows-title" ng-bind="Main.State.Rows.Title"></span>
+			<span class="jsonx-spacer"></span>
+			<span class="jsonx-paging" ng-if="Main.State.Rows.Max !== null || Main.State.Rows.Skip > 0">
+				<button class="btn btn-sm btn-outline-secondary" id="jsonx-page-previous" ng-click="Main.S.Page( -1 )" ng-disabled="Main.State.Rows.Skip === 0">Previous</button>
+				<span class="jsonx-page" id="jsonx-page" ng-bind="Main.PageText()"></span>
+				<button class="btn btn-sm btn-outline-secondary" id="jsonx-page-next" ng-click="Main.S.Page( 1 )" ng-disabled="!Main.State.Rows.More">Next</button>
+			</span>
+		</div>
+		<div class="jsonx-pane-body">
+			<table class="table table-sm table-hover jsonx-table" ng-if="Main.State.Rows.Rows.length && !Main.State.Rows.Changes">
+				<thead><tr><th ng-repeat="Column in Main.State.Rows.Columns" ng-bind="Column"></th></tr></thead>
+				<tbody>
+					<tr class="jsonx-row" ng-repeat="Row in Main.State.Rows.Rows track by $index" tabindex="0"
+						ng-click="Main.S.ShowJson( Main.State.Rows.Title + ' - row ' + ( $index + 1 ), Row )"
+						ng-keydown="$event.key === 'Enter' && Main.S.ShowJson( Main.State.Rows.Title + ' - row ' + ( $index + 1 ), Row )">
+						<td ng-repeat="Column in Main.State.Rows.Columns" ng-bind="Main.Cell( Row[ Column ] )"></td>
+					</tr>
+				</tbody>
+			</table>
+			<div class="jsonx-changes" ng-if="Main.State.Rows.Changes">
+				<div class="jsonx-change" ng-repeat="Change in Main.State.Rows.Changes track by $index">
+					<div class="jsonx-change-part"><div class="jsonx-change-head">Before</div><pre class="jsonx-before" ng-bind="Main.Json( Change.Before )"></pre></div>
+					<div class="jsonx-change-part"><div class="jsonx-change-head">After</div><pre class="jsonx-after" ng-bind="Main.Json( Change.After )"></pre></div>
+					<div class="jsonx-change-part"><div class="jsonx-change-head">Diff</div><pre class="jsonx-diff" ng-bind="Main.Json( Change.Diff )"></pre></div>
+				</div>
+			</div>
+			<div class="jsonx-empty" ng-if="!Main.State.Rows.Rows.length && Main.State.Rows.Title">No rows.</div>
+		</div>
+	</section>
+
+
+	<!-- ----------------------------------------------------------
+		Input (F5.2): a command line, read by the process. Monaco replaces this box in step 5.
+	---------------------------------------------------------- -->
+	<section class="jsonx-pane jsonx-input" aria-label="Input">
+		<form class="jsonx-input-form" ng-submit="Main.S.SendLine()">
+			<input class="form-control form-control-sm" id="jsonx-input" autocomplete="off" spellcheck="false"
+				placeholder="A command, as after jsonx: run &quot;Prepare the season&quot;"
+				ng-model="Main.State.Input.Text">
+		</form>
+		<div class="jsonx-input-finding" ng-repeat="Finding in Main.State.Input.Findings" ng-class="'is-' + Finding.Severity" ng-bind="Finding.Message"></div>
+	</section>
+
 </main>
+
+
+<!-- ===================================================================
+	The status bar: connection, what holds the queue, and what runs.
+=================================================================== -->
+<footer class="jsonx-status" id="jsonx-status">
+	<span ng-bind="Main.ConnectionText()"></span>
+	<span class="jsonx-queue" id="jsonx-queue" ng-if="Main.State.Queue">queue held by {{ Main.State.Queue }}</span>
+	<span class="jsonx-running" id="jsonx-running" ng-if="Main.State.Busy > 0">running {{ Main.State.Running.join( ' > ' ) || '...' }}</span>
+	<span class="jsonx-spacer"></span>
+	<span ng-if="Main.State.Hello">{{ Main.State.Inventory.Items.length }} entries, {{ Main.State.Hello.Commands.length }} commands</span>
+</footer>
+
+
+<!-- ===================================================================
+	Dialogs: an entry's actions, the --yes confirmation, and a row's JSON.
+=================================================================== -->
+<div class="jsonx-backdrop" ng-if="Main.State.Menu || Main.State.Confirm || Main.State.Json" ng-click="Main.CloseDialogs()"></div>
+
+<div class="jsonx-dialog jsonx-menu" id="jsonx-menu" role="dialog" ng-if="Main.State.Menu">
+	<div class="jsonx-dialog-head"><span ng-bind="Main.State.Menu.Name"></span><span class="jsonx-hint">Esc closes</span></div>
+	<div class="list-group list-group-flush">
+		<button type="button" class="list-group-item list-group-item-action jsonx-action"
+			ng-repeat="Action in Main.State.Menu.Actions" data-command="{{ Action.Command }}"
+			ng-click="Main.S.Act( Action )" title="{{ Action.Describe }}">
+			<span ng-bind="Action.Command"></span><span class="jsonx-action-more" ng-if="!Action.Sends"> …</span>
+		</button>
+	</div>
+</div>
+
+<div class="jsonx-dialog jsonx-confirm" id="jsonx-confirm" role="alertdialog" ng-if="Main.State.Confirm">
+	<div class="jsonx-dialog-head">Confirm</div>
+	<div class="jsonx-dialog-body">
+		<p id="jsonx-confirm-message" ng-bind="Main.State.Confirm.Message"></p>
+		<p class="jsonx-confirm-label"><code ng-bind="Main.State.Confirm.Label"></code></p>
+	</div>
+	<div class="jsonx-dialog-foot">
+		<button type="button" class="btn btn-sm btn-danger" id="jsonx-confirm-yes" ng-click="Main.S.Confirm( true )">Yes, send it</button>
+		<button type="button" class="btn btn-sm btn-outline-secondary" id="jsonx-confirm-no" ng-click="Main.S.Confirm( false )">No</button>
+	</div>
+</div>
+
+<div class="jsonx-dialog jsonx-json" id="jsonx-json" role="dialog" ng-if="Main.State.Json">
+	<div class="jsonx-dialog-head"><span ng-bind="Main.State.Json.Title"></span><span class="jsonx-hint">Esc closes</span></div>
+	<pre class="jsonx-dialog-body jsonx-json-text" id="jsonx-json-text" ng-bind="Main.State.Json.Text"></pre>
+</div>
 
 
 <script src="vendor/angular/angular.min.js"></script>
 <script src="js/app.js"></script>
 <script src="js/client.js"></script>
+<script src="js/session.js"></script>
 <script src="js/main-controller.js"></script>
 
 </body>

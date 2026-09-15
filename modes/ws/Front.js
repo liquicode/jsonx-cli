@@ -7,7 +7,7 @@
 		{ "Id", "Line": "<a typed command line>" }       Front.Line.ReadLine, reading no file
 		{ "Id", "Entry": "<a typed JSON entry>" }        Front.Entry.ReadEntry, with its Save and Check
 		{ "Id", "Complete": "<Input's text>" }           Front.Completion.CompleteText
-		{ "Id", "Actions": "<an entry's name>" }         Front.Inventory.ActionsFor
+		{ "Id", "Actions": "<an entry's name>" }         Front.Inventory.ActionsFor, each with its Line
 		{ "Id", "Inventory": true }                      Front.Inventory.InventoryOf, with validate's findings
 
 	***Each answers from the held document and runs nothing.*** None waits on the queue: validate and
@@ -27,6 +27,7 @@ const Front = {
 	Line: require( '../../src/Front/Line.js' ),
 	Completion: require( '../../src/Front/Completion.js' ),
 };
+const Words = require( '../../src/CommandLine/Words.js' );
 
 
 const DESCRIBE_ROWS = 20;
@@ -171,7 +172,11 @@ function NewFrontRequests( Held )
 				if ( typeof Message.Actions !== 'string' ) { return refusal( 'Actions takes an entry\'s name as a string.' ); }
 				let item = Front.Inventory.InventoryOf( Held.Session.Document, [] ).find( function ( Each ) { return Each.Name === Message.Actions; } );
 				if ( !item ) { return refusal( 'No entry is named [' + Message.Actions + '].' ); }
-				return answered( Front.Inventory.ActionsFor( Held.Tree, item ) );
+				// Each with the line it stands for, quoted as the parser reads it back, so a page never quotes.
+				return answered( Front.Inventory.ActionsFor( Held.Tree, item ).map( function ( Action )
+				{
+					return Object.assign( {}, Action, { Line: Action.Path.concat( [ Words.QuoteWord( item.Name ) ] ).join( ' ' ) } );
+				} ) );
 			}
 			if ( typeof Message.Inventory !== 'undefined' )
 			{

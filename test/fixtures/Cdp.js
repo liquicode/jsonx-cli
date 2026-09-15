@@ -114,6 +114,13 @@ async function open_target( WebSocketUrl )
 		return;
 	};
 
+	// Hears every DevTools event of the page: { method, params }.
+	page.OnEvent = function ( Listener )
+	{
+		listeners.push( Listener );
+		return;
+	};
+
 	page.Send = function ( Method, Params )
 	{
 		next_id++;

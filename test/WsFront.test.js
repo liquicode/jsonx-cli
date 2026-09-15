@@ -78,7 +78,13 @@ describe( 'Front requests on the WebSocket', function ()
 
 			let actions = await client.Ask( { Actions: 'Bookings' } );
 			let item = Front.Inventory.InventoryOf( document, [] ).find( function ( Each ) { return Each.Name === 'Bookings'; } );
-			LIB_ASSERT.deepStrictEqual( actions.Result, Front.Inventory.ActionsFor( tree, item ) );
+			LIB_ASSERT.deepStrictEqual( actions.Result.map( function ( Each ) { let copy = Object.assign( {}, Each ); delete copy.Line; return copy; } ), Front.Inventory.ActionsFor( tree, item ) );
+			LIB_ASSERT.strictEqual( actions.Result[ 0 ].Line, 'datasource find Bookings' );
+			let season = await client.Ask( { Actions: 'Prepare the season' } );
+			let run_line = season.Result.find( function ( Each ) { return Each.Command === 'run'; } ).Line;
+			LIB_ASSERT.strictEqual( run_line, 'run "Prepare the season"' );
+			// The line reads back as the entry's own name.
+			LIB_ASSERT.strictEqual( ( await client.Ask( { Line: run_line } ) ).Result.Document.name, 'Prepare the season' );
 			let unknown = await client.Ask( { Actions: 'Nowhere' } );
 			LIB_ASSERT.strictEqual( unknown.ExitCode, 2 );
 

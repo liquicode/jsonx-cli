@@ -25,6 +25,13 @@
 		request whose Host header is not the bound address, or whose Origin is not that address, is
 		refused with 403. Without this, a web page the person has open could reach the API, directly
 		or by DNS rebinding.
+		-	***A request its browser marks `Sec-Fetch-Site: same-origin` (or `none`, an address typed) is
+			not refused for its Origin***, only for its Host. Found 2026-09-15 in the user's Chrome: every
+			stylesheet, script and fetch of the Web UI's own page arrived with `Origin: http://127.0.0.1`,
+			the port dropped, beside `Sec-Fetch-Site: same-origin` - something in that browser adds the
+			header; a stock Chrome sends no Origin on those at all. A page cannot set Sec-Fetch-Site, and
+			one on another site or another port of 127.0.0.1 is marked cross-site or same-site, so its
+			Origin is still compared. Its WebSocket upgrade carried the right Origin and no Sec-Fetch-Site.
 	-	Bound to any other host, it needs a token, and NewApi throws without one.
 	-	With a token, every request must carry `Authorization: Bearer <token>`, or it is refused with
 		401. The comparison takes the same time whatever the token.
@@ -198,6 +205,10 @@ function UseGuards( App, Options )
 		{
 			return refuse( 403, 'Refused: the Host header [' + asked + '] is not this server\'s address.', Response );
 		}
+
+		// The browser's own word that the request comes from this origin, which no page can set.
+		let fetch_site = String( Request.get( 'Sec-Fetch-Site' ) || '' ).toLowerCase();
+		if ( fetch_site === 'same-origin' || fetch_site === 'none' ) { return Next(); }
 
 		let origin = Request.get( 'Origin' );
 		if ( typeof origin === 'string' )

@@ -103,6 +103,48 @@ describe( 'jsonx serve --ui', function ()
 	} );
 
 
+	it( 'takes a browser\'s same-origin mark over an Origin with its port dropped, and nothing else', async function ()
+	{
+		let served = await WsClient.Serve( file, { Api: { Ui: true } } );
+		try
+		{
+			let get = function ( Path, Headers ) { return fetch( served.Base + Path, { headers: Headers } ).then( function ( Response ) { return Response.status; } ); };
+			let portless = 'http://127.0.0.1';
+
+			// What the user's Chrome sent for the page's own files and fetches (2026-09-15).
+			LIB_ASSERT.strictEqual( await get( Web.ROUTE + 'js/app.js', { Origin: portless, 'Sec-Fetch-Site': 'same-origin' } ), 200 );
+			LIB_ASSERT.strictEqual( await get( Api.CONFIG_ROUTE, { Origin: portless, 'Sec-Fetch-Site': 'same-origin' } ), 200 );
+			let posted = await fetch( served.Base + '/validate', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: portless, 'Sec-Fetch-Site': 'same-origin' }, body: '{}' } );
+			LIB_ASSERT.strictEqual( posted.status, 200 );
+			// An address typed is `none`.
+			LIB_ASSERT.strictEqual( await get( Web.ROUTE, { 'Sec-Fetch-Site': 'none' } ), 200 );
+
+			// A page on another port of 127.0.0.1 is same-site, and one elsewhere cross-site: Origin decides.
+			LIB_ASSERT.strictEqual( await get( Web.ROUTE, { Origin: portless, 'Sec-Fetch-Site': 'same-site' } ), 403 );
+			LIB_ASSERT.strictEqual( await get( Web.ROUTE, { Origin: 'http://attacker.example', 'Sec-Fetch-Site': 'cross-site' } ), 403 );
+			// No mark at all: the Origin is compared as before.
+			LIB_ASSERT.strictEqual( await get( Web.ROUTE, { Origin: portless } ), 403 );
+			LIB_ASSERT.strictEqual( await get( Web.ROUTE, { Origin: served.Base } ), 200 );
+
+			// The mark is no way past the Host check.
+			let rebound = await new Promise( function ( Resolve, Reject )
+			{
+				let request = require( 'http' ).request( { host: '127.0.0.1', port: served.Port, path: Web.ROUTE, headers: { Host: 'attacker.example:' + served.Port, 'Sec-Fetch-Site': 'same-origin' } }, function ( Response ) { Response.resume(); Resolve( Response.statusCode ); } );
+				request.on( 'error', Reject );
+				request.end();
+			} );
+			LIB_ASSERT.strictEqual( rebound, 403 );
+
+			// The WebSocket's Origin is still compared: a port-less one is refused before the handshake.
+			let upgrade = await WsClient.RawUpgrade( served.Port, '/ws', { Origin: portless } );
+			LIB_ASSERT.deepStrictEqual( [ upgrade.Status, upgrade.Upgraded ], [ 403, false ] );
+			let right = await WsClient.RawUpgrade( served.Port, '/ws', { Origin: served.Base } );
+			LIB_ASSERT.deepStrictEqual( [ right.Status, right.Upgraded ], [ 101, true ] );
+		}
+		finally { await served.Close(); }
+	} );
+
+
 	it( 'serves no page without --ui', async function ()
 	{
 		let served = await WsClient.Serve( file );
