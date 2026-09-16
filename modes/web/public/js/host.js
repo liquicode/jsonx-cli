@@ -68,21 +68,43 @@
 
 
 	//---------------------------------------------------------------------
-	// Angular's view of the host: the desktop's when there is one, else a browser's; Has( Name ) for the page.
+	// The page's view of a host: what it lists, each capability it provides, and Has( Name ).
+	//
+	// ***It is a copy, never the host itself***: a desktop host arrives through Electron's contextBridge,
+	// which hands the page a frozen object - adding Has to that threw, and the whole page stopped with it
+	// (found by jsonx-desktop's first window, 2026-09-16).
+
+	function HostView( Provided )
+	{
+		let capabilities = Provided.Capabilities();
+		let view = {
+			Kind: Provided.Kind,
+			Capabilities: function () { return capabilities.slice(); },
+		};
+		capabilities.forEach( function ( Name )
+		{
+			if ( typeof Provided[ Name ] !== 'function' ) { return; }
+			view[ Name ] = function () { return Provided[ Name ].apply( Provided, arguments ); };
+		} );
+		view.Has = function ( Name ) { return capabilities.includes( Name ) && typeof view[ Name ] === 'function'; };
+		return view;
+	}
+
+
+	//---------------------------------------------------------------------
+	// Angular's view of the host: the desktop's when there is one, else a browser's.
 
 	if ( Root.angular )
 	{
 		Root.angular.module( 'JsonxWeb' ).factory( 'JsonxHost', [ '$window',
 			function ( $window )
 			{
-				let host = ( $window.JsonxHost && typeof $window.JsonxHost.Capabilities === 'function' ) ? $window.JsonxHost : BrowserHost( $window );
-				let capabilities = host.Capabilities();
-				host.Has = function ( Name ) { return capabilities.includes( Name ) && typeof host[ Name ] === 'function'; };
-				return host;
+				let provided = ( $window.JsonxHost && typeof $window.JsonxHost.Capabilities === 'function' ) ? $window.JsonxHost : BrowserHost( $window );
+				return HostView( provided );
 			}
 		] );
 	}
 
 	// For the test which holds this to types/jsonx-host.d.ts.
-	if ( typeof module !== 'undefined' && module.exports ) { module.exports = { BrowserHost: BrowserHost }; }
+	if ( typeof module !== 'undefined' && module.exports ) { module.exports = { BrowserHost: BrowserHost, HostView: HostView }; }
 } )( typeof window !== 'undefined' ? window : globalThis );

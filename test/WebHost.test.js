@@ -74,6 +74,44 @@ describe( 'The host interface', function ()
 	} );
 
 
+	it( 'is used through a view, so a frozen host works as a desktop really provides it', async function ()
+	{
+		// Electron's contextBridge hands the page a frozen object: writing to it throws, and the page
+		// stopped with it (found by jsonx-desktop's first window, 2026-09-16).
+		let called = [];
+		let desktop = Object.freeze( {
+			Kind: 'desktop',
+			Capabilities: function () { return [ 'Notify', 'CopyText', 'OpenFile' ]; },
+			Notify: function ( Title, Text ) { called.push( [ 'Notify', Title, Text ] ); return Promise.resolve( true ); },
+			CopyText: function ( Text ) { called.push( [ 'CopyText', Text ] ); return Promise.resolve( true ); },
+			OpenFile: function () { called.push( [ 'OpenFile' ] ); return Promise.resolve( { Path: 'C:\\season\\observatory.jsonx' } ); },
+		} );
+		LIB_ASSERT.ok( !Object.isExtensible( desktop ) );
+
+		let view = Host.HostView( desktop );
+		LIB_ASSERT.strictEqual( view.Kind, 'desktop' );
+		LIB_ASSERT.deepStrictEqual( view.Capabilities(), [ 'Notify', 'CopyText', 'OpenFile' ] );
+		LIB_ASSERT.strictEqual( view.Has( 'OpenFile' ), true );
+		LIB_ASSERT.strictEqual( view.Has( 'SaveText' ), false );
+		LIB_ASSERT.strictEqual( view.SaveText, undefined );
+
+		// Each call reaches the host it came from, with its arguments and its answer.
+		LIB_ASSERT.strictEqual( await view.Notify( 'jsonx', 'run finished' ), true );
+		LIB_ASSERT.strictEqual( await view.CopyText( '{"a":1}' ), true );
+		LIB_ASSERT.deepStrictEqual( ( await view.OpenFile() ).Path, 'C:\\season\\observatory.jsonx' );
+		LIB_ASSERT.deepStrictEqual( called, [ [ 'Notify', 'jsonx', 'run finished' ], [ 'CopyText', '{"a":1}' ], [ 'OpenFile' ] ] );
+
+		// The host itself is never written to.
+		LIB_ASSERT.strictEqual( desktop.Has, undefined );
+
+		// A browser host goes through the same view.
+		let browser = Host.HostView( Host.BrowserHost( { navigator: {} } ) );
+		LIB_ASSERT.strictEqual( browser.Kind, 'browser' );
+		LIB_ASSERT.deepStrictEqual( browser.Capabilities(), [ 'Notify', 'CopyText', 'SaveText' ] );
+		LIB_ASSERT.strictEqual( browser.Has( 'OpenFile' ), false );
+	} );
+
+
 	it( 'copies, saves and notifies through what the window has, and says false when it cannot', async function ()
 	{
 		// Copy.
