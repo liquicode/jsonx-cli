@@ -12,6 +12,7 @@ export type JsonxHostCapability =
 	| 'CopyText'
 	| 'SaveText'
 	| 'OpenFile'
+	| 'OpenPath'
 	| 'RecentFiles'
 	| 'OpenTerminal';
 
@@ -43,6 +44,9 @@ export interface JsonxHost
 
 	/** Desktop only: asks the person for a .jsonx file and opens it in its own jsonx process. */
 	OpenFile?(): Promise<JsonxHostFile | null>;
+
+	/** Desktop only: opens a file the host already knows of, such as one from RecentFiles. */
+	OpenPath?( Path: string ): Promise<JsonxHostFile | null>;
 
 	/** Desktop only: the files opened lately, newest first. */
 	RecentFiles?(): Promise<JsonxHostFile[]>;
