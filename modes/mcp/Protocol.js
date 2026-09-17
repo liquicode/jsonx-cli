@@ -79,7 +79,10 @@ function declaration_schema( Declaration )
 	let schema = {};
 	if ( type === 'string' || type === 'number' || type === 'integer' || type === 'boolean' ) { schema.type = type; }
 	if ( type === 'jsonl' ) { schema.type = 'array'; }
-	// A `json` value is any JSON value: a criteria, a document, an array of them.
+	// A `json` value is any JSON value, unless its declaration says what it holds. ***Saying so is what
+	// stops a model sending a criteria as a string of JSON***: shown no type, qwen3.5:4b wrote
+	// "{\"Grade\": \"foreman\"}" every time, and read the refusal six times without changing it.
+	if ( type === 'json' && typeof Declaration.JsonType !== 'undefined' ) { schema.type = Declaration.JsonType; }
 
 	if ( Array.isArray( Declaration.Choices ) ) { schema.enum = Declaration.Choices.slice(); }
 	if ( Declaration.Repeat === true && type !== 'json' && type !== 'jsonl' ) { schema = { type: 'array', items: schema }; }

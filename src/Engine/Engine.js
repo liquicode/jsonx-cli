@@ -51,14 +51,17 @@ function clone( Value )
 // Input declarations, shared by the rows.
 
 const DOCUMENTS = {
-	'documents': { Type: 'json', Describe: 'One document or an array of them.' },
+	'documents': { Type: 'json', JsonType: [ 'object', 'array' ], Describe: 'One document or an array of them.' },
 	'documents-jsonl': { Type: 'jsonl', Describe: 'The documents as JSON Lines, one per line.' },
 };
 
-function required_json( Name, Describe )
+// A JsonType is what an MCP client is told the value holds; absent, any JSON value (an expression can be
+// a string, a JSON Schema can be a boolean).
+function required_json( Name, Describe, JsonType )
 {
 	let input = {};
 	input[ Name ] = { Type: 'json', Required: true, Describe: Describe };
+	if ( typeof JsonType !== 'undefined' ) { input[ Name ].JsonType = JsonType; }
 	return input;
 }
 
@@ -168,14 +171,14 @@ const ENGINE_VERBS = {
 
 	'match': {
 		Describe: 'Whether one document matches a criteria: true or false.',
-		Inputs: Object.assign( required_json( 'document', 'The document.' ), required_json( 'criteria', 'The criteria.' ) ),
+		Inputs: Object.assign( required_json( 'document', 'The document.', 'object' ), required_json( 'criteria', 'The criteria.', 'object' ) ),
 		Library: [ 'Query' ],
 		Run: function ( Values ) { return jsongin.Query( object_input( Values, 'document' ), criteria_input( Values ) ); },
 	},
 
 	'filter': {
 		Describe: 'The documents a criteria matches, in order.',
-		Inputs: Object.assign( {}, DOCUMENTS, required_json( 'criteria', 'The criteria.' ) ),
+		Inputs: Object.assign( {}, DOCUMENTS, required_json( 'criteria', 'The criteria.', 'object' ) ),
 		Library: [ 'Filter' ],
 		Run: function ( Values )
 		{
@@ -186,7 +189,7 @@ const ENGINE_VERBS = {
 
 	'sort': {
 		Describe: 'The documents in the order a sort gives.',
-		Inputs: Object.assign( {}, DOCUMENTS, required_json( 'sort', 'The sort, as { Field: 1 or -1 }.' ) ),
+		Inputs: Object.assign( {}, DOCUMENTS, required_json( 'sort', 'The sort, as { Field: 1 or -1 }.', 'object' ) ),
 		Library: [ 'Sort' ],
 		// jsongin sorts the array it is given in place (measured 2026-09-13), so it is given a copy.
 		Run: function ( Values ) { return jsongin.Sort( documents_of( Values ).Documents.slice(), object_input( Values, 'sort' ) ); },
@@ -194,7 +197,7 @@ const ENGINE_VERBS = {
 
 	'project': {
 		Describe: 'Each document through a projection.',
-		Inputs: Object.assign( {}, DOCUMENTS, required_json( 'projection', 'The projection.' ) ),
+		Inputs: Object.assign( {}, DOCUMENTS, required_json( 'projection', 'The projection.', 'object' ) ),
 		Library: [ 'Project' ],
 		Run: function ( Values )
 		{
@@ -205,7 +208,7 @@ const ENGINE_VERBS = {
 
 	'update': {
 		Describe: 'Each document with an update document applied.',
-		Inputs: Object.assign( {}, DOCUMENTS, required_json( 'update', 'The update document, such as { "$set": { ... } }.' ) ),
+		Inputs: Object.assign( {}, DOCUMENTS, required_json( 'update', 'The update document, such as { "$set": { ... } }.', 'object' ) ),
 		Library: [ 'Update' ],
 		Run: function ( Values )
 		{
@@ -216,21 +219,21 @@ const ENGINE_VERBS = {
 
 	'diff': {
 		Describe: 'The update document which turns one document into another.',
-		Inputs: Object.assign( required_json( 'before', 'The document before.' ), required_json( 'after', 'The document after.' ) ),
+		Inputs: Object.assign( required_json( 'before', 'The document before.', 'object' ), required_json( 'after', 'The document after.', 'object' ) ),
 		Library: [ 'Diff' ],
 		Run: function ( Values ) { return jsongin.Diff( object_input( Values, 'before' ), object_input( Values, 'after' ) ); },
 	},
 
 	'invert': {
 		Describe: 'The update document which undoes a patch applied to a document.',
-		Inputs: Object.assign( required_json( 'before', 'The document before the patch.' ), required_json( 'patch', 'The update document applied to it.' ) ),
+		Inputs: Object.assign( required_json( 'before', 'The document before the patch.', 'object' ), required_json( 'patch', 'The update document applied to it.', 'object' ) ),
 		Library: [ 'Invert' ],
 		Run: function ( Values ) { return jsongin.Invert( object_input( Values, 'before' ), object_input( Values, 'patch' ) ); },
 	},
 
 	'distinct': {
 		Describe: 'The distinct combinations of some fields across the documents.',
-		Inputs: Object.assign( {}, DOCUMENTS, required_json( 'fields', 'The fields, as { Field: 1, ... }.' ) ),
+		Inputs: Object.assign( {}, DOCUMENTS, required_json( 'fields', 'The fields, as { Field: 1, ... }.', 'object' ) ),
 		Library: [ 'Distinct' ],
 		Run: function ( Values ) { return jsongin.Distinct( documents_of( Values ).Documents, object_input( Values, 'fields' ) ); },
 	},
@@ -250,7 +253,7 @@ const ENGINE_VERBS = {
 
 	'aggregate': {
 		Describe: 'The documents through an aggregation pipeline.',
-		Inputs: Object.assign( {}, DOCUMENTS, { 'pipeline': { Type: 'json', Required: true, Describe: 'The pipeline, an array of stages.' } } ),
+		Inputs: Object.assign( {}, DOCUMENTS, { 'pipeline': { Type: 'json', JsonType: 'array', Required: true, Describe: 'The pipeline, an array of stages.' } } ),
 		Library: [ 'Aggregate', 'StageOperators', 'AccumulatorOperators' ],
 		Run: function ( Values )
 		{
@@ -261,7 +264,7 @@ const ENGINE_VERBS = {
 
 	'validate-query': {
 		Describe: 'The findings for a criteria, without a document: [] when jsongin accepts it.',
-		Inputs: required_json( 'criteria', 'The criteria.' ),
+		Inputs: required_json( 'criteria', 'The criteria.', 'object' ),
 		Library: [ 'ValidateQuery', 'QueryOperators' ],
 		Findings: true,
 		Run: function ( Values )
@@ -287,7 +290,7 @@ const ENGINE_VERBS = {
 
 	'merge': {
 		Describe: 'One document merged over another, field by field.',
-		Inputs: Object.assign( required_json( 'document', 'The document merged into.' ), required_json( 'with', 'The document merged over it.' ) ),
+		Inputs: Object.assign( required_json( 'document', 'The document merged into.', 'object' ), required_json( 'with', 'The document merged over it.', 'object' ) ),
 		Library: [ 'Merge' ],
 		Run: function ( Values ) { return jsongin.Merge( object_input( Values, 'document' ), object_input( Values, 'with' ) ); },
 	},
@@ -361,7 +364,7 @@ const ENGINE_VERBS = {
 	'schema init': {
 		Group: 'schema',
 		Describe: 'A document filled in with the defaults a JSON Schema declares.',
-		Inputs: Object.assign( { 'document': { Type: 'json', Describe: 'The document to fill in; absent means {}.' } }, required_json( 'schema', 'The JSON Schema.' ) ),
+		Inputs: Object.assign( { 'document': { Type: 'json', JsonType: 'object', Describe: 'The document to fill in; absent means {}.' } }, required_json( 'schema', 'The JSON Schema.' ) ),
 		Library: [ 'InitSchema' ],
 		Run: function ( Values )
 		{

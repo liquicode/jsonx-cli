@@ -30,9 +30,9 @@ const jsonproc = require( '@liquicode/jsonproc' );
 
 
 //---------------------------------------------------------------------
-const CRITERIA_OPTIONAL = { 'criteria': { Type: 'json', Default: {}, Describe: 'The criteria; absent selects every document.' } };
-const CRITERIA_REQUIRED = { 'criteria': { Type: 'json', Required: true, Describe: 'The criteria. One which selects every document must be confirmed with yes.' } };
-const PROJECTION = { 'projection': { Type: 'json', Describe: 'Which fields to keep or drop.' } };
+const CRITERIA_OPTIONAL = { 'criteria': { Type: 'json', JsonType: 'object', Default: {}, Describe: 'The criteria; absent selects every document.' } };
+const CRITERIA_REQUIRED = { 'criteria': { Type: 'json', JsonType: 'object', Required: true, Describe: 'The criteria. One which selects every document must be confirmed with yes.' } };
+const PROJECTION = { 'projection': { Type: 'json', JsonType: 'object', Describe: 'Which fields to keep or drop.' } };
 const FIRST_ONLY = { 'first-only': { Type: 'boolean', Describe: 'Only the first document the criteria selects.' } };
 const YES = { 'yes': { Type: 'boolean', Describe: 'Confirm a call which touches every document, or removes the store.' } };
 const SAVE = {
@@ -43,16 +43,16 @@ const SAVE = {
 // The options of each verb, beside RUN_OPTIONS.
 const VERB_OPTIONS = {
 	'find': Object.assign( {}, CRITERIA_OPTIONAL, PROJECTION, {
-		'sort': { Type: 'json', Describe: 'The order, as { Field: 1 or -1 }.' },
+		'sort': { Type: 'json', JsonType: 'object', Describe: 'The order, as { Field: 1 or -1 }.' },
 		'skip': { Type: 'integer', Describe: 'How many documents to pass over first (SkipCount).' },
 		'max': { Type: 'integer', Describe: 'The most documents to read (MaxCount).' },
 		'into': { Type: 'string', Describe: 'A data source the rows are inserted into.' },
 	}, SAVE ),
 	'find-one': Object.assign( {}, CRITERIA_OPTIONAL, PROJECTION ),
 	'count': Object.assign( {}, CRITERIA_OPTIONAL ),
-	'insert': Object.assign( { 'documents': { Type: 'json', Required: true, Describe: 'One document, or an array of them.' } }, SAVE ),
-	'update': Object.assign( {}, CRITERIA_REQUIRED, { 'update': { Type: 'json', Required: true, Describe: 'The update document, such as { "$set": { ... } }.' } }, FIRST_ONLY, YES, SessionCommand.CHANGES_OPTION, SAVE ),
-	'replace': Object.assign( { 'criteria': { Type: 'json', Required: true, Describe: 'The criteria.' }, 'document': { Type: 'json', Required: true, Describe: 'The document which replaces the first one selected.' } } ),
+	'insert': Object.assign( { 'documents': { Type: 'json', JsonType: [ 'object', 'array' ], Required: true, Describe: 'One document, or an array of them.' } }, SAVE ),
+	'update': Object.assign( {}, CRITERIA_REQUIRED, { 'update': { Type: 'json', JsonType: 'object', Required: true, Describe: 'The update document, such as { "$set": { ... } }.' } }, FIRST_ONLY, YES, SessionCommand.CHANGES_OPTION, SAVE ),
+	'replace': Object.assign( { 'criteria': { Type: 'json', JsonType: 'object', Required: true, Describe: 'The criteria.' }, 'document': { Type: 'json', JsonType: 'object', Required: true, Describe: 'The document which replaces the first one selected.' } } ),
 	'delete': Object.assign( {}, CRITERIA_REQUIRED, FIRST_ONLY, YES, SAVE ),
 	'flush': {},
 	'drop': Object.assign( {}, YES ),

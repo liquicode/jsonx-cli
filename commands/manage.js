@@ -146,7 +146,7 @@ function noun_group( Noun )
 	// Completes the noun's own entries: `query show` offers the Queries, `datasource show` the data sources.
 	let completes = ( Edit.NOUNS[ Noun ].Kind !== null ) ? 'objects:' + Edit.NOUNS[ Noun ].Kind : Edit.NOUNS[ Noun ].Section.toLowerCase();
 	let name_positional = { Name: 'name', Type: 'string', Required: true, Complete: completes, Describe: 'The ' + label + '.' };
-	let body = { 'json': { Type: 'json', Required: true, Describe: 'The ' + label + ' as JSON.' } };
+	let body = { 'json': { Type: 'json', JsonType: 'object', Required: true, Describe: 'The ' + label + ' as JSON.' } };
 
 	let group = {
 		Command: Noun,

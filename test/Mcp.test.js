@@ -146,6 +146,18 @@ describe( 'MCP, the protocol', function ()
 			LIB_ASSERT.strictEqual( tools.datasource_describe.inputSchema.properties.rows.default, require( '../src/Session/Inspect.js' ).DEFAULT_ROWS );
 			LIB_ASSERT.deepStrictEqual( tools.new.inputSchema.properties.kind.enum, require( '../src/File/Skeletons.js' ).KINDS );
 			LIB_ASSERT.strictEqual( tools.engine_filter.inputSchema.properties[ 'documents-jsonl' ].type, 'array' );
+
+			// A json value which must be an object says so, or a model sends it as a string of JSON.
+			let find = tools.datasource_find.inputSchema.properties;
+			for ( let name of [ 'criteria', 'projection', 'sort' ] ) { LIB_ASSERT.strictEqual( find[ name ].type, 'object', 'datasource_find ' + name ); }
+			LIB_ASSERT.strictEqual( tools.datasource_update.inputSchema.properties.update.type, 'object' );
+			LIB_ASSERT.strictEqual( tools.datasource_replace.inputSchema.properties.document.type, 'object' );
+			LIB_ASSERT.deepStrictEqual( tools.datasource_insert.inputSchema.properties.documents.type, [ 'object', 'array' ] );
+			LIB_ASSERT.strictEqual( tools.query_add.inputSchema.properties.json.type, 'object' );
+			LIB_ASSERT.strictEqual( tools.engine_match.inputSchema.properties.criteria.type, 'object' );
+			LIB_ASSERT.strictEqual( tools.engine_aggregate.inputSchema.properties.pipeline.type, 'array' );
+			LIB_ASSERT.strictEqual( 'type' in tools.engine_evaluate.inputSchema.properties.expression, false, 'an expression can be a string' );
+			LIB_ASSERT.strictEqual( 'type' in tools.engine_schema_validate.inputSchema.properties.schema, false, 'a JSON Schema can be a boolean' );
 			LIB_ASSERT.ok( tools[ 'datasource_find-one' ], 'a hyphen is kept' );
 		}
 		finally { await held.Release(); }
