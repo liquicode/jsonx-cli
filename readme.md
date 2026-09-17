@@ -715,6 +715,31 @@ If the server stops, the page says it is disconnected and does not reconnect; re
 server is running again.
 
 
+### The jsonx terminal
+
+`http://127.0.0.1:3470/ui/terminal.html` is the same file, as a terminal: a transcript and one line to
+type on. It runs the same commands the Web UI's Input does, on the same process, so what you do in one
+shows in the other.
+
+```
+jsonx serve --ui --file observatory.jsonx
+```
+
+| Key | What it does |
+|---|---|
+| Enter | Send the line. |
+| Tab | Complete the command, option or name you are typing. |
+| Up, Down | The lines you have already sent on this page. |
+| `y`, `n` | Answer a confirmation. |
+
+A command that needs `--yes` asks first, and the prompt shows `y/n` until you answer. `debug` opens the
+debugger here as a conversation: the prompt shows `debug`, and every line you type is one of its
+[debug commands](#debugging-a-process) until it ends.
+
+***It runs jsonx commands and nothing else.*** It is not a system shell, and commands that no page can
+send — `serve`, `mcp`, `tui` and `completion` — are refused.
+
+
 ## Using the library
 
 Everything the command line does is available from `require( '@liquicode/jsonx-cli' ).Library`.
