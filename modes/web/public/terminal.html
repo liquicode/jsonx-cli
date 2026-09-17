@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en" ng-app="JsonxWeb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jsonx terminal</title>
+<!-- No favicon request, so the console holds only what the page itself reports. -->
+<link rel="icon" href="data:,">
+
+<link rel="stylesheet" href="vendor/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="css/jsonx.css">
+</head>
+
+<!-- ===================================================================
+	The jsonx terminal (plan O7): a transcript and one line, on this file's own process. Every line is read
+	by the process, so nothing here reaches an operating system shell. The desktop opens it beside a file's
+	window; a browser can open it too, at /ui/terminal.html.
+=================================================================== -->
+
+<body ng-controller="TerminalController as Terminal" class="jsonx-terminal-page">
+
+<header class="jsonx-header">
+	<span class="jsonx-mark">{ }</span>
+	<span class="jsonx-name">jsonx terminal</span>
+	<span class="jsonx-file" id="jsonx-file" ng-bind="Terminal.State.Hello.File"></span>
+	<span class="jsonx-spacer"></span>
+
+	<div class="btn-group btn-group-sm" role="group" aria-label="Scale" id="jsonx-scale">
+		<button type="button" class="btn btn-outline-secondary" data-scale="small" ng-class="{ active: Terminal.View.Scale === 'small' }" ng-click="Terminal.View.SetScale( 'small' )" title="Small">A<sup>-</sup></button>
+		<button type="button" class="btn btn-outline-secondary" data-scale="normal" ng-class="{ active: Terminal.View.Scale === 'normal' }" ng-click="Terminal.View.SetScale( 'normal' )" title="Normal">A</button>
+		<button type="button" class="btn btn-outline-secondary" data-scale="large" ng-class="{ active: Terminal.View.Scale === 'large' }" ng-click="Terminal.View.SetScale( 'large' )" title="Large">A<sup>+</sup></button>
+	</div>
+
+	<div class="btn-group btn-group-sm" role="group" aria-label="Theme" id="jsonx-theme">
+		<button type="button" class="btn btn-outline-secondary" data-mode="light" ng-class="{ active: Terminal.View.Mode === 'light' }" ng-click="Terminal.View.SetMode( 'light' )" title="Light">&#9788;</button>
+		<button type="button" class="btn btn-outline-secondary" data-mode="system" ng-class="{ active: Terminal.View.Mode === 'system' }" ng-click="Terminal.View.SetMode( 'system' )" title="Follow the system">&#9673;</button>
+		<button type="button" class="btn btn-outline-secondary" data-mode="dark" ng-class="{ active: Terminal.View.Mode === 'dark' }" ng-click="Terminal.View.SetMode( 'dark' )" title="Dark">&#9789;</button>
+	</div>
+</header>
+
+<!-- The token, when this process needs one: it buys a one-use ticket, as the Web UI's does. -->
+<div class="jsonx-token" id="jsonx-token" ng-if="Terminal.State.TokenNeeded">
+	<form ng-submit="Terminal.UseToken()">
+		<label for="jsonx-token-value">This jsonx process needs a token.</label>
+		<input type="password" class="form-control form-control-sm" id="jsonx-token-value" ng-model="Terminal.State.Token" autocomplete="off" autofocus>
+		<button type="submit" class="btn btn-sm btn-primary" id="jsonx-token-send">Connect</button>
+	</form>
+	<p class="jsonx-token-message" ng-if="Terminal.State.Message" ng-bind="Terminal.State.Message"></p>
+</div>
+
+<main class="jsonx-terminal" ng-if="!Terminal.State.TokenNeeded">
+
+	<div class="jsonx-transcript" id="jsonx-transcript">
+		<div class="jsonx-line" ng-repeat="Line in Terminal.State.Lines track by $index" ng-class="'jsonx-line-' + Line.Kind" ng-bind="Line.Text"></div>
+	</div>
+
+	<div class="jsonx-prompt">
+		<span class="jsonx-prompt-mark" ng-bind="Terminal.State.Debug ? 'debug' : ( Terminal.State.Confirm ? 'y/n' : 'jsonx' )"></span>
+		<input type="text" class="jsonx-prompt-input" id="jsonx-prompt-input" ng-model="Terminal.State.Text" ng-keydown="Terminal.OnKey( $event )"
+			autocomplete="off" autocapitalize="off" spellcheck="false" autofocus
+			ng-disabled="Terminal.State.Connection !== 'open'">
+	</div>
+
+	<div class="jsonx-status">
+		<span ng-if="Terminal.State.Connection !== 'open'" ng-bind="Terminal.State.Message || ( 'The process is ' + Terminal.State.Connection + '.' )"></span>
+		<span ng-if="Terminal.State.Connection === 'open' && Terminal.State.Busy">Working...</span>
+	</div>
+
+</main>
+
+<script src="vendor/angular/angular.min.js"></script>
+<script src="js/app.js"></script>
+<script src="js/client.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/host.js"></script>
+<script src="js/terminal.js"></script>
+
+</body>
+</html>
