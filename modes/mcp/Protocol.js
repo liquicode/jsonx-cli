@@ -390,12 +390,16 @@ function NewMcp( HeldSession, Options )
 					let asked = params.protocolVersion;
 					mcp.ProtocolVersion = SUPPORTED_VERSIONS.includes( asked ) ? asked : PROTOCOL_VERSION;
 					let profile = HeldSession.ProfileSummary();
-					let about_profile = ' The profile is [' + profile.Name + ']' + ( profile.Describe ? ': ' + profile.Describe : '.' ) + ( profile.Instructions ? ' ' + profile.Instructions : '' );
+					// ***What the session does, never what the profile is called***, and the file by its own
+					// name rather than where it lies: `instructions` is read by a model, and a model which
+					// has read a profile's name or one machine's path in every session leans on it. The
+					// name is a front end's to know, and `jsonx/profile` answers it.
+					let about_profile = ( profile.Describe ? ' ' + profile.Describe : '' ) + ( profile.Instructions ? ' ' + profile.Instructions : '' );
 					return success( id, {
 						protocolVersion: mcp.ProtocolVersion,
 						capabilities: { tools: { listChanged: true }, resources: {} },
 						serverInfo: { name: SERVER_NAME, title: 'jsonx', version: options.Version || '0.0.0' },
-						instructions: 'Each tool is a jsonx command run against the file ' + HeldSession.Path + '. A tool answers the envelope { Ok, ExitCode, Result, Findings, Log }: Result is the answer, Log the report. The resources are the file and each of its entries, as written.' + about_profile,
+						instructions: 'Each tool is a jsonx command run against the file ' + require( 'path' ).basename( HeldSession.Path ) + '. A tool answers the envelope { Ok, ExitCode, Result, Findings, Log }: Result is the answer, Log the report. The resources are the file and each of its entries, as written.' + about_profile,
 					} );
 				}
 				case 'ping':

@@ -279,12 +279,18 @@ function Apply( Commands, Profile )
 //---------------------------------------------------------------------
 // What a surface tells a client about the profile in force.
 
+// ***The summary has the shape of a profile file***, so what a client is told is what it could save and
+// serve again. `Without` and `Defaults` are in it for that reason and one more: a command's options
+// list shows what is served, and only `Without` tells a client that an option is held back here rather
+// than never having existed.
 function Summary( Profile, Applied )
 {
 	return {
 		Name: Profile.Name,
 		Describe: Profile.Describe,
 		Commands: Applied.map( function ( Command ) { return Command.Command; } ),
+		Without: JSON.parse( JSON.stringify( Profile.Without ) ),
+		Defaults: JSON.parse( JSON.stringify( Profile.Defaults ) ),
 		Confirm: Profile.Confirm.slice(),
 		Instructions: Profile.Instructions,
 	};

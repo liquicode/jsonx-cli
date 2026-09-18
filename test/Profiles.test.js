@@ -71,7 +71,7 @@ describe( 'The built-in profiles', function ()
 		let translate = built_in( 'translate' ).Commands;
 		let run = built_in( 'run' ).Commands;
 		let design = built_in( 'design' ).Commands;
-		LIB_ASSERT.deepStrictEqual( translate, [ 'datasource list', 'datasource describe', 'datasource find', 'datasource count', 'validate', 'plan', 'explain' ] );
+		LIB_ASSERT.deepStrictEqual( translate, [ 'datasource list', 'datasource describe', 'datasource find', 'datasource count', 'query list', 'insert list', 'update list', 'delete list', 'process list', 'trigger list', 'validate', 'plan', 'explain' ] );
 		LIB_ASSERT.ok( translate.every( function ( Command ) { return run.includes( Command ); } ) );
 		LIB_ASSERT.ok( run.includes( 'run' ) && !translate.includes( 'run' ) );
 		LIB_ASSERT.ok( run.every( function ( Command ) { return design.includes( Command ); } ) );
@@ -222,23 +222,24 @@ describe( 'A held session under a profile', function ()
 		finally { await held.Release(); }
 	} );
 
-	it( 'refuses a command outside the profile, and an option it withholds, with exit 2 naming the profile', async function ()
+	it( 'refuses a command outside the profile, and an option it withholds, with exit 2 and never the profile\'s name', async function ()
 	{
 		let held = hold( observatory, { Profile: 'translate' } );
 		try
 		{
-			LIB_ASSERT.deepStrictEqual( names( held.Served() ), [ 'validate', 'plan', 'explain', 'datasource list', 'datasource describe', 'datasource find', 'datasource count' ] );
+			LIB_ASSERT.deepStrictEqual( names( held.Served() ), [ 'validate', 'plan', 'explain', 'datasource list', 'datasource describe', 'datasource find', 'datasource count', 'query list', 'insert list', 'update list', 'delete list', 'process list', 'trigger list' ] );
 
 			let ran = await held.Invoke( { Command: 'run', name: 'Prepare the season' } );
 			LIB_ASSERT.strictEqual( ran.ExitCode, 2 );
-			LIB_ASSERT.match( ran.Log.join( '\n' ), /^\[run\] is not served in profile \[translate\]\./ );
+			LIB_ASSERT.match( ran.Log.join( '\n' ), /^\[run\] is not served in this session\./ );
+			LIB_ASSERT.doesNotMatch( ran.Log.join( '\n' ), /translate/ );
 
 			let deleted = await held.Invoke( { Command: 'datasource delete', name: 'Notes', criteria: {}, yes: true } );
 			LIB_ASSERT.strictEqual( deleted.ExitCode, 2 );
 
 			let saved = await held.Invoke( { Command: 'datasource find', name: 'Bookings', criteria: {}, save: 'Kept' } );
 			LIB_ASSERT.strictEqual( saved.ExitCode, 2 );
-			LIB_ASSERT.match( saved.Log.join( '\n' ), /^Option \[--save\] is not served in profile \[translate\]\./ );
+			LIB_ASSERT.match( saved.Log.join( '\n' ), /^Option \[--save\] is not served in this session\./ );
 			LIB_ASSERT.strictEqual( LIB_FS.readFileSync( observatory, 'utf8' ), JSON.stringify( Spec.AppendixB(), null, '\t' ) );
 
 			// What the profile serves still works, and help is never refused.

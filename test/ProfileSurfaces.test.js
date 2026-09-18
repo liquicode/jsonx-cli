@@ -22,7 +22,7 @@ const Stdio = require( '../modes/mcp/Stdio.js' );
 const Spec = require( './fixtures/Spec.js' );
 
 
-const TRANSLATE = [ 'validate', 'plan', 'explain', 'datasource list', 'datasource describe', 'datasource find', 'datasource count' ];
+const TRANSLATE = [ 'validate', 'plan', 'explain', 'datasource list', 'datasource describe', 'datasource find', 'datasource count', 'query list', 'insert list', 'update list', 'delete list', 'process list', 'trigger list' ];
 
 
 //---------------------------------------------------------------------
@@ -159,6 +159,10 @@ describe( 'The profile on every surface', function ()
 			LIB_ASSERT.strictEqual( root_.Status, 200 );
 			LIB_ASSERT.strictEqual( root_.Json.Profile.Name, 'translate' );
 			LIB_ASSERT.deepStrictEqual( root_.Json.Profile.Confirm, [] );
+			// The summary has the shape of a profile file: what is held back is said, not only left out.
+			LIB_ASSERT.deepStrictEqual( Object.keys( root_.Json.Profile ), [ 'Name', 'Describe', 'Commands', 'Without', 'Defaults', 'Confirm', 'Instructions' ] );
+			LIB_ASSERT.deepStrictEqual( root_.Json.Profile.Without, { 'datasource find': [ 'into', 'save', 'force' ] } );
+			LIB_ASSERT.deepStrictEqual( root_.Json.Profile.Defaults, { 'datasource find': { max: 5 } } );
 			LIB_ASSERT.match( root_.Json.Profile.Instructions, /do not run it/ );
 			LIB_ASSERT.deepStrictEqual( root_.Json.Commands.map( function ( Command ) { return Command.Command; } ), TRANSLATE );
 			let find = root_.Json.Commands.find( function ( Command ) { return Command.Command === 'datasource find'; } );
@@ -168,11 +172,11 @@ describe( 'The profile on every surface', function ()
 
 			let deleted = await post( served.Base, '/datasource/delete', { name: 'Notes', criteria: {}, yes: true } );
 			LIB_ASSERT.strictEqual( deleted.Status, 400 );
-			LIB_ASSERT.match( deleted.Json.Log.join( '\n' ), /is not served in profile \[translate\]/ );
+			LIB_ASSERT.match( deleted.Json.Log.join( '\n' ), /is not served in this session/ );
 
 			let saved = await post( served.Base, '/datasource/find', { name: 'Bookings', criteria: {}, save: 'Kept' } );
 			LIB_ASSERT.strictEqual( saved.Status, 400 );
-			LIB_ASSERT.match( saved.Json.Log.join( '\n' ), /--save\] is not served in profile \[translate\]/ );
+			LIB_ASSERT.match( saved.Json.Log.join( '\n' ), /--save\] is not served in this session/ );
 
 			let found = await post( served.Base, '/datasource/find', { name: 'Bookings', criteria: {} } );
 			LIB_ASSERT.strictEqual( found.Status, 200, JSON.stringify( found.Json ) );
@@ -277,7 +281,11 @@ describe( 'The profile on every surface', function ()
 
 			let initialized = await mcp.Handle( request( 'initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 't', version: '0' } } ) );
 			LIB_ASSERT.deepStrictEqual( initialized.result.capabilities, { tools: { listChanged: true }, resources: {} } );
-			LIB_ASSERT.match( initialized.result.instructions, /The profile is \[translate\]: Build objects from what the data says; run nothing\. Build the object; do not run it\./ );
+			// What the session does, never what the profile is called, and the file by its name, not its path.
+			LIB_ASSERT.match( initialized.result.instructions, /as written\. Build objects from what the data says; run nothing\. Build the object; do not run it\./ );
+			LIB_ASSERT.doesNotMatch( initialized.result.instructions, /translate|profile/i );
+			LIB_ASSERT.ok( initialized.result.instructions.includes( 'against the file ' + LIB_PATH.basename( observatory ) + '.' ), initialized.result.instructions );
+			LIB_ASSERT.ok( !initialized.result.instructions.includes( LIB_PATH.dirname( observatory ) ), initialized.result.instructions );
 
 			let asked = await mcp.Handle( request( 'jsonx/profile' ) );
 			LIB_ASSERT.strictEqual( asked.result.Name, 'translate' );
@@ -358,12 +366,12 @@ describe( 'The profile on every surface', function ()
 
 		let plain = await tools_under( [] );
 		LIB_ASSERT.strictEqual( plain.Code, 0, plain.Err );
-		LIB_ASSERT.strictEqual( plain.Tools.length, 8 );
+		LIB_ASSERT.strictEqual( plain.Tools.length, 14 );
 		LIB_ASSERT.ok( plain.Tools.includes( 'run' ) && !plain.Tools.includes( 'datasource_delete' ) );
 		LIB_ASSERT.match( plain.Err, /profile run\)/ );
 
 		let translate = await tools_under( [ '--profile', 'translate' ] );
-		LIB_ASSERT.strictEqual( translate.Tools.length, 7 );
+		LIB_ASSERT.strictEqual( translate.Tools.length, 13 );
 
 		let full = await tools_under( [ '--profile', 'full' ] );
 		LIB_ASSERT.strictEqual( full.Tools.length, Held.ServedCommands( Commands.TREE ).length );

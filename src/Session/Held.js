@@ -635,7 +635,9 @@ function NewHeld( Options )
 			// profile lets it through, and a profile which names its commands serves only those.
 			if ( !( in_force.Everything && Conversation ) )
 			{
-				out.Log( '[' + command + '] is not served in profile [' + in_force.Name + '].\n' );
+				// ***A refusal never says the profile's name***: a model reads it, as a tool's answer, and
+				// what a model reads says what the session does, not what its profile is called.
+				out.Log( '[' + command + '] is not served in this session.\n' );
 				return out.Envelope( 2 );
 			}
 			in_profile = { Defaults: {} };
@@ -643,7 +645,7 @@ function NewHeld( Options )
 		let withheld = ( in_force.Without[ command ] || [] ).filter( function ( Name ) { return parsed.Given[ Name ] === true; } );
 		if ( withheld.length > 0 )
 		{
-			out.Log( 'Option [--' + withheld[ 0 ] + '] is not served in profile [' + in_force.Name + '].\n' );
+			out.Log( 'Option [--' + withheld[ 0 ] + '] is not served in this session.\n' );
 			return out.Envelope( 2 );
 		}
 		let defaulted = Object.keys( in_profile.Defaults ).filter( function ( Name ) { return parsed.Given[ Name ] !== true; } );

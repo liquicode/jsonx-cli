@@ -542,7 +542,7 @@ types. These run nothing and answer at once, even while a debug is open:
 | `{ "Id": "7", "Complete": "run \"Prep" }` | Completions for the end of the text; each item says what to insert and how many characters it replaces. |
 | `{ "Id": "8", "Actions": "Bookings" }` | The commands an entry offers, each with its command `Line`. |
 | `{ "Id": "9", "Inventory": true }` | Every entry, with the worst finding in each. |
-| `{ "Id": "10", "Profile": "run" }` | Switch the [profile](#profiles) for every connection; `"Profile": null` asks. `Result` is the profile: `Name`, `Describe`, `Commands`, `Confirm` and `Instructions`. |
+| `{ "Id": "10", "Profile": "run" }` | Switch the [profile](#profiles) for every connection; `"Profile": null` asks. `Result` is the profile, in the shape of a profile file: `Name`, `Describe`, `Commands`, `Without`, `Defaults`, `Confirm` and `Instructions`. |
 
 | Received | When |
 |---|---|
@@ -600,7 +600,8 @@ jsonx mcp --profile translate --file observatory.jsonx
   `engine_schema_infer`. A tool's arguments are the command's JSON document without `Command`, and
   it answers the object above.
 - `initialize` answers the profile's description and instructions in `instructions`, and declares
-  `tools.listChanged`. A tool the profile does not serve is unknown.
+  `tools.listChanged`. The instructions are what a model reads, so they say what the session does and
+  name the file without its folder; they never say the profile's name, which `jsonx/profile` answers. A tool the profile does not serve is unknown.
 - `jsonx/profile` with `{ "profile": "run" }` switches the profile for every connection, and with no
   params asks; it answers the profile as the WebSocket does. After a switch, `notifications/tools/list_changed`
   follows over standard input and output; over `--http`, which opens no stream, the next `tools/list`
@@ -622,14 +623,15 @@ switches it for all of them with the WebSocket's `Profile` request or MCP's `jso
 | Profile | Serves | Confirm |
 |---|---|---|
 | `full` | Every command. `jsonx serve` uses it when `--profile` is absent. | Nothing. |
-| `translate` | `datasource list`, `describe`, `find` and `count`; `validate`, `plan` and `explain`. Builds objects and runs nothing. | Nothing. |
+| `translate` | `datasource list`, `describe`, `find` and `count`; `list` for each kind of object and for triggers, so an object is called by the name the file gives it; `validate`, `plan` and `explain`. Builds objects and runs nothing. | Nothing. |
 | `run` | `translate`, and `run`. `jsonx mcp` uses it when `--profile` is absent. | `run`. |
 | `design` | `run`, and every `list`, `show`, `add`, `set`, `remove` and `rename`; `datasource info`; `adapters`; `new`; `format`. | `run`, `format`, and every `add`, `set`, `remove` and `rename`. |
 
 In `translate`, `run` and `design`, `datasource find` is served without `into`, `save` and `force`,
 and `max` is 5 unless the request gives one. ***So nothing a model is offered writes, except `run`,
 which the front end confirms first.*** A request for a command or an option the profile does not
-serve is refused with exit code 2, and the message names the profile.
+serve is refused with exit code 2: `[run] is not served in this session.` The message does not name
+the profile, because a model reads it as a tool's answer.
 
 A custom profile is a JSON file:
 

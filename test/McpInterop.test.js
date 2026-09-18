@@ -108,9 +108,11 @@ describe( 'The official MCP client against jsonx mcp', function ()
 		try
 		{
 			LIB_ASSERT.strictEqual( client.getServerCapabilities().tools.listChanged, true );
-			LIB_ASSERT.match( client.getInstructions(), /The profile is \[translate\]/ );
+			LIB_ASSERT.match( client.getInstructions(), /Build the object; do not run it\./ );
+			LIB_ASSERT.doesNotMatch( client.getInstructions(), /translate/ );
 			let before = ( await client.listTools() ).tools.map( function ( Tool ) { return Tool.name; } );
-			LIB_ASSERT.strictEqual( before.length, 7, before.join( ' ' ) );
+			LIB_ASSERT.strictEqual( before.length, 13, before.join( ' ' ) );
+			LIB_ASSERT.ok( before.includes( 'process_list' ) && !before.includes( 'process_show' ) && !before.includes( 'process_add' ) );
 			LIB_ASSERT.ok( !before.includes( 'run' ) );
 
 			let asked = await client.request( { method: 'jsonx/profile' }, ResultSchema );
