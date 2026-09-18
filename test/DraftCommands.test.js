@@ -100,6 +100,11 @@ describe( 'A draft through validate, plan, explain and run', function ()
 		LIB_ASSERT.strictEqual( drafted.Findings[ 0 ].Path, 'Draft' );
 		LIB_ASSERT.match( drafted.Findings[ 0 ].Message, /is in the file; the draft is checked in its place/ );
 
+		// A fresh draft is asked for by name by definition: no note that nothing calls it, as validate --json drops it.
+		let fresh = run( [ 'plan', '--json', draft( { Name: 'Fresh' } ), '-q' ], root );
+		LIB_ASSERT.strictEqual( fresh.Code, 0, fresh.Stderr );
+		LIB_ASSERT.ok( !JSON.parse( fresh.Stdout ).Findings.some( function ( Finding ) { return Finding.Message.endsWith( '(14.3.2).' ); } ), fresh.Stdout );
+
 		let wrong = run( [ 'plan', '--json', draft( { Name: 'Bad', DataSource: 'Nowhere' } ), '-q' ], root );
 		LIB_ASSERT.strictEqual( wrong.Code, 3 );
 		LIB_ASSERT.ok( JSON.parse( wrong.Stdout ).Findings.some( function ( Finding ) { return Finding.Path === 'Draft.DataSource'; } ) );

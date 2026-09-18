@@ -28,11 +28,11 @@ says what it tried. `engine`, `adapters`, `new` and `completion` read no file, a
 
 | Command | What it does |
 |---|---|
-| `jsonx validate [name]` | Report the findings for the file, or for one entry. `--strict` fails on warnings too. |
-| `jsonx plan <name>` | Show what running an object would do. Opens no data source. |
-| `jsonx run <name>` | Run an object. `--input <json>` starts a Process that has no `DataSource`. |
+| `jsonx validate [name]` | Report the findings for the file, for one entry, or for a draft given as `--json`. `--strict` fails on warnings too. |
+| `jsonx plan [name]` | Show what running an object, or a draft given as `--json`, would do. Opens no data source. |
+| `jsonx run [name]` | Run an object, or a draft given as `--json`. `--input <json>` starts a Process that has no `DataSource`. |
 | `jsonx trigger run <name>` | Run a trigger by hand: its Process over its data source. |
-| `jsonx explain <name>` | Say in English what a data source, object or trigger does. |
+| `jsonx explain [name]` | Say in English what a data source, object or trigger does, or a draft given as `--json`. |
 | `jsonx debug <process>` | Step through a Process, one command at a time. |
 | `jsonx <noun> list` | List the entries of a kind. |
 | `jsonx <noun> show <name>` | Show one entry. |
@@ -197,6 +197,36 @@ Lines:
   1. Call FindOne on "Telescopes" where Name is $Document.Telescope, and put the answer at "Telescope".
   2. Finish, answering a document with Booking as $Document._id, Observer as $Document.Observer and Dome as $Telescope.Site.Dome.
 ```
+
+
+## An object that is not in the file
+
+`validate`, `plan`, `explain` and `run` take `--json <object>` in place of a name. The object is
+treated exactly as the file's entry of its kind would be, and nothing is written: `run --json` runs
+it unsaved.
+
+```
+jsonx validate --json @confirm.json
+jsonx plan --json @confirm.json
+jsonx explain --json @confirm.json
+jsonx run --json @confirm.json --changes
+```
+
+An object with a `Kind` is checked as an object; one with `AdapterName` and no `Kind` as a data
+source; one with `Process` and neither as a trigger. Its findings are pathed `Draft`, so
+`Draft.Update` is the draft's `Update`. A draft with no `Name` is named `(ad hoc)`.
+
+```
+jsonx validate --json @empty.json
+```
+
+```
+[ { "Severity": "warning", "Path": "Draft.Update", "Message": "This Update's update document is empty, so it changes nothing (10.2)." } ]
+```
+
+A draft whose `Name` is already in the file is checked in that entry's place, and a note says so;
+neither is an error. ***`run --json` checks the draft first, and a draft with an error runs nothing***
+(exit 3). Give a name or `--json`, not both.
 
 
 ## Debugging a Process
@@ -450,7 +480,8 @@ With `--ui` the line also carries `Ui`, the address of the [Web UI](#the-web-ui)
 `--attached` also stops it when its standard input ends, so the program that started it can stop it
 by closing that input. It stops the same way as on Ctrl+C: data sources are flushed and closed.
 
-- `GET /` lists every command it answers, with its route, arguments and options.
+- `GET /` lists every command it answers, with its route, arguments and options, and the
+  [profile](#profiles) it serves: each command says its `Defaults` and whether to `Confirm` it.
 - `POST /<command>` runs a command: `POST /run`, `POST /datasource/find`,
   `POST /engine/schema/infer`. The body is the command's [JSON document](#a-whole-command-as-json)
   without `Command`.
@@ -487,7 +518,7 @@ each object a run starts and finishes, and each change to the file. The connecti
 checks as any other request (see [Who can call](#who-can-call)).
 
 Every message is one JSON object. The first message from the server is `Hello`: the version, the
-file, the file's contents as written, and the commands, as `GET /` lists them.
+file, the file's contents as written, the [profile](#profiles), and the commands, as `GET /` lists them.
 
 A request carries an `Id` of your choosing, and everything the server sends about that request
 carries the same `Id`. The `Answer` always comes last.
@@ -509,6 +540,7 @@ types. These run nothing and answer at once, even while a debug is open:
 | `{ "Id": "7", "Complete": "run \"Prep" }` | Completions for the end of the text; each item says what to insert and how many characters it replaces. |
 | `{ "Id": "8", "Actions": "Bookings" }` | The commands an entry offers, each with its command `Line`. |
 | `{ "Id": "9", "Inventory": true }` | Every entry, with the worst finding in each. |
+| `{ "Id": "10", "Profile": "run" }` | Switch the [profile](#profiles) for every connection; `"Profile": null` asks. `Result` is the profile: `Name`, `Describe`, `Commands`, `Confirm` and `Instructions`. |
 
 | Received | When |
 |---|---|
@@ -520,6 +552,7 @@ types. These run nothing and answer at once, even while a debug is open:
 | `{ "Event": "document" }` | The file changed. Read it again for what you need. |
 | `{ "Event": "reload", "Outcome" }` | The file was edited on disk; `Outcome` says whether it was picked up. |
 | `{ "Event": "queue", "HeldBy" }` | A debug started (`"debug"`) or ended (`null`). |
+| `{ "Event": "profile", "Profile" }` | The profile was switched, by any connection. |
 
 - ***A debug holds the file for as long as it is open.*** While it is open, every request from every
   program that opens a data source or changes the file waits, and the `queue` event says why.
@@ -554,22 +587,71 @@ claude mcp add jsonx -- node <checkout>/bin/jsonx.js mcp --file <path>/observato
 `jsonx mcp --http` serves MCP at `http://127.0.0.1:3471/mcp` instead, with `--host`, `--port` and
 `--token` as for `serve`. It speaks MCP revision 2025-11-25, which the official MCP SDK speaks.
 
+***`jsonx mcp` serves the `run` [profile](#profiles) unless `--profile` says otherwise***: the reads, the
+draft checks and `run`. `--profile full` serves every command.
+
+```
+jsonx mcp --profile translate --file observatory.jsonx
+```
+
 - Each command is a tool named by its words joined with `_`: `run`, `datasource_find`,
   `engine_schema_infer`. A tool's arguments are the command's JSON document without `Command`, and
   it answers the object above.
-- ***`datasource_update`, `datasource_delete` and `datasource_drop` require `yes`.*** `yes: true`
-  confirms a call that touches every document or removes the store; a call without `yes` is refused.
-  Beside `save`, which runs nothing, `yes` is not needed.
+- `initialize` answers the profile's description and instructions in `instructions`, and declares
+  `tools.listChanged`. A tool the profile does not serve is unknown.
+- `jsonx/profile` with `{ "profile": "run" }` switches the profile for every connection, and with no
+  params asks; it answers the profile as the WebSocket does. After a switch, `notifications/tools/list_changed`
+  follows over standard input and output; over `--http`, which opens no stream, the next `tools/list`
+  shows the new list.
+- ***Under `full`, or a custom profile that serves them, `datasource_update`, `datasource_delete` and
+  `datasource_drop` require `yes`.*** `yes: true` confirms a call that touches every document or removes
+  the store; a call without `yes` is refused. Beside `save`, which runs nothing, `yes` is not needed.
 - The file is the resource `jsonx://file`, and each data source, object and trigger is
   `jsonx://entry/<name>`.
+
+### Profiles
+
+A profile says what a served session answers: which commands, which options they are served
+without, what a request gets when it does not say, and which commands a front end should confirm
+with a person before sending. `--profile` on `jsonx serve` and `jsonx mcp` names one: a built-in,
+or a `.json` file of the same shape. Every served surface reads the same profile, and a front end
+switches it for all of them with the WebSocket's `Profile` request or MCP's `jsonx/profile`.
+
+| Profile | Serves | Confirm |
+|---|---|---|
+| `full` | Every command. `jsonx serve` uses it when `--profile` is absent. | Nothing. |
+| `translate` | `datasource list`, `describe`, `find` and `count`; `validate`, `plan` and `explain`. Builds objects and runs nothing. | Nothing. |
+| `run` | `translate`, and `run`. `jsonx mcp` uses it when `--profile` is absent. | `run`. |
+| `design` | `run`, and every `list`, `show`, `add`, `set`, `remove` and `rename`; `datasource info`; `adapters`; `new`; `format`. | `run`, `format`, and every `add`, `set`, `remove` and `rename`. |
+
+In `translate`, `run` and `design`, `datasource find` is served without `into`, `save` and `force`,
+and `max` is 5 unless the request gives one. ***So nothing a model is offered writes, except `run`,
+which the front end confirms first.*** A request for a command or an option the profile does not
+serve is refused with exit code 2, and the message names the profile.
+
+A custom profile is a JSON file:
+
+```
+{ "Name": "mine", "Describe": "Validate only.", "Commands": [ "validate" ] }
+```
+
+```
+jsonx mcp --profile ./mine.json --file observatory.jsonx
+```
+
+`Commands` lists served commands by their words, or is `"*"` for every command. `Without` maps a
+command to the options it is served without, `Defaults` to the values a request gets when it does
+not give them, `Confirm` lists the commands to confirm, and `Instructions` is a paragraph for a
+model, which MCP sends at `initialize`. A file naming a command or an option that is not served is
+refused, and the server does not start.
 
 ### What a request cannot change
 
 A request runs against the file and data sources the server was started with. `file`, `bind`,
 `set` and `quiet` are refused, and so is an `output` other than `json`. Give `--file`, `--bind` and
 `--set` to `jsonx serve` or `jsonx mcp` instead. `completion`, `serve`, `mcp` and `tui` are not
-served. `debug` is served only over the WebSocket, because a debug needs a connection that stays
-open.
+served, nor is anything outside the [profile](#profiles). `debug` is served only over the WebSocket,
+because a debug needs a connection that stays open.
 
 ### Who can call
 

@@ -73,6 +73,7 @@ async function handler( Parsed, Context )
 	}
 	if ( placed !== null )
 	{
+		if ( placed.Note === null ) { plan.Findings = Draft.DropUncalledNote( plan.Findings, placed.Path ); }
 		plan.Findings = Draft.Rewrite( plan.Findings, placed.Path );
 		if ( placed.Note !== null ) { plan.Findings.unshift( placed.Note ); }
 	}

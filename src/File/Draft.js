@@ -136,6 +136,20 @@ function Rewrite( Findings, Path, Prefix )
 
 
 //---------------------------------------------------------------------
+// ***A draft is asked for by name by definition***, so the note that nothing in the file calls it
+// (14.3.2) says nothing; it is kept when the draft stands in for an entry, whose callers matter.
+// validate and plan both drop it for a fresh draft, through this.
+
+function DropUncalledNote( Findings, Path )
+{
+	return Findings.filter( function ( Finding )
+	{
+		return !( Finding.Severity === 'note' && Finding.Path === Path && Finding.Message.endsWith( '(14.3.2).' ) );
+	} );
+}
+
+
+//---------------------------------------------------------------------
 // The findings for a draft, every severity, as ValidateEntry answers them for an entry of the file.
 // Options are ValidateFile's; Prefix replaces DRAFT_PATH in the paths when given.
 //
@@ -150,15 +164,7 @@ function ValidateDraft( Document, Draft, Options, Prefix )
 	{
 		return ( Finding.Path === placed.Path ) || Finding.Path.startsWith( placed.Path + '.' );
 	} );
-	if ( placed.Note === null )
-	{
-		// ***A draft is asked for by name by definition***, so the note that nothing in the file calls it
-		// (14.3.2) says nothing; it is kept when the draft stands in for an entry, whose callers matter.
-		findings = findings.filter( function ( Finding )
-		{
-			return !( Finding.Severity === 'note' && Finding.Path === placed.Path && Finding.Message.endsWith( '(14.3.2).' ) );
-		} );
-	}
+	if ( placed.Note === null ) { findings = DropUncalledNote( findings, placed.Path ); }
 	findings = Rewrite( findings, placed.Path, Prefix );
 	if ( placed.Note !== null )
 	{
@@ -177,5 +183,6 @@ module.exports = {
 	Section: Section,
 	Place: Place,
 	Rewrite: Rewrite,
+	DropUncalledNote: DropUncalledNote,
 	ValidateDraft: ValidateDraft,
 };
