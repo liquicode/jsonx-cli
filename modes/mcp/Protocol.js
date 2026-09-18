@@ -23,9 +23,18 @@
 	***Resources are the file as written***: `jsonx://file`, and `jsonx://entry/<name>` for each data
 	source, object and trigger, read from the held document at the time of the request, so a reload
 	shows. An environment reference is never resolved (F6.4).
+
+	***The tools are the held session's profile*** (cut 7, decision 14): the commands it serves, each
+	without the options it withholds and with its defaults shown. `initialize` declares
+	`tools.listChanged` and carries the profile's instructions; ***`jsonx/profile`***, a request of this
+	server's own, answers the profile in force with no params and switches it with `{ profile }`. A
+	switch, made here or by any other surface, rebuilds the tools and sends
+	`notifications/tools/list_changed` through the transport's way out (OnNotify) - stdio has one, HTTP
+	does not, so an HTTP client lists again after its own switch.
 */
 
 const Held = require( '../../src/Session/Held.js' );
+const Profiles = require( '../../src/Session/Profiles.js' );
 
 
 const PROTOCOL_VERSION = '2025-11-25';
@@ -114,6 +123,14 @@ function tool_for( Command )
 		if ( option.Required === true ) { required.push( names[ index ] ); }
 	}
 
+	// A value the profile defaults is shown as the option's default, so a model knows what it gets.
+	let defaults = ( Command.Defaults && typeof Command.Defaults === 'object' ) ? Command.Defaults : {};
+	let defaulted = Object.keys( defaults );
+	for ( let index = 0; index < defaulted.length; index++ )
+	{
+		if ( properties[ defaulted[ index ] ] ) { properties[ defaulted[ index ] ].default = defaults[ defaulted[ index ] ]; }
+	}
+
 	let guarded = Object.prototype.hasOwnProperty.call( Command.Options, 'yes' );
 	if ( guarded && !required.includes( 'yes' ) )
 	{
@@ -189,15 +206,60 @@ function NewMcp( HeldSession, Options )
 {
 	let options = is_object( Options ) ? Options : {};
 
-	let tools = Held.ServedCommands( HeldSession.Tree ).map( tool_for );
+	let tools = [];
 	let by_name = {};
-	for ( let index = 0; index < tools.length; index++ ) { by_name[ tools[ index ].Tool.name ] = tools[ index ]; }
 
 	let mcp = {
-		Tools: tools.map( function ( Entry ) { return Entry.Tool; } ),
+		Tools: [],
+		// The profile the tools were built from, as the surfaces summarise it.
+		Profile: null,
 		// The revision agreed at initialize, or null before it.
 		ProtocolVersion: null,
 		Initialized: false,
+	};
+
+	// The tools are the profile's served commands, rebuilt whole when it switches.
+	function build_tools()
+	{
+		tools = HeldSession.Served().map( tool_for );
+		by_name = {};
+		for ( let index = 0; index < tools.length; index++ ) { by_name[ tools[ index ].Tool.name ] = tools[ index ]; }
+		mcp.Tools = tools.map( function ( Entry ) { return Entry.Tool; } );
+		mcp.Profile = HeldSession.ProfileSummary();
+		return;
+	}
+	build_tools();
+
+	// A message the server starts goes out through the transport's Write, once it has given one.
+	let notify = null;
+	mcp.OnNotify = function ( Write )
+	{
+		notify = ( typeof Write === 'function' ) ? Write : null;
+		return;
+	};
+
+	let stop_events = HeldSession.OnEvent( function ( Event )
+	{
+		if ( Event.Event !== 'profile' ) { return; }
+		build_tools();
+		// The event fires inside the switch, before the reply to a jsonx/profile which caused it is
+		// written; the notification waits a turn, so the reply always goes out first.
+		if ( notify )
+		{
+			setImmediate( function ()
+			{
+				if ( notify ) { notify( { jsonrpc: '2.0', method: 'notifications/tools/list_changed' } ); }
+			} );
+		}
+		return;
+	} );
+
+	// The end of this connection: it stops listening to the session.
+	mcp.Close = function ()
+	{
+		if ( stop_events ) { stop_events(); stop_events = null; }
+		notify = null;
+		return;
 	};
 
 
@@ -322,15 +384,32 @@ function NewMcp( HeldSession, Options )
 				{
 					let asked = params.protocolVersion;
 					mcp.ProtocolVersion = SUPPORTED_VERSIONS.includes( asked ) ? asked : PROTOCOL_VERSION;
+					let profile = HeldSession.ProfileSummary();
+					let about_profile = ' The profile is [' + profile.Name + ']' + ( profile.Describe ? ': ' + profile.Describe : '.' ) + ( profile.Instructions ? ' ' + profile.Instructions : '' );
 					return success( id, {
 						protocolVersion: mcp.ProtocolVersion,
-						capabilities: { tools: {}, resources: {} },
+						capabilities: { tools: { listChanged: true }, resources: {} },
 						serverInfo: { name: SERVER_NAME, title: 'jsonx', version: options.Version || '0.0.0' },
-						instructions: 'Each tool is a jsonx command run against the file ' + HeldSession.Path + '. A tool answers the envelope { Ok, ExitCode, Result, Findings, Log }: Result is the answer, Log the report. The resources are the file and each of its entries, as written.',
+						instructions: 'Each tool is a jsonx command run against the file ' + HeldSession.Path + '. A tool answers the envelope { Ok, ExitCode, Result, Findings, Log }: Result is the answer, Log the report. The resources are the file and each of its entries, as written.' + about_profile,
 					} );
 				}
 				case 'ping':
 					return success( id, {} );
+				case 'jsonx/profile':
+				{
+					// The profile in force, or a switch: a built-in name or a .json file the serving process reads.
+					if ( typeof params.profile === 'undefined' ) { return success( id, HeldSession.ProfileSummary() ); }
+					if ( typeof params.profile !== 'string' ) { return failure( id, INVALID_PARAMS, 'jsonx/profile takes { profile: <a built-in name, or the name of a .json file> }, or no params to ask.' ); }
+					try
+					{
+						return success( id, HeldSession.SetProfile( params.profile ) );
+					}
+					catch ( error )
+					{
+						if ( !( error instanceof Profiles.ProfileError ) ) { throw error; }
+						return failure( id, INVALID_PARAMS, error.message );
+					}
+				}
 				case 'tools/list':
 					return success( id, { tools: mcp.Tools } );
 				case 'tools/call':

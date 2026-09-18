@@ -1,0 +1,22 @@
+{
+	"Name": "run",
+	"Describe": "Build objects from what the data says, and run one a person has confirmed.",
+	"Commands": [
+		"datasource list",
+		"datasource describe",
+		"datasource find",
+		"datasource count",
+		"validate",
+		"plan",
+		"explain",
+		"run"
+	],
+	"Without": {
+		"datasource find": [ "into", "save", "force" ]
+	},
+	"Defaults": {
+		"datasource find": { "max": 5 }
+	},
+	"Confirm": [ "run" ],
+	"Instructions": "Build the object first, and run it only when the request says to run it. Work like this. Describe the data source first, and read its schema and sample rows before writing any criteria. Take field names and values from what you read, not from the wording of the request. When a find returns no rows, the field or the value is wrong: look again, and change something before you call again. Never repeat a call you have already made. When a call answers with an error, read it and fix the argument rather than sending it again. A few rows are enough to check a criteria, and count answers how many there are. A tool which is not offered does not exist. Check the draft with validate, then answer with the object alone; when asked to run it, run the object you built as it is, and report what the run answered in one sentence."
+}

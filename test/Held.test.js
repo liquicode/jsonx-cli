@@ -206,7 +206,7 @@ describe( 'A held session', function ()
 				[ { Command: 'completion', shell: 'bash' }, /^\[completion\] is not served: / ],
 				[ { Command: '__complete', words: [] }, /^\[__complete\] is not served: / ],
 				[ { Command: 'datasource' }, /is a group of commands/ ],
-				[ { Command: 'run' }, /Argument <name> is required/ ],
+				[ { Command: 'run' }, /Name one object, or pass --json/ ],
 				[ { Command: 'no such command' }, /Unknown command/ ],
 			];
 			for ( let index = 0; index < refusals.length; index++ )

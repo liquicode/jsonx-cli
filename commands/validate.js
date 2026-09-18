@@ -1,9 +1,10 @@
 'use strict';
 
 /*
-	jsonx validate [name] [--strict]
+	jsonx validate [name] [--json <object>] [--strict]
 
-	The findings for the whole file, or for one entry, as spec section 14 lists them. The result on
+	The findings for the whole file, for one entry, or for a draft - an entry given as JSON and checked
+	as if it were in the file, with nothing written (src/File/Draft.js) - as spec section 14 lists them. The result on
 	standard output is the findings array; the report on standard error is one block per finding
 	and a summary line.
 
@@ -17,6 +18,7 @@ const jsonproc = require( '@liquicode/jsonproc' );
 const Reader = require( '../src/File/Reader.js' );
 const AdapterCatalog = require( '../src/Session/AdapterCatalog.js' );
 const Validate = require( '../src/Validate/Validate.js' );
+const Draft = require( '../src/File/Draft.js' );
 const Report = require( '../src/Report.js' );
 
 
@@ -29,7 +31,14 @@ async function handler( Parsed, Context )
 	let value = function ( Name ) { return Context.Parser.Value( tree, Parsed, Name ); };
 
 	let name = value( 'name' );
+	let draft = value( 'json' );
 	let quiet = value( 'quiet' );
+
+	if ( typeof name === 'string' && typeof draft !== 'undefined' )
+	{
+		out.Log( '--json is the entry; do not name one as well.\n' );
+		return 2;
+	}
 
 	let resolved = null;
 	let read = null;
@@ -64,7 +73,11 @@ async function handler( Parsed, Context )
 		// only when a data source names it (AdapterCatalog.js).
 		let catalog = AdapterCatalog.NewAdapterCatalog( { jsonstor: require( '@liquicode/jsonstor' )() } );
 		let options = { jsongin: jsongin, jsonproc: jsonproc, Env: io.Env, CheckSettings: catalog.ValidateSettings };
-		if ( typeof name === 'string' )
+		if ( typeof draft !== 'undefined' )
+		{
+			findings = Draft.ValidateDraft( read.Document, draft, options );
+		}
+		else if ( typeof name === 'string' )
 		{
 			findings = Validate.ValidateEntry( read.Document, name, options );
 			if ( findings === null )
@@ -85,7 +98,9 @@ async function handler( Parsed, Context )
 	if ( !quiet )
 	{
 		for ( let index = 0; index < findings.length; index++ ) { out.Finding( findings[ index ] ); }
-		let label = ( typeof name === 'string' ) ? resolved.Path + ' [' + name + ']' : resolved.Path;
+		let label = resolved.Path;
+		if ( typeof draft !== 'undefined' ) { label = resolved.Path + ' [draft]'; }
+		else if ( typeof name === 'string' ) { label = resolved.Path + ' [' + name + ']'; }
 		out.Log( Report.FormatSummary( label, summary ) );
 	}
 
@@ -104,6 +119,7 @@ module.exports = {
 		{ Name: 'name', Type: 'string', Complete: 'entries', Describe:'The data source, object or trigger to validate; absent means the whole file.' },
 	],
 	Options: {
+		'json': { Type: 'json', JsonType: 'object', Describe: 'A draft entry as JSON, checked as if it were in the file; nothing is written.' },
 		'strict': { Type: 'boolean', Describe: 'Exit 3 on warnings as well as errors.' },
 	},
 	Handler: handler,

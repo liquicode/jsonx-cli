@@ -1,0 +1,9 @@
+{
+	"Name": "full",
+	"Describe": "Every served command, as a person's own front end needs it.",
+	"Commands": "*",
+	"Without": {},
+	"Defaults": {},
+	"Confirm": [],
+	"Instructions": ""
+}

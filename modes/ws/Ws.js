@@ -20,16 +20,19 @@
 		{ "Id": "4", "Read": "jsonx://file" }                          the held document, as MCP's resource
 		{ "Id": "5", "Line" | "Entry" | "Complete" | "Actions" | "Inventory": ... }
 		                                                              a front request (modes/ws/Front.js, cut 5)
+		{ "Id": "6", "Profile": "run" }                                switches the session's profile (cut 7);
+		                                                              null asks for the one in force
 
 	From the server:
 
-		{ "Hello": { Version, File, Document, Commands } }       first, once
+		{ "Hello": { Version, File, Document, Profile, Commands } }   first, once
 		{ "Id": "1", "Event": "log", "Line": "..." }
 		{ "Id": "1", "Event": "finding", "Finding": { ... } }
 		{ "Id": "1", "Event": "report", "Phase", "Name", "Kind", "Depth", ... }
 		{ "Id": "2", "Event": "debug", "Snapshot": { ... } }       each snapshot of a debug
 		{ "Id": "1", "Answer": <the envelope> }                   always last for its Id
 		{ "Event": "reload", "Outcome": { ... } }  { "Event": "document" }  { "Event": "queue", "HeldBy" }
+		{ "Event": "profile", "Profile": { Name, Describe, Commands, Confirm, Instructions } }   a switch, by anyone
 
 	***A served debug*** (cut 4, decision 3) is `jsonx debug` itself, held as a conversation
 	(Held.Converse):
@@ -57,6 +60,7 @@
 const Frames = require( './Frames.js' );
 const Connection = require( './Connection.js' );
 const Front = require( './Front.js' );
+const Profiles = require( '../../src/Session/Profiles.js' );
 
 
 const ROUTE = '/ws';
@@ -173,6 +177,7 @@ function AttachWs( App, Held, Options )
 				Version: options.Version || null,
 				File: Held.Path,
 				Document: Held.Session.Document,
+				Profile: Held.ProfileSummary(),
 				Commands: commands(),
 			},
 		} );
@@ -211,6 +216,7 @@ function AttachWs( App, Held, Options )
 				return;
 			}
 			if ( typeof message.Read !== 'undefined' ) { return on_read( id, message.Read ); }
+			if ( typeof message.Profile !== 'undefined' ) { return on_profile( id, message.Profile ); }
 			if ( typeof message.Step !== 'undefined' ) { return on_step( id, message.Step ); }
 			if ( typeof message.Debug !== 'undefined' ) { return on_debug( id, message.Debug ); }
 			if ( front.Handles( message ) )
@@ -266,6 +272,38 @@ function AttachWs( App, Held, Options )
 				return;
 			}
 			send( { Id: Id, Answer: { Ok: true, ExitCode: 0, Result: read.Value, Findings: [], Log: [] } } );
+			return;
+		}
+
+
+		//---------------------------------------------------------------------
+		// The session's profile (cut 7): null asks for the one in force, a string switches it - a built-in
+		// name or a .json file the serving process reads. A switch tells every connection with a `profile`
+		// event; the answer here is the same summary. Answered at once.
+		function on_profile( Id, NameOrPath )
+		{
+			if ( NameOrPath === null )
+			{
+				send( { Id: Id, Answer: { Ok: true, ExitCode: 0, Result: Held.ProfileSummary(), Findings: [], Log: [] } } );
+				return;
+			}
+			if ( typeof NameOrPath !== 'string' )
+			{
+				send( { Id: Id, Answer: refusal( 'Profile takes a built-in name or the name of a .json file to switch to, or null to ask.' ) } );
+				return;
+			}
+			let summary = null;
+			try
+			{
+				summary = Held.SetProfile( NameOrPath );
+			}
+			catch ( error )
+			{
+				if ( !( error instanceof Profiles.ProfileError ) ) { throw error; }
+				send( { Id: Id, Answer: refusal( error.message ) } );
+				return;
+			}
+			send( { Id: Id, Answer: { Ok: true, ExitCode: 0, Result: summary, Findings: [], Log: [] } } );
 			return;
 		}
 

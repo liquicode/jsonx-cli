@@ -3,7 +3,8 @@
 /*
 	The Web API mode (plan F4.2): one Express route per served command, answered by a held session.
 
-		GET  /                    the served commands as data: { Version, File, Commands }
+		GET  /                    the served commands as data: { Version, File, Profile, Commands } - the
+		                          profile in force (cut 7) and the commands it serves, with their defaults
 		POST /<group>/<command>   the command; the body is its --input-json document without Command
 		GET  /ws                  the WebSocket (modes/ws/Ws.js), behind the same guards
 
@@ -268,16 +269,23 @@ function NewApi( HeldSession, Options )
 	let commands = Held.ServedCommands( HeldSession.Tree );
 
 	// The served commands as a client reads them: GET / and the WebSocket's Hello answer this one list.
-	let listed = commands.map( function ( Command )
+	// ***It is the profile's list*** (cut 7), read each time, since the profile can switch; every served
+	// command keeps its route, and the held session refuses one outside the profile.
+	function listed()
 	{
-		return {
-			Command: Command.Command,
-			Route: '/' + Command.Path.join( '/' ),
-			Describe: Command.Describe,
-			Positionals: Command.Positionals,
-			Options: Command.Options,
-		};
-	} );
+		return HeldSession.Served().map( function ( Command )
+		{
+			return {
+				Command: Command.Command,
+				Route: '/' + Command.Path.join( '/' ),
+				Describe: Command.Describe,
+				Positionals: Command.Positionals,
+				Options: Command.Options,
+				Defaults: Command.Defaults,
+				Confirm: Command.Confirm,
+			};
+		} );
+	}
 
 	app.use( LIB_EXPRESS.json( { limit: BODY_LIMIT } ) );
 
@@ -289,7 +297,8 @@ function NewApi( HeldSession, Options )
 		Response.status( 200 ).json( {
 			Version: options.Version || null,
 			File: HeldSession.Path,
-			Commands: listed,
+			Profile: HeldSession.ProfileSummary(),
+			Commands: listed(),
 		} );
 		return;
 	} );
@@ -319,7 +328,7 @@ function NewApi( HeldSession, Options )
 
 	app.locals.Ws = Ws.AttachWs( app, HeldSession, {
 		Version: options.Version,
-		Commands: function () { return listed; },
+		Commands: listed,
 		PingMs: options.PingMs,
 		PongTimeoutMs: options.PongTimeoutMs,
 		CloseWaitMs: options.CloseWaitMs,

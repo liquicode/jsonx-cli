@@ -78,7 +78,7 @@ describe( 'Front', function ()
 		LIB_ASSERT.strictEqual( Line.ReadLine( TREE, 'datasource' ).Outcome, 'help' );
 		let help = Line.ReadLine( TREE, 'run --help' );
 		LIB_ASSERT.strictEqual( help.Outcome, 'help' );
-		LIB_ASSERT.match( help.Text, /Usage: jsonx run <name>/ );
+		LIB_ASSERT.match( help.Text, /Usage: jsonx run \[name\]/ );
 
 		let refused = Line.ReadLine( TREE, 'serve --api' );
 		LIB_ASSERT.strictEqual( refused.Outcome, 'refused' );

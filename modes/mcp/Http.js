@@ -143,6 +143,7 @@ function NewMcpHttp( HeldSession, Options )
 		{
 			return Response.status( 404 ).json( error_body( Protocol.ERRORS.INVALID_REQUEST, 'Session not found.' ) );
 		}
+		sessions.get( session_id ).Close();
 		sessions.delete( session_id );
 		Response.status( 204 ).end();
 		return;

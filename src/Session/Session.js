@@ -262,6 +262,16 @@ function NewSession( Options )
 
 
 	//---------------------------------------------------------------------
+	// Runs an object which is not in the file - a draft, or one an ad hoc verb built - under its own
+	// Name. The caller validates it first (cut 7). Returns its report.
+
+	session.RunEntry = async function ( Entry, Input )
+	{
+		return await session.Runner.RunEntry( Entry, Input );
+	};
+
+
+	//---------------------------------------------------------------------
 	// Runs a trigger by hand: its Process over its data source (13.3). Returns the report.
 
 	session.RunTrigger = async function ( Name )

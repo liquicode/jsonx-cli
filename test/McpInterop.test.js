@@ -86,7 +86,7 @@ describe( 'The official MCP client against jsonx mcp', function ()
 
 	it( 'connects over stdio, launching the bin', async function ()
 	{
-		let transport = new StdioClientTransport( { command: process.execPath, args: [ BIN, 'mcp', '--file', observatory ], env: child_env(), stderr: 'pipe' } );
+		let transport = new StdioClientTransport( { command: process.execPath, args: [ BIN, 'mcp', '--profile', 'full', '--file', observatory ], env: child_env(), stderr: 'pipe' } );
 		let client = new Client( { name: 'jsonx-interop', version: '0.0.0' } );
 		await client.connect( transport );
 		try
@@ -98,9 +98,38 @@ describe( 'The official MCP client against jsonx mcp', function ()
 		finally { await client.close(); }
 	} );
 
+	it( 'sees the translate profile\'s tools, switches with jsonx/profile, and is told the list changed', async function ()
+	{
+		const { ResultSchema, ToolListChangedNotificationSchema } = require( '@modelcontextprotocol/sdk/types.js' );
+		let transport = new StdioClientTransport( { command: process.execPath, args: [ BIN, 'mcp', '--profile', 'translate', '--file', observatory ], env: child_env(), stderr: 'pipe' } );
+		let client = new Client( { name: 'jsonx-interop', version: '0.0.0' } );
+		let changed = new Promise( function ( Resolve ) { client.setNotificationHandler( ToolListChangedNotificationSchema, function () { Resolve(); } ); } );
+		await client.connect( transport );
+		try
+		{
+			LIB_ASSERT.strictEqual( client.getServerCapabilities().tools.listChanged, true );
+			LIB_ASSERT.match( client.getInstructions(), /The profile is \[translate\]/ );
+			let before = ( await client.listTools() ).tools.map( function ( Tool ) { return Tool.name; } );
+			LIB_ASSERT.strictEqual( before.length, 7, before.join( ' ' ) );
+			LIB_ASSERT.ok( !before.includes( 'run' ) );
+
+			let asked = await client.request( { method: 'jsonx/profile' }, ResultSchema );
+			LIB_ASSERT.strictEqual( asked.Name, 'translate' );
+
+			let switched = await client.request( { method: 'jsonx/profile', params: { profile: 'run' } }, ResultSchema );
+			LIB_ASSERT.strictEqual( switched.Name, 'run' );
+			await changed;
+			let after = ( await client.listTools() ).tools.map( function ( Tool ) { return Tool.name; } );
+			LIB_ASSERT.ok( after.includes( 'run' ), after.join( ' ' ) );
+			let ran = await client.callTool( { name: 'run', arguments: { name: 'Prepare the season' } } );
+			LIB_ASSERT.strictEqual( ran.isError, false, JSON.stringify( ran ) );
+		}
+		finally { await client.close(); }
+	} );
+
 	it( 'connects over Streamable HTTP, and ends its session', async function ()
 	{
-		let child = LIB_CHILD_PROCESS.spawn( process.execPath, [ BIN, 'mcp', '--http', '--port', '0', '--file', observatory ], { env: child_env() } );
+		let child = LIB_CHILD_PROCESS.spawn( process.execPath, [ BIN, 'mcp', '--http', '--port', '0', '--profile', 'full', '--file', observatory ], { env: child_env() } );
 		try
 		{
 			let url = await new Promise( function ( Resolve, Reject )

@@ -21,8 +21,7 @@
 	a Query of one, because a Query answers an array and FindOne a document.
 */
 
-const Names = require( '../File/Names.js' );
-const Validate = require( '../Validate/Validate.js' );
+const Draft = require( '../File/Draft.js' );
 
 
 //---------------------------------------------------------------------
@@ -53,6 +52,10 @@ class VerbError extends Error
 		this.name = 'VerbError';
 	}
 }
+
+
+// What a built object is called in a finding's path.
+const AD_HOC_PATH = '(ad hoc)';
 
 
 //---------------------------------------------------------------------
@@ -151,37 +154,15 @@ function Guard( Verb, Values )
 
 
 //---------------------------------------------------------------------
-// The errors a built object has, judged by the file's own rules: it is added to a copy of the file
-// under a name no entry carries, and validated there.
+// The errors a built object has, judged by the file's own rules: it is placed in a copy of the file
+// as a draft (src/File/Draft.js) and validated there. Only the errors, and ***a path into the copy
+// names nothing in the file***, so the entry's position is replaced by what the person typed it as:
+// `Objects.7.Update` reads `(ad hoc).Update`.
 
 function ValidateObject( Document, Entry, ValidateOptions )
 {
-	let copy = clone( is_object( Document ) ? Document : {} );
-	let entry = clone( Entry );
-
-	let name = Names.FindEntry( copy, entry.Name ) === null && typeof entry.Name === 'string' ? entry.Name : '(ad hoc)';
-	let suffix = 1;
-	while ( Names.FindEntry( copy, name ) !== null )
-	{
-		suffix++;
-		name = '(ad hoc ' + suffix + ')';
-	}
-	entry.Name = name;
-
-	if ( !Array.isArray( copy.Objects ) ) { copy.Objects = []; }
-	copy.Objects.push( entry );
-
-	// ***A path into the copy names nothing in the file***, so the entry's position is replaced by
-	// what the person typed it as: `Objects.7.Update` reads `(ad hoc).Update`.
-	let prefix = 'Objects.' + ( copy.Objects.length - 1 );
-	return Validate.ValidateEntry( copy, name, ValidateOptions )
-		.filter( function ( Finding ) { return Finding.Severity === 'error'; } )
-		.map( function ( Finding )
-		{
-			let path = Finding.Path;
-			if ( path === prefix || path.startsWith( prefix + '.' ) ) { path = '(ad hoc)' + path.slice( prefix.length ); }
-			return { Severity: Finding.Severity, Path: path, Message: Finding.Message };
-		} );
+	return Draft.ValidateDraft( Document, Entry, ValidateOptions, AD_HOC_PATH )
+		.filter( function ( Finding ) { return Finding.Severity === 'error'; } );
 }
 
 

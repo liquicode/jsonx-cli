@@ -32,6 +32,7 @@
 
 const jsonx_cli = require( '../src/jsonx-cli.js' );
 const Held = require( '../src/Session/Held.js' );
+const Profiles = require( '../src/Session/Profiles.js' );
 const Validate = require( '../src/Validate/Validate.js' );
 const Report = require( '../src/Report.js' );
 const Api = require( '../modes/api/Api.js' );
@@ -75,6 +76,8 @@ async function handler( Parsed, Context )
 	{
 		held = Held.NewHeld( {
 			Tree: Context.Tree, File: value( 'file' ), Binds: value( 'bind' ), Sets: value( 'set' ), Io: io,
+			// The profile (cut 7): absent, a person's own front end gets everything.
+			Profile: value( 'profile' ) || Profiles.DEFAULT_SERVE,
 			// A reload, and what it found, is reported as it happens (plan F2.5).
 			Log: function ( Text ) { out.Log( Text ); },
 		} );
@@ -144,6 +147,7 @@ module.exports = {
 		'port': { Type: 'integer', Default: DEFAULT_PORT, Describe: 'The port to bind; 0 picks a free one.' },
 		'token': { Type: 'string', Describe: 'The bearer token every request must carry. Absent: JSONX_TOKEN.' },
 		'attached': { Type: 'boolean', Describe: 'Stop when standard input ends, for a program which starts jsonx serve.' },
+		'profile': { Type: 'string', Describe: 'What the session serves: a built-in profile (' + Profiles.NAMES.join( ', ' ) + ') or a .json file. Absent: ' + Profiles.DEFAULT_SERVE + '.' },
 	}, SessionCommand.SESSION_OPTIONS ),
 	Handler: handler,
 };

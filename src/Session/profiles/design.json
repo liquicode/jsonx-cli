@@ -1,0 +1,49 @@
+{
+	"Name": "design",
+	"Describe": "Build and run objects, and design the file: its data sources, objects and triggers.",
+	"Commands": [
+		"datasource list",
+		"datasource show",
+		"datasource add",
+		"datasource set",
+		"datasource remove",
+		"datasource rename",
+		"datasource info",
+		"datasource describe",
+		"datasource find",
+		"datasource count",
+		"query list", "query show", "query add", "query set", "query remove", "query rename",
+		"insert list", "insert show", "insert add", "insert set", "insert remove", "insert rename",
+		"update list", "update show", "update add", "update set", "update remove", "update rename",
+		"delete list", "delete show", "delete add", "delete set", "delete remove", "delete rename",
+		"process list", "process show", "process add", "process set", "process remove", "process rename",
+		"trigger list", "trigger show", "trigger add", "trigger set", "trigger remove", "trigger rename",
+		"adapters list",
+		"adapters info",
+		"adapters settings",
+		"new",
+		"format",
+		"validate",
+		"plan",
+		"explain",
+		"run"
+	],
+	"Without": {
+		"datasource find": [ "into", "save", "force" ]
+	},
+	"Defaults": {
+		"datasource find": { "max": 5 }
+	},
+	"Confirm": [
+		"run",
+		"datasource add", "datasource set", "datasource remove", "datasource rename",
+		"query add", "query set", "query remove", "query rename",
+		"insert add", "insert set", "insert remove", "insert rename",
+		"update add", "update set", "update remove", "update rename",
+		"delete add", "delete set", "delete remove", "delete rename",
+		"process add", "process set", "process remove", "process rename",
+		"trigger add", "trigger set", "trigger remove", "trigger rename",
+		"format"
+	],
+	"Instructions": "Design the file as asked: add, change or remove its data sources, objects and triggers, and build and run objects. Work like this. Read what is there before changing it: list and show the entries, and describe a data source before writing against it. Take field names and values from what you read, not from the wording of the request. To add a data source, read the adapters and their settings first, and give only settings the adapter defines. Check a draft with validate before adding it, and add exactly the object you checked. Never repeat a call you have already made. When a call answers with an error, read it and fix the argument rather than sending it again. A tool which is not offered does not exist. Say what you changed in one sentence."
+}

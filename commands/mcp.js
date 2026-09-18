@@ -1,7 +1,7 @@
 'use strict';
 
 /*
-	jsonx mcp [--stdio | --http] [--host <host>] [--port <port>] [--token <token>] [--bind ...] [--set ...]
+	jsonx mcp [--stdio | --http] [--host <host>] [--port <port>] [--token <token>] [--profile <name|file>] [--bind ...] [--set ...]
 
 	Holds the file and serves its commands as MCP tools (plan F4.3, modes/mcp/), speaking protocol
 	revision 2025-11-25 (user, 2026-09-14).
@@ -19,6 +19,7 @@
 
 const jsonx_cli = require( '../src/jsonx-cli.js' );
 const Held = require( '../src/Session/Held.js' );
+const Profiles = require( '../src/Session/Profiles.js' );
 const Validate = require( '../src/Validate/Validate.js' );
 const Report = require( '../src/Report.js' );
 const Api = require( '../modes/api/Api.js' );
@@ -72,6 +73,8 @@ async function handler( Parsed, Context )
 	{
 		held = Held.NewHeld( {
 			Tree: Context.Tree, File: value( 'file' ), Binds: value( 'bind' ), Sets: value( 'set' ), Io: io,
+			// The profile (cut 7): absent, a model gets run - build, and run what a person confirmed.
+			Profile: value( 'profile' ) || Profiles.DEFAULT_MCP,
 			Log: function ( Text ) { out.Log( Text ); },
 		} );
 	}
@@ -97,7 +100,7 @@ async function handler( Parsed, Context )
 
 	if ( !over_http )
 	{
-		out.Log( 'MCP over stdio for ' + held.Path + ' (protocol ' + Protocol.PROTOCOL_VERSION + ').\n' );
+		out.Log( 'MCP over stdio for ' + held.Path + ' (protocol ' + Protocol.PROTOCOL_VERSION + ', profile ' + held.Profile.Name + ').\n' );
 		let mcp = Protocol.NewMcp( held, { Version: jsonx_cli.Version } );
 		try
 		{
@@ -124,7 +127,7 @@ async function handler( Parsed, Context )
 	}
 
 	let shown_host = ( host.indexOf( ':' ) >= 0 ) ? '[' + host + ']' : host;
-	out.Log( 'Serving MCP for ' + held.Path + ' at http://' + shown_host + ':' + server.address().port + Http.ENDPOINT + ' (protocol ' + Protocol.PROTOCOL_VERSION + ( token ? ', token required' : '' ) + '). Ctrl+C stops it.\n' );
+	out.Log( 'Serving MCP for ' + held.Path + ' at http://' + shown_host + ':' + server.address().port + Http.ENDPOINT + ' (protocol ' + Protocol.PROTOCOL_VERSION + ', profile ' + held.Profile.Name + ( token ? ', token required' : '' ) + '). Ctrl+C stops it.\n' );
 
 	await io.WaitForStop();
 
@@ -148,6 +151,7 @@ module.exports = {
 		'host': { Type: 'string', Default: '127.0.0.1', Describe: 'With --http: the address to bind. Anything but loopback needs a token.' },
 		'port': { Type: 'integer', Default: DEFAULT_PORT, Describe: 'With --http: the port to bind; 0 picks a free one.' },
 		'token': { Type: 'string', Describe: 'With --http: the bearer token every request must carry. Absent: JSONX_TOKEN.' },
+		'profile': { Type: 'string', Describe: 'What the session serves: a built-in profile (' + Profiles.NAMES.join( ', ' ) + ') or a .json file. Absent: ' + Profiles.DEFAULT_MCP + '.' },
 	}, SessionCommand.SESSION_OPTIONS ),
 	Handler: handler,
 };

@@ -42,6 +42,14 @@
 		(followed or kept), `document` when the held document changed - by a reload, or by a request
 		which wrote the file - and `queue` when a conversation (a served debug) starts holding the
 		queue, `HeldBy` its command, and when it stops, `HeldBy` null.
+
+	***What the session serves is its profile*** (cut 7, decision 14): a built-in name or a `.json` file
+	(src/Session/Profiles.js), given when the session is held and switched by SetProfile. ***It is
+	enforced here, once, for every surface***: a request for a command the profile does not serve, or
+	giving an option it withholds, is refused with exit 2; a value it defaults is put into the request
+	when none was given. A switch tells every OnEvent listener `profile`, with the summary a surface
+	shows, and the next request is judged under the new profile; one already running finishes under
+	the profile it started in.
 */
 
 const LIB_FS = require( 'fs' );
@@ -54,6 +62,7 @@ const Reader = require( '../File/Reader.js' );
 const Validate = require( '../Validate/Validate.js' );
 const Overrides = require( './Overrides.js' );
 const Session = require( './Session.js' );
+const Profiles = require( './Profiles.js' );
 const Parser = require( '../CommandLine/Parser.js' );
 const InputJson = require( '../CommandLine/InputJson.js' );
 const Help = require( '../CommandLine/Help.js' );
@@ -154,6 +163,7 @@ function ServedCommands( Tree )
 //		Log            function ( Text ): where a reload, and what it found, is reported
 //		OnReload       function ( Outcome ): called with Reload's answer after each watched reload
 //		jsonstor, Require, MaxSteps, MaxCalls   passed to the session
+//		Profile        a built-in profile name or a .json file (src/Session/Profiles.js); absent means full
 //
 // Throws HeldError when there is nothing to hold: no file, an unreadable one, one which is not a
 // JSON object, or an override which does not parse. A file with validation errors is held, and its
@@ -221,6 +231,57 @@ function NewHeld( Options )
 	held.StartFindings = validate_held();
 
 	let log = ( typeof options.Log === 'function' ) ? options.Log : function () { return; };
+
+
+	//---------------------------------------------------------------------
+	// The profile in force (cut 7): loaded and checked here, so a bad one is refused where it was named,
+	// as a bad override is. `served` is the command list the surfaces show, `profile` what request judges
+	// by. Both are replaced whole on a switch, so a request in flight keeps the pair it started with.
+
+	let profile = null;
+	let served = null;
+
+	function set_profile( NameOrPath )
+	{
+		let commands = ServedCommands( held.Tree );
+		let checked = Profiles.Check( Profiles.Load( NameOrPath, io ), commands );
+		profile = checked;
+		served = Profiles.Apply( commands, checked );
+		held.Profile = checked;
+		return;
+	}
+
+	try
+	{
+		set_profile( ( typeof options.Profile === 'string' ) ? options.Profile : Profiles.DEFAULT_SERVE );
+	}
+	catch ( error )
+	{
+		if ( !( error instanceof Profiles.ProfileError ) ) { throw error; }
+		throw new HeldError( error.message, 2 );
+	}
+
+	// The commands served under the profile, as the surfaces list them (Profiles.Apply).
+	held.Served = function ()
+	{
+		return served.slice();
+	};
+
+	// What a surface tells a client about the profile in force.
+	held.ProfileSummary = function ()
+	{
+		return Profiles.Summary( profile, served );
+	};
+
+	// Switches the profile, tells every listener, and answers the summary. Throws ProfileError, and the
+	// profile in force is unchanged then.
+	held.SetProfile = function ( NameOrPath )
+	{
+		set_profile( NameOrPath );
+		let summary = held.ProfileSummary();
+		tell_event( { Event: 'profile', Profile: summary } );
+		return summary;
+	};
 
 	// The file's text as the session last read or wrote it.
 	let last_text = text;
@@ -562,6 +623,44 @@ function NewHeld( Options )
 		{
 			out.Log( 'Option [--output] cannot be [' + parsed.Options.output + '] for a served command: the answer is the envelope, in JSON.\n' );
 			return out.Envelope( 2 );
+		}
+
+		// The profile (cut 7): a command it does not serve, or an option it withholds, is refused; a value
+		// it defaults is put into the request when none was given, and the request is parsed again with it.
+		let in_force = profile;
+		let in_profile = served.find( function ( Each ) { return Each.Command === command; } );
+		if ( !in_profile )
+		{
+			// A conversation (debug) is not a served command, so it is not on any profile's list: the full
+			// profile lets it through, and a profile which names its commands serves only those.
+			if ( !( in_force.Everything && Conversation ) )
+			{
+				out.Log( '[' + command + '] is not served in profile [' + in_force.Name + '].\n' );
+				return out.Envelope( 2 );
+			}
+			in_profile = { Defaults: {} };
+		}
+		let withheld = ( in_force.Without[ command ] || [] ).filter( function ( Name ) { return parsed.Given[ Name ] === true; } );
+		if ( withheld.length > 0 )
+		{
+			out.Log( 'Option [--' + withheld[ 0 ] + '] is not served in profile [' + in_force.Name + '].\n' );
+			return out.Envelope( 2 );
+		}
+		let defaulted = Object.keys( in_profile.Defaults ).filter( function ( Name ) { return parsed.Given[ Name ] !== true; } );
+		if ( defaulted.length > 0 )
+		{
+			let filled = Object.assign( {}, Invocation );
+			for ( let index = 0; index < defaulted.length; index++ ) { filled[ defaulted[ index ] ] = in_profile.Defaults[ defaulted[ index ] ]; }
+			try
+			{
+				parsed = InputJson.ParseDocument( held.Tree, filled );
+			}
+			catch ( error )
+			{
+				if ( !( error instanceof Parser.UsageError ) ) { throw error; }
+				out.Log( 'The profile [' + in_force.Name + '] defaults [' + command + '] to a value it refuses: ' + error.message + '\n' );
+				return out.Envelope( 2 );
+			}
 		}
 
 		let io_for_handler = handler_io;

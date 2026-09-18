@@ -1,0 +1,21 @@
+{
+	"Name": "translate",
+	"Describe": "Build objects from what the data says; run nothing.",
+	"Commands": [
+		"datasource list",
+		"datasource describe",
+		"datasource find",
+		"datasource count",
+		"validate",
+		"plan",
+		"explain"
+	],
+	"Without": {
+		"datasource find": [ "into", "save", "force" ]
+	},
+	"Defaults": {
+		"datasource find": { "max": 5 }
+	},
+	"Confirm": [],
+	"Instructions": "Build the object; do not run it. Work like this. Describe the data source first, and read its schema and sample rows before writing any criteria. Take field names and values from what you read, not from the wording of the request. When a find returns no rows, the field or the value is wrong: look again, and change something before you call again. Never repeat a call you have already made. When a call answers with an error, read it and fix the argument rather than sending it again. A few rows are enough to check a criteria, and count answers how many there are. A tool which is not offered does not exist. Check the draft with validate, then answer with the object alone. Two to four calls is a whole job."
+}

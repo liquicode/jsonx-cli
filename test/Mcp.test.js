@@ -88,7 +88,7 @@ describe( 'MCP, the protocol', function ()
 			let mcp = Protocol.NewMcp( held, { Version: '9.9.9' } );
 			let reply = await mcp.Handle( request( 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '0' } } ) );
 			LIB_ASSERT.strictEqual( reply.result.protocolVersion, '2025-06-18' );
-			LIB_ASSERT.deepStrictEqual( reply.result.capabilities, { tools: {}, resources: {} } );
+			LIB_ASSERT.deepStrictEqual( reply.result.capabilities, { tools: { listChanged: true }, resources: {} } );
 			LIB_ASSERT.deepStrictEqual( reply.result.serverInfo, { name: 'jsonx', title: 'jsonx', version: '9.9.9' } );
 
 			let other = Protocol.NewMcp( held );
@@ -136,8 +136,10 @@ describe( 'MCP, the protocol', function ()
 			for ( let tool of Protocol.NewMcp( held ).Tools ) { tools[ tool.name ] = tool; }
 
 			let run = tools.run.inputSchema;
-			LIB_ASSERT.deepStrictEqual( run.properties.name, { type: 'string', description: 'The object to run.' } );
-			LIB_ASSERT.deepStrictEqual( run.required, [ 'name' ] );
+			LIB_ASSERT.deepStrictEqual( run.properties.name, { type: 'string', description: 'The object to run; or pass --json.' } );
+			// name or json, so neither is required (cut 7); the handler refuses neither and both.
+			LIB_ASSERT.strictEqual( 'required' in run, false, JSON.stringify( run.required ) );
+			LIB_ASSERT.deepStrictEqual( run.properties.json.type, 'object' );
 			LIB_ASSERT.strictEqual( 'type' in run.properties.input, false, 'a json value is any JSON value' );
 			LIB_ASSERT.deepStrictEqual( run.properties.trace.type, 'boolean' );
 			for ( let refused of [ 'file', 'bind', 'set', 'quiet', 'output', 'help', 'input-json' ] ) { LIB_ASSERT.ok( !( refused in run.properties ), refused ); }

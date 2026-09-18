@@ -259,7 +259,7 @@ describe( 'The TUI model', function ()
 
 			model.SetInput( 'run --help' );
 			LIB_ASSERT.strictEqual( await model.Submit(), null );
-			LIB_ASSERT.ok( model.State.Log.some( function ( Line ) { return /jsonx run <name>/.test( Line.Text ); } ) );
+			LIB_ASSERT.ok( model.State.Log.some( function ( Line ) { return /jsonx run \[name\]/.test( Line.Text ); } ) );
 
 			model.SetInput( 'serve --api' );
 			await model.Submit();
@@ -269,9 +269,11 @@ describe( 'The TUI model', function ()
 			await model.Submit();
 			LIB_ASSERT.match( model.State.Input.Findings[ 0 ].Message, /quote is not closed/ );
 
+			// A bare run is refused by the command, not the parser, since --json stands in for the name (cut 7).
 			model.SetInput( 'run' );
-			await model.Submit();
-			LIB_ASSERT.match( model.State.Input.Findings[ 0 ].Message, /Argument <name> is required/ );
+			let bare = await model.Submit();
+			LIB_ASSERT.strictEqual( bare.ExitCode, 2 );
+			LIB_ASSERT.ok( model.State.Log.some( function ( Line ) { return /Name one object, or pass --json/.test( Line.Text ); } ), JSON.stringify( model.State.Log ) );
 		}
 		finally { await opened.Close(); }
 	} );
