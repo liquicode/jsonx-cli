@@ -29,7 +29,14 @@
 		"run"
 	],
 	"Without": {
-		"datasource find": [ "into", "save", "force" ]
+		"datasource find": [ "into", "save", "force" ],
+		"datasource add": [ "force" ], "datasource set": [ "force" ], "datasource remove": [ "force" ], "datasource rename": [ "force" ],
+		"query add": [ "force" ], "query set": [ "force" ], "query remove": [ "force" ], "query rename": [ "force" ],
+		"insert add": [ "force" ], "insert set": [ "force" ], "insert remove": [ "force" ], "insert rename": [ "force" ],
+		"update add": [ "force" ], "update set": [ "force" ], "update remove": [ "force" ], "update rename": [ "force" ],
+		"delete add": [ "force" ], "delete set": [ "force" ], "delete remove": [ "force" ], "delete rename": [ "force" ],
+		"process add": [ "force" ], "process set": [ "force" ], "process remove": [ "force" ], "process rename": [ "force" ],
+		"trigger add": [ "force" ], "trigger set": [ "force" ], "trigger remove": [ "force" ], "trigger rename": [ "force" ]
 	},
 	"Defaults": {
 		"datasource find": { "max": 5 }
@@ -45,5 +52,5 @@
 		"trigger add", "trigger set", "trigger remove", "trigger rename",
 		"format"
 	],
-	"Instructions": "Design the file as asked: add, change or remove its data sources, objects and triggers, and build and run objects. Work like this. Read what is there before changing it: list and show the entries, and describe a data source before writing against it. Take field names and values from what you read, not from the wording of the request. To add a data source, read the adapters and their settings first, and give only settings the adapter defines. Check a draft with validate before adding it, and add exactly the object you checked. Never repeat a call you have already made. When a call answers with an error, read it and fix the argument rather than sending it again. A tool which is not offered does not exist. Say what you changed in one sentence."
+	"Instructions": "Design the file as asked: add, change or remove its data sources, objects and triggers, and build and run objects. Work like this. Read what is there before changing it: list and show the entries, and describe a data source before writing against it. Take field names and values from what you read, not from the wording of the request. To add a data source, read the adapters and their settings first, and give only settings the adapter defines. Check a draft with validate before adding it, and add exactly the object you checked. When a change is refused because something else refers to the entry, change or remove what refers to it first. Never repeat a call you have already made. When a call answers with an error, read it and fix the argument rather than sending it again. A tool which is not offered does not exist. Say what you changed in one sentence."
 }

@@ -88,6 +88,8 @@ describe( 'The built-in profiles', function ()
 				let command = applied[ index ];
 				LIB_ASSERT.ok( !( 'yes' in command.Options ), profile + ': ' + command.Command + ' declares yes' );
 				LIB_ASSERT.ok( !WRITING_VERBS.includes( command.Command ), profile + ' serves ' + command.Command );
+				// A change the file's rules refuse is not a model's to force: it mends what refers to the entry first.
+				LIB_ASSERT.ok( !( 'force' in command.Options ), profile + ': ' + command.Command + ' serves force' );
 			}
 			let find = applied.find( function ( Command ) { return Command.Command === 'datasource find'; } );
 			LIB_ASSERT.ok( find, profile + ' serves find' );
@@ -98,6 +100,7 @@ describe( 'The built-in profiles', function ()
 		let del = full.find( function ( Command ) { return Command.Command === 'datasource delete'; } );
 		LIB_ASSERT.ok( 'yes' in del.Options, 'full keeps yes' );
 		LIB_ASSERT.ok( 'save' in full.find( function ( Command ) { return Command.Command === 'datasource find'; } ).Options );
+		LIB_ASSERT.ok( 'force' in full.find( function ( Command ) { return Command.Command === 'process remove'; } ).Options, 'full keeps force' );
 	} );
 
 	it( 'mark what a relay confirms: run in run and design, every edit and format in design, nothing in translate', function ()

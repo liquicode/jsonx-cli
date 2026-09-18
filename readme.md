@@ -627,7 +627,8 @@ switches it for all of them with the WebSocket's `Profile` request or MCP's `jso
 | `run` | `translate`, and `run`. `jsonx mcp` uses it when `--profile` is absent. | `run`. |
 | `design` | `run`, and every `list`, `show`, `add`, `set`, `remove` and `rename`; `datasource info`; `adapters`; `new`; `format`. | `run`, `format`, and every `add`, `set`, `remove` and `rename`. |
 
-In `translate`, `run` and `design`, `datasource find` is served without `into`, `save` and `force`,
+In `translate`, `run` and `design`, no command is served with `force` - a change the file's rules refuse
+is mended, not forced - `datasource find` is served without `into` and `save`,
 and `max` is 5 unless the request gives one. ***So nothing a model is offered writes, except `run`,
 which the front end confirms first.*** A request for a command or an option the profile does not
 serve is refused with exit code 2: `[run] is not served in this session.` The message does not name
