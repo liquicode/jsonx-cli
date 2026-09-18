@@ -146,6 +146,8 @@ jsonx data find Bookings --criteria @long-nights.json --sort @by-night.json --ma
 jsonx data count Bookings --criteria @long-nights.json
 ```
 
+`--max 0` reads every document.
+
 `find`, `insert`, `update` and `delete` run exactly as a Query, Insert, Update or Delete in the file
 would: the same result, the same report line (named `(ad hoc)`), and the same triggers fire. The
 object is checked against the file's rules first, so a criteria jsongin refuses stops the command

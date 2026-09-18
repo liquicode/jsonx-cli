@@ -100,7 +100,9 @@ function BuildObject( Verb, DataSource, Values, Name )
 		if ( given( 'projection' ) ) { entry.Projection = clone( values.projection ); }
 		if ( given( 'sort' ) ) { entry.Sort = clone( values.sort ); }
 		if ( given( 'skip' ) ) { entry.SkipCount = values.skip; }
-		if ( given( 'max' ) ) { entry.MaxCount = values.max; }
+		// ***Zero means every document*** (user, 2026-09-18): the object leaves MaxCount out, since the
+		// specification refuses 0 (9.3), and a profile which defaults max still has a way to read everything.
+		if ( given( 'max' ) && values.max !== 0 ) { entry.MaxCount = values.max; }
 		if ( given( 'into' ) ) { entry.Into = values.into; }
 	}
 	if ( verb.Kind === 'Insert' )

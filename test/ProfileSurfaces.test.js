@@ -194,6 +194,17 @@ describe( 'The profile on every surface', function ()
 			let root_ = await get( served.Base, '/' );
 			LIB_ASSERT.strictEqual( root_.Json.Profile.Name, 'full' );
 			LIB_ASSERT.strictEqual( root_.Json.Commands.length, Held.ServedCommands( Commands.TREE ).length );
+			let find = root_.Json.Commands.find( function ( Command ) { return Command.Command === 'datasource find'; } );
+			LIB_ASSERT.strictEqual( find.Options.max.Describe, 'The most documents to read. Set to 0 for all documents.', 'no default sentence without a profile default' );
+
+			// max 0 reads every document: the verb leaves MaxCount out, which the specification would refuse as 0.
+			let ran = await post( served.Base, '/run', { name: 'Two telescopes' } );
+			LIB_ASSERT.strictEqual( ran.Status, 200, JSON.stringify( ran.Json ) );
+			let one = await post( served.Base, '/datasource/find', { name: 'Telescopes', criteria: {}, max: 1 } );
+			LIB_ASSERT.strictEqual( one.Json.Result.length, 1 );
+			let all = await post( served.Base, '/datasource/find', { name: 'Telescopes', criteria: {}, max: 0 } );
+			LIB_ASSERT.strictEqual( all.Status, 200, JSON.stringify( all.Json ) );
+			LIB_ASSERT.strictEqual( all.Json.Result.length, 2 );
 		}
 		finally { await served.Close(); }
 	} );
@@ -262,6 +273,7 @@ describe( 'The profile on every surface', function ()
 			let find = mcp.Tools.find( function ( Tool ) { return Tool.name === 'datasource_find'; } );
 			LIB_ASSERT.ok( !( 'save' in find.inputSchema.properties ) );
 			LIB_ASSERT.strictEqual( find.inputSchema.properties.max.default, 5 );
+			LIB_ASSERT.strictEqual( find.inputSchema.properties.max.description, 'The most documents to read. Set to 0 for all documents. Defaults to 5.' );
 
 			let initialized = await mcp.Handle( request( 'initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 't', version: '0' } } ) );
 			LIB_ASSERT.deepStrictEqual( initialized.result.capabilities, { tools: { listChanged: true }, resources: {} } );

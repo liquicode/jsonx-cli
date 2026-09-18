@@ -123,12 +123,17 @@ function tool_for( Command )
 		if ( option.Required === true ) { required.push( names[ index ] ); }
 	}
 
-	// A value the profile defaults is shown as the option's default, so a model knows what it gets.
+	// A value the profile defaults is shown as the option's default, ***and said in its description***
+	// (user, 2026-09-18): Ollama re-serializes a tool into its own struct and drops `default`, so a model
+	// behind it would never see the number; the description is kept by every client.
 	let defaults = ( Command.Defaults && typeof Command.Defaults === 'object' ) ? Command.Defaults : {};
 	let defaulted = Object.keys( defaults );
 	for ( let index = 0; index < defaulted.length; index++ )
 	{
-		if ( properties[ defaulted[ index ] ] ) { properties[ defaulted[ index ] ].default = defaults[ defaulted[ index ] ]; }
+		let property = properties[ defaulted[ index ] ];
+		if ( !property ) { continue; }
+		property.default = defaults[ defaulted[ index ] ];
+		property.description = ( property.description ? property.description + ' ' : '' ) + 'Defaults to ' + JSON.stringify( defaults[ defaulted[ index ] ] ) + '.';
 	}
 
 	let guarded = Object.prototype.hasOwnProperty.call( Command.Options, 'yes' );

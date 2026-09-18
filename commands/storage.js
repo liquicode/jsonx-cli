@@ -45,7 +45,7 @@ const VERB_OPTIONS = {
 	'find': Object.assign( {}, CRITERIA_OPTIONAL, PROJECTION, {
 		'sort': { Type: 'json', JsonType: 'object', Describe: 'The order, as { Field: 1 or -1 }.' },
 		'skip': { Type: 'integer', Describe: 'How many documents to pass over first (SkipCount).' },
-		'max': { Type: 'integer', Describe: 'The most documents to read (MaxCount).' },
+		'max': { Type: 'integer', Describe: 'The most documents to read. Set to 0 for all documents.' },
 		'into': { Type: 'string', Describe: 'A data source the rows are inserted into.' },
 	}, SAVE ),
 	'find-one': Object.assign( {}, CRITERIA_OPTIONAL, PROJECTION ),
