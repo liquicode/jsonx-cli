@@ -717,11 +717,30 @@ function trigger_lines( Entry, Document )
 		return [ sentence( 'Runs only when asked: it runs ' + target + ' for each document' + over ) ];
 	}
 
-	let when = ( Entry.When === 'Before' ) ? 'before' : 'after';
-	let text = 'When ' + join_parts( Entry.On, 'or' ) + ' is called on ' + ( process && typeof process.DataSource === 'string' ? quote( process.DataSource ) : 'its data source' )
-		+ ', run ' + target + ' ' + when + ' the call, for each document it touches' + where_clause( process ? process.Criteria : null );
+	// An operation as a person says it of a document, with the preposition its data source takes
+	// (13.3). A word which is no operation is a finding of the validator's, and is read as it stands.
+	let phrases = { Insert: 'inserted into', Find: 'read from', Update: 'updated in', Delete: 'deleted from' };
+	let happenings = Entry.On.map( function ( Operation )
+	{
+		return ( typeof phrases[ Operation ] === 'string' ) ? phrases[ Operation ] : 'touched by ' + format_value( Operation ) + ' in';
+	} );
+
+	let before = ( Entry.When === 'Before' );
+	let source = ( process && typeof process.DataSource === 'string' ) ? quote( process.DataSource ) : 'its data source';
+	let text = ( before ? 'Before' : 'After' ) + ' a document is ' + join_parts( happenings, 'or' ) + ' ' + source
+		+ ', run ' + target + ' for each such document' + where_clause( process ? process.Criteria : null );
 	let lines = [ sentence( text ) ];
-	if ( Entry.When === 'Before' ) { lines.push( 'A change the Process makes to $Document is what the call stores.' ); }
+
+	// Before is a gate and After is a consequence (13.5).
+	if ( before )
+	{
+		lines.push( 'It is a gate: when the Process fails, the operation is refused and nothing is written.' );
+		if ( Entry.On.includes( 'Insert' ) ) { lines.push( 'A change the Process makes to $Document is what an insert stores.' ); }
+	}
+	else
+	{
+		lines.push( 'It cannot refuse what has happened: when the Process fails, the write stands.' );
+	}
 	return lines;
 }
 

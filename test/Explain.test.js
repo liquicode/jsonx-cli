@@ -249,8 +249,21 @@ describe( 'Explain: entries', function ()
 		document.Triggers.push( { Name: 'Broken', Process: 'Nothing' } );
 
 		LIB_ASSERT.strictEqual( Explain.ExplainEntry( document, 'By hand' ).Lines[ 0 ], 'Runs only when asked: it runs the Process "Note a long booking" for each document in "Bookings" where Hours is greater than 6.' );
-		LIB_ASSERT.match( Explain.ExplainEntry( document, 'Before' ).Lines[ 0 ], /before the call/ );
-		LIB_ASSERT.match( Explain.ExplainEntry( document, 'Before' ).Lines[ 1 ], /is what the call stores/ );
+		// An occasion reads as a person says it, not as the functions it covers (13.3), and says
+		// which of a gate or a consequence the trigger is (13.5).
+		LIB_ASSERT.deepStrictEqual( Explain.ExplainEntry( document, 'Before' ).Lines, [
+			'Before a document is inserted into "Bookings", run the Process "Note a long booking" for each such document where Hours is greater than 6.',
+			'It is a gate: when the Process fails, the operation is refused and nothing is written.',
+			'A change the Process makes to $Document is what an insert stores.',
+		] );
+		LIB_ASSERT.deepStrictEqual( Explain.ExplainEntry( document, 'Note every long booking as it arrives' ).Lines, [
+			'After a document is inserted into "Bookings", run the Process "Note a long booking" for each such document where Hours is greater than 6.',
+			'It cannot refuse what has happened: when the Process fails, the write stands.',
+		] );
+		document.Triggers.push( { Name: 'Several', On: [ 'Find', 'Update', 'Delete' ], When: 'Before', Process: 'Note a long booking' } );
+		let several = Explain.ExplainEntry( document, 'Several' ).Lines;
+		LIB_ASSERT.match( several[ 0 ], /^Before a document is read from, updated in or deleted from "Bookings", run / );
+		LIB_ASSERT.strictEqual( several.length, 2, 'only an insert\'s gate can change what is stored' );
 		LIB_ASSERT.match( Explain.ExplainEntry( document, 'Broken' ).Lines[ 0 ], /does not define as a Process with a DataSource/ );
 	} );
 
