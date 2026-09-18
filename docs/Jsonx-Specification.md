@@ -1,6 +1,6 @@
 # jsonx Specification
 
-***Version 0.2, draft of 2026-09-13.***
+***Version 0.2, draft of 2026-09-18.***
 
 ***A jsonx file is an inventory: the data sources a piece of work runs against, the operations
   on them under names, and the triggers which run a process when a store is touched or when
@@ -705,13 +705,13 @@ Example - run three objects in order, and stop the night's work if the confirmat
 ## 13. Triggers
 
 ***A trigger is a Process and the timing on which it runs.*** The Process says which data
-  source, which documents and what to do; the trigger says when - on a storage function, or
-  only when somebody asks.
+  source, which documents and what to do; the trigger says when - before or after an
+  operation on its data source, or only when somebody asks.
 
 | Field | Type | Required | Constraint |
 |---|---|---|---|
 | `Name` | string | REQUIRED | 3.5 |
-| `On` | array of string | OPTIONAL | non-empty; storage function names (13.3) |
+| `On` | array of string | OPTIONAL | non-empty; operation names (13.3) |
 | `When` | string | OPTIONAL | `"Before"` or `"After"`; absent means `"After"`; MUST NOT appear without `On` |
 | `Process` | string | REQUIRED | the name of a Process in `Objects` which has a `DataSource` |
 
@@ -727,23 +727,28 @@ Example - run three objects in order, and stop the night's work if the confirmat
   absent Criteria matching every document (12.4).
 
 ***13.3*** ***A trigger with `On` is programmatic, and a trigger without it is manual.*** A
-  programmatic trigger fires when one of the storage functions named in `On` is called on the
+  programmatic trigger fires when one of the operations named in `On` is made on the
   Process's data source through a runner which holds the file. A manual trigger never fires on
   its own: it exists so that it can be listed and run when asked, which runs its Process over
   its data source exactly as 12.4 says. ***A programmatic trigger can be run by hand in the same
   way.*** When `On` is present it MUST be an array, MUST NOT be empty, and every element MUST be
-  one of the storage functions a trigger can fire on:
+  one of the four operations a trigger can fire on. Each covers the jsonstor functions beside it:
 
 ```
-InsertOne  InsertMany
-FindOne    FindMany    FindMany2
-UpdateOne  UpdateMany  ReplaceOne
-DeleteOne  DeleteMany
+Insert   InsertOne  InsertMany
+Find     FindOne    FindMany    FindMany2
+Update   UpdateOne  UpdateMany  ReplaceOne
+Delete   DeleteOne  DeleteMany
 ```
 
-  These are the jsonstor functions which handle documents one at a time. `Count`,
-  `DropStorage` and `FlushStorage` are not among them: a process runs over a document, and
-  those calls have none.
+  ***A trigger does not tell a call which touches one document from a call which touches
+  many.*** Which of a pair a runner calls is the runner's business - a Delete with `FirstOnly`
+  is a `DeleteOne` and any other a `DeleteMany` (11.3) - and a triggered process runs once per
+  document either way (13.6), so the distinction would say nothing a person means. A replaced
+  document is a changed one, so `ReplaceOne` is an Update. `Count`, `DropStorage` and
+  `FlushStorage` belong to no operation: a process runs over a document, and those calls have
+  none. A reader MUST report a jsonstor function name in `On` as an error, as it does any
+  other value which is not one of the four.
 
 ***13.4*** A trigger fires for a storage call whoever makes it - a person asking for an object,
   another Process, a host function - as long as the call reaches the data source through a
@@ -751,15 +756,37 @@ DeleteOne  DeleteMany
   the file fires nothing, because nothing is watching it there.
 
 ***13.5*** `When`, when present, MUST be `"Before"` or `"After"`, and MUST NOT be present
-  without `On`. Absent means `"After"`. A process run `Before` a storage function MAY change
-  `Document`, and the storage function then receives the changed document; that is the one
-  place a process changes a document by changing `$Document`. A process run `After` sees what
-  was stored, and its changes to `$Document` reach nothing.
+  without `On`. Absent means `"After"`. ***A trigger which runs `Before` is a gate, and one
+  which runs `After` is a consequence.***
+
+  ***Before.*** A runner MUST run every `Before` trigger, for every document the call will
+  touch, before it makes the call. ***A process which fails refuses the call***: the call is
+  not made, nothing is written, and the object which asked for it fails saying why (6.7).
+  For an Insert the documents are the ones submitted, and a process MAY change `Document`:
+  the storage then receives the changed document, which is the one place a process changes
+  a document by changing `$Document`. For an Update or a Delete they are the documents the
+  call's criteria selects, as they are before the call; ***a call which touches one document***
+  (a `FirstOnly` object, 10.4 and 11.3) ***is gated on that one document***, the first the
+  storage finds, and on no other the criteria selects. A Find has no documents until it is
+  made, so a `Before` trigger on a Find runs for none. A `Before` process SHOULD read, change
+  the incoming document or refuse, and nothing more: there are no transactions (6.7), so
+  what it writes elsewhere stands even when the call is then refused.
+
+  ***After.*** A process run `After` sees each document the storage reports the call touched,
+  as it was stored - for a Delete, as it was removed - and its changes to `$Document` reach
+  nothing. ***It cannot refuse what has happened***: when it fails, the write was made and
+  stands (6.7), the object which made the call fails, and a runner MUST say that the write
+  was made. It is the place to change other parts of the data once an operation is done.
+  ***What a call touched is what the storage says it touched***; a storage which reports a
+  document it matched and did not change is reporting it as touched.
 
 ***13.6*** A triggered process runs once per document the call touches and the criteria
-  admits, exactly as a run over its data source would (12.4). A runner MAY put what fired beside
-  `Document` - the function, the timing, the data source, the trigger's name - and a process
-  which is to run outside a trigger as well MUST NOT depend on it.
+  admits, exactly as a run over its data source would (12.4). A runner puts what fired beside
+  `Document`, as `Event`: `Function` (the jsonstor function called), `Operation`, `When`,
+  `DataSource` and `Trigger`. ***For a `Before` Update, `Event` also carries `Update`, the
+  update document, and `Proposed`, the document as the update would leave it*** - for a
+  replace, `Proposed` is the replacement - so that a gate can compare what is with what
+  would be. A process which is to run outside a trigger as well MUST NOT depend on `Event`.
 
 ***13.7*** When the Process carries an `Into`, each run's return value which is an object is
   inserted there (6.5). ***A trigger does not fire for the calls its own Process causes while
@@ -772,7 +799,7 @@ Example, programmatic:
 ```
 {
   "Name": "Note every long booking as it arrives",
-  "On": [ "InsertOne", "InsertMany" ],
+  "On": [ "Insert" ],
   "When": "After",
   "Process": "Note a long booking"
 }
@@ -1063,12 +1090,7 @@ This schema is normative for the ***structure*** of a jsonx file. It cannot expr
         "On": {
           "type": "array",
           "minItems": 1,
-          "items": { "enum": [
-            "InsertOne", "InsertMany",
-            "FindOne", "FindMany", "FindMany2",
-            "UpdateOne", "UpdateMany", "ReplaceOne",
-            "DeleteOne", "DeleteMany"
-          ] }
+          "items": { "enum": [ "Insert", "Find", "Update", "Delete" ] }
         },
         "When": { "enum": [ "Before", "After" ] },
         "Process": { "$ref": "#/$defs/Reference" }
@@ -1159,7 +1181,7 @@ The observatory in one file: four data sources, seven objects, and one trigger. 
 
   "Triggers": [
     { "Name": "Note every long booking as it arrives",
-      "On": [ "InsertOne", "InsertMany" ], "When": "After",
+      "On": [ "Insert" ], "When": "After",
       "Process": "Note a long booking" }
   ]
 }

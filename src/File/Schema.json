@@ -331,16 +331,10 @@
 					"minItems": 1,
 					"items": {
 						"enum": [
-							"InsertOne",
-							"InsertMany",
-							"FindOne",
-							"FindMany",
-							"FindMany2",
-							"UpdateOne",
-							"UpdateMany",
-							"ReplaceOne",
-							"DeleteOne",
-							"DeleteMany"
+							"Insert",
+							"Find",
+							"Update",
+							"Delete"
 						]
 					}
 				},

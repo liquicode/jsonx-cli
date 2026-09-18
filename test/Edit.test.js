@@ -26,7 +26,7 @@ describe( 'Edit: reading', function ()
 		LIB_ASSERT.deepStrictEqual( Edit.List( document, 'insert' ).map( function ( Item ) { return Item.Name; } ), [ 'Two telescopes', 'Three bookings' ] );
 		LIB_ASSERT.deepStrictEqual( Edit.List( document, 'process' ).map( function ( Item ) { return Item.Name; } ),
 			[ 'Assign a dome to each confirmed booking', 'Note a long booking', 'Prepare the season' ] );
-		LIB_ASSERT.deepStrictEqual( Edit.List( document, 'trigger' ), [ { Name: 'Note every long booking as it arrives', Process: 'Note a long booking', On: [ 'InsertOne', 'InsertMany' ], When: 'After' } ] );
+		LIB_ASSERT.deepStrictEqual( Edit.List( document, 'trigger' ), [ { Name: 'Note every long booking as it arrives', Process: 'Note a long booking', On: [ 'Insert' ], When: 'After' } ] );
 		LIB_ASSERT.deepStrictEqual( Edit.List( document, 'query' ), [] );
 	} );
 

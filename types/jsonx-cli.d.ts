@@ -300,6 +300,8 @@ declare module '@liquicode/jsonx-cli'
 	{
 		SECTIONS: string[];
 		HOST_FUNCTIONS: string[];
+		TRIGGER_OPERATIONS: { [ Operation: string ]: string[] };
+		OperationOf( FunctionName: string ): string | null;
 		RESERVED_NAMES: string[];
 		NESTED_STEPS: { [ Operator: string ]: string[] };
 		Entries( Document: JsonDocument ): NameEntry[];
@@ -345,7 +347,7 @@ declare module '@liquicode/jsonx-cli'
 	export interface ValidateModule
 	{
 		KINDS: string[];
-		TRIGGER_FUNCTIONS: string[];
+		TRIGGER_OPERATIONS: string[];
 		ValidateFile( Document: any, Options?: { jsongin?: any; jsonproc?: any; Env?: JsonDocument; CheckSettings?: ( AdapterName: string, Settings: JsonDocument ) => Finding[] } ): Finding[];
 		ValidateEntry( Document: JsonDocument, Name: string, Options?: JsonDocument ): Finding[] | null;
 		SortFindings( Findings: Finding[] ): Finding[];

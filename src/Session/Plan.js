@@ -206,12 +206,17 @@ function PlanObject( Document, Name, Options )
 		if ( process === null || process.Entry.Kind !== 'Process' ) { continue; }
 
 		let watched = process.Entry.DataSource;
-		let firing = writes.filter( function ( Write ) { return Write.DataSource === watched && trigger.On.includes( Write.Function ); } );
+		let firing = writes.filter( function ( Write ) { return Write.DataSource === watched && trigger.On.includes( Names.OperationOf( Write.Function ) ); } );
 		if ( firing.length === 0 ) { continue; }
 
-		let functions = [];
-		firing.forEach( function ( Write ) { if ( !functions.includes( Write.Function ) ) { functions.push( Write.Function ); } } );
-		plan.Triggers.push( { Name: trigger.Name, Process: trigger.Process, DataSource: watched, On: functions } );
+		// On says which of the trigger's operations this run makes, in the file's own words.
+		let operations = [];
+		firing.forEach( function ( Write )
+		{
+			let operation = Names.OperationOf( Write.Function );
+			if ( !operations.includes( operation ) ) { operations.push( operation ); }
+		} );
+		plan.Triggers.push( { Name: trigger.Name, Process: trigger.Process, DataSource: watched, On: operations } );
 	}
 
 	return plan;

@@ -64,7 +64,7 @@ describe( 'Plan', function ()
 		LIB_ASSERT.deepStrictEqual( result.DataSources.map( function ( Source ) { return Source.Name + ' ' + Source.AdapterName + ' ' + Source.Installed; } ), [
 			'Telescopes jsonstor-memory true', 'Bookings jsonstor-memory true', 'Assignments jsonstor-memory true',
 		] );
-		LIB_ASSERT.deepStrictEqual( result.Triggers, [ { Name: 'Note every long booking as it arrives', Process: 'Note a long booking', DataSource: 'Bookings', On: [ 'InsertMany' ] } ] );
+		LIB_ASSERT.deepStrictEqual( result.Triggers, [ { Name: 'Note every long booking as it arrives', Process: 'Note a long booking', DataSource: 'Bookings', On: [ 'Insert' ] } ] );
 		LIB_ASSERT.deepStrictEqual( result.Findings, [] );
 	} );
 

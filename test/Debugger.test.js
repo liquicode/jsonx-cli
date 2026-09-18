@@ -179,8 +179,8 @@ describe( 'Debugger', function ()
 				{ Kind: 'Process', Name: 'Note', DataSource: 'S', Steps: [ { $return: { Seen: '$Document.Kind' } } ], Into: 'Log' },
 			],
 			Triggers: [
-				{ Name: 'Copy on insert', On: [ 'InsertOne', 'InsertMany' ], Process: 'Copy' },
-				{ Name: 'Note on insert', On: [ 'InsertOne', 'InsertMany' ], Process: 'Note' },
+				{ Name: 'Copy on insert', On: [ 'Insert' ], Process: 'Copy' },
+				{ Name: 'Note on insert', On: [ 'Insert' ], Process: 'Note' },
 			],
 		};
 		let session = session_for( document );

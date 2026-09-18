@@ -293,7 +293,10 @@ describe( 'Validate 14.1.17: triggers', function ()
 	it( 'On, When and Process', function ()
 	{
 		expect( validate( function ( D ) { D.Triggers[ 0 ].On = []; } ), 'error', 'Triggers.0.On', /non-empty array/ );
-		expect( validate( function ( D ) { D.Triggers[ 0 ].On = [ 'Count' ]; } ), 'error', 'Triggers.0.On.0', /cannot fire on \[Count\]/ );
+		expect( validate( function ( D ) { D.Triggers[ 0 ].On = [ 'Count' ]; } ), 'error', 'Triggers.0.On.0', /cannot fire on \[Count\]; it fires on Insert, Find, Update, Delete \(13\.3\)/ );
+		// A jsonstor function name is what On held before 2026-09-18: refused, saying what to write.
+		expect( validate( function ( D ) { D.Triggers[ 0 ].On = [ 'InsertOne' ]; } ), 'error', 'Triggers.0.On.0', /cannot fire on \[InsertOne\].*: write Insert in its place/ );
+		expect( validate( function ( D ) { D.Triggers[ 0 ].On = [ 'ReplaceOne' ]; } ), 'error', 'Triggers.0.On.0', /write Update in its place/ );
 		expect( validate( function ( D ) { D.Triggers[ 0 ].When = 'Later'; } ), 'error', 'Triggers.0.When', /"Before" or "After"/ );
 		expect( validate( function ( D ) { delete D.Triggers[ 0 ].On; } ), 'error', 'Triggers.0.When', /must not appear without On/ );
 		expect( validate( function ( D ) { delete D.Triggers[ 0 ].Process; } ), 'error', 'Triggers.0.Process', /must carry Process/ );

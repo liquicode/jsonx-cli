@@ -245,7 +245,7 @@ describe( 'Explain: entries', function ()
 	{
 		let document = Spec.AppendixB();
 		document.Triggers.push( { Name: 'By hand', Process: 'Note a long booking' } );
-		document.Triggers.push( { Name: 'Before', On: [ 'InsertOne' ], When: 'Before', Process: 'Note a long booking' } );
+		document.Triggers.push( { Name: 'Before', On: [ 'Insert' ], When: 'Before', Process: 'Note a long booking' } );
 		document.Triggers.push( { Name: 'Broken', Process: 'Nothing' } );
 
 		LIB_ASSERT.strictEqual( Explain.ExplainEntry( document, 'By hand' ).Lines[ 0 ], 'Runs only when asked: it runs the Process "Note a long booking" for each document in "Bookings" where Hours is greater than 6.' );

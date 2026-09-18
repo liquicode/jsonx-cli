@@ -445,7 +445,7 @@ describe( 'The TUI model', function ()
 	{
 		LIB_ASSERT.strictEqual( Model.NounOf( { Kind: 'Update', Name: 'U' } ), 'update' );
 		LIB_ASSERT.strictEqual( Model.NounOf( { Name: 'S', AdapterName: 'jsonstor-memory' } ), 'datasource' );
-		LIB_ASSERT.strictEqual( Model.NounOf( { Name: 'T', Process: 'P', On: [ 'InsertOne' ] } ), 'trigger' );
+		LIB_ASSERT.strictEqual( Model.NounOf( { Name: 'T', Process: 'P', On: [ 'Insert' ] } ), 'trigger' );
 		LIB_ASSERT.strictEqual( Model.NounOf( { Kind: 'Nonsense', Name: 'N' } ), null );
 		LIB_ASSERT.deepStrictEqual( Model.ReplacementBody( { Name: 'Q', Kind: 'Query', DataSource: 'S', Criteria: {} }, { Name: 'Q', Kind: 'Query', DataSource: 'S' } ),
 			{ Name: 'Q', Kind: 'Query', DataSource: 'S', Criteria: null } );

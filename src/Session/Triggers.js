@@ -5,9 +5,7 @@
 
 	Lifted from jsonx-studio's src/Studio/Triggers.js, which carries the reasoning: a trigger
 	runtime is a filter; an insert's documents are its arguments, a find's are its result, and an
-	update's, replace's or delete's are whatever its criteria selects, captured before the call; an
-	After trigger reads an update's documents back by primary key, because re-running the caller's
-	criteria would miss a document the update moved out of it.
+	update's, replace's or delete's are whatever its criteria selects, captured before the call.
 
 	What changed from Studio, to the specification:
 
@@ -19,6 +17,27 @@
 		can only grow to the number of Processes.
 	-	***A Before trigger on an insert can change the document stored*** (13.5): the document the
 		run ends with is what the insert receives.
+	-	***A trigger fires on an operation, not on a function*** (13.3; user, 2026-09-18): `On` says
+		Insert, Find, Update or Delete, and a call fires the triggers whose `On` holds the operation
+		the call belongs to (`Names.TRIGGER_OPERATIONS`). Which of a pair the runner calls - a
+		DeleteOne for a first-only Delete - is nothing a person says or can predict. Where a call's
+		documents come from is still the function's own (`WATCHED_FUNCTIONS`).
+	-	***Before is a gate, and After is a consequence*** (13.5; user, 2026-09-18). Every Before
+		trigger runs for every document the call will touch before the storage is called, and a
+		Process which fails refuses the whole call. ***A call which touches one document is gated on
+		that one***, the storage's own first match: Studio, and this filter until that day, ran a
+		first-only Delete's trigger for every document its criteria selected, the one it removed
+		and the ones it did not. A gate on an Update is shown the update and the document as it
+		would become (`Event.Update`, `Event.Proposed`), which jsongin works out as it does for
+		every storage.
+	-	***An After trigger runs for what the storage says it touched*** (user, 2026-09-18): the
+		filter asks an update, a replace or a delete for its documents (`ReturnDocuments`) and hands
+		the caller the count it asked for. Nothing is captured and read back, so a document an
+		update moved out of its own criteria is still seen. ***What "touched" means is the
+		storage's answer***: jsonstor's UpdateMany answers the documents it matched, changed or
+		not (its story, open since 2026-09-13), and this filter inherits that until it is mended.
+	-	***An After trigger cannot refuse***: the write was made and stands (6.7), so its failure
+		fails the object which made the call and says that the write was made.
 	-	***A triggered Process which fails fails the storage call*** that fired it, so the object
 		making the call fails and says why (6.7). Studio reported and swallowed it.
 
@@ -32,6 +51,8 @@
 */
 
 const jsongin = require( '@liquicode/jsongin' );
+
+const Names = require( '../File/Names.js' );
 
 
 const FILTER_NAME = 'jsonx-triggers';
@@ -48,6 +69,12 @@ const WATCHED_FUNCTIONS = {
 	DeleteOne: 'criteria',
 	DeleteMany: 'criteria',
 };
+
+// The calls which touch one document of those their criteria selects: the first the storage finds.
+const ONE_DOCUMENT_FUNCTIONS = [ 'UpdateOne', 'ReplaceOne', 'DeleteOne' ];
+
+// Where each of the criteria calls takes its Options, which is its last parameter.
+const OPTIONS_INDEX = { UpdateOne: 2, UpdateMany: 2, ReplaceOne: 2, DeleteOne: 1, DeleteMany: 1 };
 
 
 //---------------------------------------------------------------------
@@ -124,11 +151,36 @@ function CriteriaForDocuments( Documents, KeyFields )
 
 function select_triggers( Triggers, FunctionName, When )
 {
+	let operation = Names.OperationOf( FunctionName );
+	if ( operation === null ) { return []; }
 	return Triggers.filter( function ( Trigger )
 	{
-		if ( !Array.isArray( Trigger.On ) || !Trigger.On.includes( FunctionName ) ) { return false; }
+		if ( !Array.isArray( Trigger.On ) || !Trigger.On.includes( operation ) ) { return false; }
 		return ( ( Trigger.When === 'Before' ) ? 'Before' : 'After' ) === When;
 	} );
+}
+
+
+//---------------------------------------------------------------------
+// What a Before trigger is shown of a change which has not been made yet: for an update, the
+// update document and the document as it would become; for a replace, the replacement. Answers
+// a function of the document, or null for a call which changes nothing a gate could compare.
+
+function proposed_for( FunctionName, CallArguments )
+{
+	if ( FunctionName === 'ReplaceOne' )
+	{
+		return function () { return { Proposed: clone( CallArguments[ 1 ] ) }; };
+	}
+	if ( FunctionName !== 'UpdateOne' && FunctionName !== 'UpdateMany' ) { return null; }
+	return function ( Document )
+	{
+		let shown = { Update: clone( CallArguments[ 1 ] ) };
+		// An update jsongin refuses is one the storage refuses too, and the call will say so.
+		try { shown.Proposed = jsongin.Update( clone( Document ), clone( CallArguments[ 1 ] ) ); }
+		catch ( error ) { delete shown.Proposed; }
+		return shown;
+	};
 }
 
 
@@ -186,7 +238,7 @@ function NewTriggerFilter()
 			// Runs each trigger once per document its Process selects. Returns, for each candidate,
 			// the document the last run ended with - which is how a Before trigger changes an insert.
 
-			async function fire( FunctionName, When, Candidates, Ready )
+			async function fire( FunctionName, When, Candidates, Ready, Shown )
 			{
 				let finals = Candidates.slice();
 
@@ -200,10 +252,9 @@ function NewTriggerFilter()
 					{
 						if ( !matches( finals[ index ], process.Criteria ) ) { continue; }
 
-						let input = {
-							Document: clone( finals[ index ] ),
-							Event: { Function: FunctionName, When: When, DataSource: settings.DataSource, Trigger: trigger.Name },
-						};
+						let event = { Function: FunctionName, Operation: Names.OperationOf( FunctionName ), When: When, DataSource: settings.DataSource, Trigger: trigger.Name };
+						if ( typeof Shown === 'function' ) { Object.assign( event, Shown( finals[ index ] ) ); }
+						let input = { Document: clone( finals[ index ] ), Event: event };
 						let run = await session.RunTriggered( trigger, process, input );
 						if ( When === 'Before' && run && is_object( run.State ) && is_object( run.State.Document ) )
 						{
@@ -228,8 +279,14 @@ function NewTriggerFilter()
 					let after = ready( FunctionName, 'After' );
 					if ( before.length === 0 && after.length === 0 ) { return await Storage[ FunctionName ]( ...call_arguments ); }
 
+					// What a gate is run for: the documents the call will touch, as they are now. A call
+					// which touches one document touches the first the storage finds, and no other.
 					let captured = [];
-					if ( source === 'criteria' ) { captured = await read_documents( call_arguments[ 0 ] ); }
+					if ( source === 'criteria' && before.length > 0 )
+					{
+						if ( ONE_DOCUMENT_FUNCTIONS.includes( FunctionName ) ) { captured = as_document_array( await Storage.FindOne( call_arguments[ 0 ], null, {} ) ); }
+						else { captured = await read_documents( call_arguments[ 0 ] ); }
+					}
 
 					if ( before.length > 0 )
 					{
@@ -243,11 +300,25 @@ function NewTriggerFilter()
 						}
 						else
 						{
-							await fire( FunctionName, 'Before', captured, before );
+							await fire( FunctionName, 'Before', captured, before, proposed_for( FunctionName, call_arguments ) );
 						}
 					}
 
+					// An After trigger runs for what the storage says it touched, so the storage is asked for
+					// its documents, and the caller is handed the count it asked for.
+					let asked_for_documents = false;
+					if ( after.length > 0 && source === 'criteria' )
+					{
+						let options_index = OPTIONS_INDEX[ FunctionName ];
+						let options = is_object( call_arguments[ options_index ] ) ? Object.assign( {}, call_arguments[ options_index ] ) : {};
+						asked_for_documents = ( options.ReturnDocuments ? true : false );
+						options.ReturnDocuments = true;
+						while ( call_arguments.length < options_index ) { call_arguments.push( undefined ); }
+						call_arguments[ options_index ] = options;
+					}
+
 					let result = await Storage[ FunctionName ]( ...call_arguments );
+					let answer = result;
 
 					if ( after.length > 0 )
 					{
@@ -260,16 +331,31 @@ function NewTriggerFilter()
 							candidates = ( criteria === null ) ? submitted : await read_documents( criteria );
 							if ( candidates.length === 0 ) { candidates = submitted; }
 						}
-						else if ( FunctionName === 'DeleteOne' || FunctionName === 'DeleteMany' ) { candidates = captured; }
 						else
 						{
-							let criteria = CriteriaForDocuments( captured, primary_key_fields( Storage ) );
-							candidates = ( criteria === null ) ? captured : await read_documents( criteria );
+							// An adapter which answers a count here ignored ReturnDocuments, and nothing else
+							// knows what the call touched: loud, because silence would be a trigger which never fires.
+							if ( typeof result === 'number' ) { throw new Error( 'The storage answered a count where its documents were asked for (ReturnDocuments), so the triggers on [' + settings.DataSource + '] cannot know what ' + FunctionName + ' touched.' ); }
+							candidates = as_document_array( result );
+							if ( !asked_for_documents ) { answer = candidates.length; }
 						}
-						await fire( FunctionName, 'After', candidates, after );
+						try
+						{
+							await fire( FunctionName, 'After', candidates, after );
+						}
+						catch ( error )
+						{
+							// ***An After trigger cannot refuse what has happened*** (13.5): the write stands, and
+							// the failure says so, since there is no transaction to undo it (6.7).
+							let said = String( error.message );
+							if ( !said.endsWith( '.' ) ) { said += '.'; }
+							let made = new Error( said + ' The ' + FunctionName + ' on [' + settings.DataSource + '] had been made, and stands: an After trigger cannot refuse what has happened (13.5).' );
+							made.Code = 'TriggerFailedAfter';
+							throw made;
+						}
 					}
 
-					return result;
+					return answer;
 				};
 				return;
 			}

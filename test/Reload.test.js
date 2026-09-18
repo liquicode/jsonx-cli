@@ -147,7 +147,7 @@ describe( 'A held session following its file', function ()
 				Kind: 'Process', Name: 'Note it', DataSource: 'Kept', Criteria: {},
 				Steps: [ { $call: { Name: 'InsertOne', With: { DataSource: 'Notes', Document: { Seen: '$Document._id' } } } } ],
 			} );
-			document.Triggers = [ { Name: 'On insert', On: [ 'InsertOne', 'InsertMany' ], Process: 'Note it' } ];
+			document.Triggers = [ { Name: 'On insert', On: [ 'Insert' ], Process: 'Note it' } ];
 			write( file, document );
 
 			let outcome = await held.Reload();

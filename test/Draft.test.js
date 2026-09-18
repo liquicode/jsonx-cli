@@ -33,7 +33,7 @@ describe( 'Draft, an entry evaluated as if it were in the file', function ()
 	{
 		LIB_ASSERT.strictEqual( Draft.Section( { Kind: 'Query' } ), 'Objects' );
 		LIB_ASSERT.strictEqual( Draft.Section( { AdapterName: 'jsonstor-memory' } ), 'DataSources' );
-		LIB_ASSERT.strictEqual( Draft.Section( { Process: 'Note a long booking', On: [ 'InsertOne' ] } ), 'Triggers' );
+		LIB_ASSERT.strictEqual( Draft.Section( { Process: 'Note a long booking', On: [ 'Insert' ] } ), 'Triggers' );
 		// A Kind wins over either, and a shape which is none of the three is checked as an object.
 		LIB_ASSERT.strictEqual( Draft.Section( { Kind: 'Process', Process: 'x' } ), 'Objects' );
 		LIB_ASSERT.strictEqual( Draft.Section( { Name: 'Nothing' } ), 'Objects' );
@@ -58,7 +58,7 @@ describe( 'Draft, an entry evaluated as if it were in the file', function ()
 		let source = Draft.Place( document, { Name: 'Scratch', AdapterName: 'jsonstor-memory' } );
 		LIB_ASSERT.strictEqual( source.Path, 'DataSources.' + document.DataSources.length );
 
-		let trigger = Draft.Place( document, { Name: 'Watch', On: [ 'InsertOne' ], Process: 'Note a long booking' } );
+		let trigger = Draft.Place( document, { Name: 'Watch', On: [ 'Insert' ], Process: 'Note a long booking' } );
 		LIB_ASSERT.strictEqual( trigger.Path, 'Triggers.' + document.Triggers.length );
 	} );
 

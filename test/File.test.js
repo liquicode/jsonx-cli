@@ -157,7 +157,7 @@ describe( 'Names', function ()
 					],
 				},
 			],
-			Triggers: [ { Name: 'Tr', On: [ 'InsertOne' ], Process: 'P' } ],
+			Triggers: [ { Name: 'Tr', On: [ 'Insert' ], Process: 'P' } ],
 		};
 
 		let references = Names.References( document ).map( function ( Reference )

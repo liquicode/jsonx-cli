@@ -34,6 +34,27 @@ const HOST_FUNCTIONS = [
 
 const RESERVED_NAMES = HOST_FUNCTIONS;
 
+// The operations a trigger fires on, and the jsonstor functions each one covers (spec 13.3). A
+// trigger does not tell a call which touches one document from a call which touches many: which
+// of a pair is called is the runner's business (a Delete with FirstOnly is a DeleteOne), and a
+// triggered process runs once per document either way. A replaced document is a changed one.
+const TRIGGER_OPERATIONS = {
+	Insert: [ 'InsertOne', 'InsertMany' ],
+	Find: [ 'FindOne', 'FindMany', 'FindMany2' ],
+	Update: [ 'UpdateOne', 'UpdateMany', 'ReplaceOne' ],
+	Delete: [ 'DeleteOne', 'DeleteMany' ],
+};
+
+// The operation a jsonstor function belongs to, or null when no trigger fires on it.
+function OperationOf( FunctionName )
+{
+	for ( let operation in TRIGGER_OPERATIONS )
+	{
+		if ( TRIGGER_OPERATIONS[ operation ].includes( FunctionName ) ) { return operation; }
+	}
+	return null;
+}
+
 // The fields of each step operator which hold a nested list of steps.
 const NESTED_STEPS = {
 	'$when': [ 'Then', 'Else' ],
@@ -194,6 +215,8 @@ module.exports = {
 	SECTIONS: SECTIONS,
 	HOST_FUNCTIONS: HOST_FUNCTIONS,
 	RESERVED_NAMES: RESERVED_NAMES,
+	TRIGGER_OPERATIONS: TRIGGER_OPERATIONS,
+	OperationOf: OperationOf,
 	NESTED_STEPS: NESTED_STEPS,
 	Entries: Entries,
 	FindEntry: FindEntry,

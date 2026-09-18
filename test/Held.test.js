@@ -73,7 +73,7 @@ function scratch_document()
 			},
 		],
 		Triggers: [
-			{ Name: 'On arrival', On: [ 'InsertOne', 'InsertMany' ], Process: 'Note each arrival' },
+			{ Name: 'On arrival', On: [ 'Insert' ], Process: 'Note each arrival' },
 		],
 	};
 }

@@ -30,13 +30,8 @@ const Environment = require( '../Session/Environment.js' );
 
 const KINDS = [ 'Insert', 'Query', 'Update', 'Delete', 'Process' ];
 
-// The storage functions a trigger can fire on (spec 13.3).
-const TRIGGER_FUNCTIONS = [
-	'InsertOne', 'InsertMany',
-	'FindOne', 'FindMany', 'FindMany2',
-	'UpdateOne', 'UpdateMany', 'ReplaceOne',
-	'DeleteOne', 'DeleteMany',
-];
+// The operations a trigger can fire on (spec 13.3); the table is the format's, in Names.js.
+const TRIGGER_OPERATIONS = Object.keys( Names.TRIGGER_OPERATIONS );
 
 const SEVERITY_ORDER = { error: 0, warning: 1, note: 2 };
 
@@ -673,15 +668,18 @@ function check_trigger( Item, error )
 	{
 		if ( !Array.isArray( entry.On ) || entry.On.length === 0 )
 		{
-			error( path_of( base, 'On' ), 'On must be a non-empty array of storage function names (13.3).' );
+			error( path_of( base, 'On' ), 'On must be a non-empty array of operations: ' + TRIGGER_OPERATIONS.join( ', ' ) + ' (13.3).' );
 		}
 		else
 		{
 			for ( let index = 0; index < entry.On.length; index++ )
 			{
-				if ( !TRIGGER_FUNCTIONS.includes( entry.On[ index ] ) )
+				if ( !TRIGGER_OPERATIONS.includes( entry.On[ index ] ) )
 				{
-					error( path_of( base, 'On.' + index ), 'A trigger cannot fire on [' + entry.On[ index ] + ']; it fires on ' + TRIGGER_FUNCTIONS.join( ', ' ) + ' (13.3).' );
+					// A jsonstor function name is what On held before 2026-09-18: say what to write.
+					let operation = Names.OperationOf( entry.On[ index ] );
+					let instead = ( operation !== null ) ? ': write ' + operation + ' in its place' : '';
+					error( path_of( base, 'On.' + index ), 'A trigger cannot fire on [' + entry.On[ index ] + ']; it fires on ' + TRIGGER_OPERATIONS.join( ', ' ) + instead + ' (13.3).' );
 				}
 			}
 		}
@@ -1001,7 +999,7 @@ function Summarize( Findings )
 //---------------------------------------------------------------------
 module.exports = {
 	KINDS: KINDS,
-	TRIGGER_FUNCTIONS: TRIGGER_FUNCTIONS,
+	TRIGGER_OPERATIONS: TRIGGER_OPERATIONS,
 	ValidateFile: ValidateFile,
 	ValidateEntry: ValidateEntry,
 	SortFindings: SortFindings,
