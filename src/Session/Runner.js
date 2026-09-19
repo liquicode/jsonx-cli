@@ -11,16 +11,14 @@
 	Processes triggers started because of this object's storage calls. A report is built as the
 	run goes, so a failure deep inside still leaves every earlier run in the tree.
 
-	***The result of each kind is spec 6.3's.*** An Update reports `{ Selected, Changed }`, and
-	both are measured rather than taken from jsonstor. The selected documents are read before the
-	update and read back by primary key after it, as jsonx-studio's Execute.js did: Selected is
-	how many were read before, Changed how many differ after. ***A storage answers the documents
-	an update changed*** (every jsonstor adapter, since 2026-09-19; it answered the documents
-	matched before, jsonx/.plans/update-answers-changed.md), so its answer is never Selected -
-	Selected was read off the call until the memory storage was mended and it came back as
-	Changed. ***Changed stays measured although the storage's answer is now the same number***:
-	`--changes` reports each document's Before and After from the same read-back, a storage this
-	package has never met answers whatever it answers, and the cost is one read by key.
+	***The result of each kind is spec 6.3's.*** An Update reports `{ Selected, Changed }`.
+	***Changed is what the storage answers*** (user, 2026-09-19): every jsonstor adapter answers
+	the documents an update changed, never one it matched and left as it was
+	(jsonx/.plans/update-answers-changed.md). Selected is a Count made before the call. Until
+	that day a storage answered the documents it matched, so Changed was measured here - the
+	selected documents read before the update and read back by primary key after it, as
+	jsonx-studio's Execute.js did - and that workaround is gone. With `--changes` the storage is
+	asked for the documents it changed, and each is paired with the document read before.
 
 	***A Process calls an object by naming it in `$call`*** (12.8), and the call's answer is that
 	object's result. A failure of the object is a failure of the step, which a `$try` can catch.
@@ -36,7 +34,7 @@
 	***A data source's primary key is read from `PrimaryKeyInfo`, else from `StorageInfo()`.*** A
 	filter built on `StorageInterface()` does not carry `PrimaryKeyInfo` up (measured 2026-09-13:
 	behind `jsonstor-oplog` it is undefined, and `StorageInfo().PrimaryKey` still answers), so
-	without the second source an Update behind any filter would measure Changed against `_id`.
+	without the second source an Update behind any filter would pair its Changes by `_id`.
 */
 
 const jsongin = require( '@liquicode/jsongin' );
@@ -253,10 +251,13 @@ function NewRunner( Options )
 		let storage = runner.DataSources.Open( DataSourceName );
 		if ( !runner.Statistics ) { return await storage[ FunctionName ]( ...Parameters ); }
 
+		// The call's own options are kept and Statistics joins them: an Update run with Changes
+		// asks for its documents, and that must survive being measured.
 		let options_index = STORAGE_PARAMETERS[ FunctionName ].length;
 		let parameters = Parameters.slice( 0, options_index );
 		while ( parameters.length < options_index ) { parameters.push( null ); }
-		parameters.push( { Statistics: true } );
+		let own_options = is_object( Parameters[ options_index ] ) ? Parameters[ options_index ] : {};
+		parameters.push( Object.assign( {}, own_options, { Statistics: true } ) );
 
 		let answer = await storage[ FunctionName ]( ...parameters );
 		if ( !is_object( answer ) || typeof answer.Statistics === 'undefined' || !Object.prototype.hasOwnProperty.call( answer, 'Result' ) ) { return answer; }
@@ -428,50 +429,65 @@ function NewRunner( Options )
 
 
 	//---------------------------------------------------------------------
-	// Spec 10.4, with Changed measured.
+	// Spec 10.4. ***Changed is the storage's answer*** (user, 2026-09-19: "all of the adapters
+	// should report back correctly what it does"): every jsonstor adapter answers the documents an
+	// update changed, so nothing is read back to find out. Selected is its own question, asked
+	// before the call, since an update's answer never says what it matched and left as it was.
 
 	async function run_update( Entry, Report )
 	{
 		let storage = runner.DataSources.Open( Entry.DataSource );
 		let first_only = ( Entry.FirstOnly === true );
 
-		let before = await call_storage( Entry.DataSource, 'FindMany', [ Entry.Criteria, null ] );
-		before = Array.isArray( before ) ? before : [];
-		if ( first_only ) { before = before.slice( 0, 1 ); }
-
-		let answered = await call_storage( Entry.DataSource, first_only ? 'UpdateOne' : 'UpdateMany', [ Entry.Criteria, clone( Entry.Update ) ] );
-
-		// ***Selected is what was read before the call, never what the call answered***: a storage
-		// answers the documents it changed. Changed is measured below, and falls back on that
-		// answer only when nothing can be read back by key.
-		let selected = before.length;
-		let changed = answered;
-		let fields = await key_fields( Entry.DataSource, storage );
-		let criteria = Triggers.CriteriaForDocuments( before, fields );
-
-		// ***With Changes on, the documents already read to measure Changed are kept*** (cut 4, F5.4):
-		// no call is added. Nothing selected changed nothing; selected documents with no key values
-		// cannot be read back, so what changed is not known and Changes is left out.
-		let changes = ( runner.Changes && before.length === 0 ) ? [] : null;
-		if ( criteria !== null )
+		// ***Without Changes, Selected is a count.*** With it, the selected documents are read
+		// whole, because each changed document is reported as it was before.
+		let before = [];
+		let selected = 0;
+		if ( runner.Changes )
 		{
-			let after = await call_storage( Entry.DataSource, 'FindMany', [ criteria, null ] );
-			after = Array.isArray( after ) ? after : [];
-			changed = 0;
-			if ( runner.Changes ) { changes = []; }
-			for ( let index = 0; index < before.length; index++ )
+			before = await call_storage( Entry.DataSource, 'FindMany', [ Entry.Criteria, null ] );
+			before = Array.isArray( before ) ? before : [];
+			if ( first_only ) { before = before.slice( 0, 1 ); }
+			selected = before.length;
+		}
+		else
+		{
+			selected = await call_storage( Entry.DataSource, 'Count', [ Entry.Criteria ] );
+			if ( first_only && selected > 1 ) { selected = 1; }
+		}
+
+		// ***With Changes, the storage is asked for the documents it changed*** (ReturnDocuments),
+		// which are the After half; the Before half is found among what was read, by primary key.
+		let options = runner.Changes ? { ReturnDocuments: true } : {};
+		let answered = await call_storage( Entry.DataSource, first_only ? 'UpdateOne' : 'UpdateMany', [ Entry.Criteria, clone( Entry.Update ), options ] );
+
+		let changed = 0;
+		let changes = null;
+		if ( runner.Changes )
+		{
+			let after = Array.isArray( answered ) ? answered : ( is_object( answered ) ? [ answered ] : [] );
+			changed = after.length;
+			// Selected documents with no key values cannot be told apart, so which one each changed
+			// document was is not known and Changes is left out. Nothing selected changed nothing.
+			let fields = await key_fields( Entry.DataSource, storage );
+			if ( before.length === 0 ) { changes = []; }
+			else if ( Triggers.CriteriaForDocuments( before, fields ) !== null )
 			{
-				let key = JSON.stringify( fields.map( function ( Field ) { return jsongin.GetValue( before[ index ], Field ); } ) );
-				let now = after.find( function ( Document )
+				changes = [];
+				for ( let index = 0; index < after.length; index++ )
 				{
-					return JSON.stringify( fields.map( function ( Field ) { return jsongin.GetValue( Document, Field ); } ) ) === key;
-				} );
-				if ( !now || !jsongin.StrictEquals( before[ index ], now ) )
-				{
-					changed++;
-					if ( changes !== null ) { changes.push( { Before: before[ index ], After: now || null } ); }
+					let key = JSON.stringify( fields.map( function ( Field ) { return jsongin.GetValue( after[ index ], Field ); } ) );
+					let was = before.find( function ( Document )
+					{
+						return JSON.stringify( fields.map( function ( Field ) { return jsongin.GetValue( Document, Field ); } ) ) === key;
+					} );
+					changes.push( { Before: was || null, After: after[ index ] } );
 				}
 			}
+		}
+		else
+		{
+			changed = ( typeof answered === 'number' ) ? answered : 0;
 		}
 
 		// The result stays spec 6.3's, since a `$call` receives it; the changes are the report's.

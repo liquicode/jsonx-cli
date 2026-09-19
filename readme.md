@@ -180,7 +180,7 @@ jsonx data update Bookings --criteria @b-2.json --update @confirm.json --changes
 ```
 
 When nothing was selected, `Changes` is `[]`. When the selected documents carry no primary key
-value, they cannot be read back after the update, and `Changes` is left out.
+value, a changed document cannot be matched to the one it was before, and `Changes` is left out.
 
 
 ## Explaining
