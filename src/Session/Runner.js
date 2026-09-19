@@ -12,10 +12,13 @@
 	run goes, so a failure deep inside still leaves every earlier run in the tree.
 
 	***The result of each kind is spec 6.3's.*** An Update reports `{ Selected, Changed }`, and
-	Changed is measured rather than taken from jsonstor: UpdateMany answers how many documents it
-	matched, including those it set to the value they already held (measured 2026-09-13). The
-	selected documents are read before the update and read back by primary key after it, as
-	jsonx-studio's Execute.js did.
+	both are measured rather than taken from jsonstor. The selected documents are read before the
+	update and read back by primary key after it, as jsonx-studio's Execute.js did: Selected is
+	how many were read before, Changed how many differ after. ***What a storage answers for an
+	update is in motion*** (2026-09-19, jsonx/.plans/update-answers-changed.md): it answered the
+	documents matched (measured 2026-09-13), it is being mended adapter by adapter to answer the
+	documents changed, and for as long as the family answers both ways neither number may be read
+	off the call. Selected was, until the memory storage was mended and it came back as Changed.
 
 	***A Process calls an object by naming it in `$call`*** (12.8), and the call's answer is that
 	object's result. A failure of the object is a failure of the step, which a `$try` can catch.
@@ -434,9 +437,13 @@ function NewRunner( Options )
 		before = Array.isArray( before ) ? before : [];
 		if ( first_only ) { before = before.slice( 0, 1 ); }
 
-		let selected = await call_storage( Entry.DataSource, first_only ? 'UpdateOne' : 'UpdateMany', [ Entry.Criteria, clone( Entry.Update ) ] );
+		let answered = await call_storage( Entry.DataSource, first_only ? 'UpdateOne' : 'UpdateMany', [ Entry.Criteria, clone( Entry.Update ) ] );
 
-		let changed = selected;
+		// ***Selected is what was read before the call, never what the call answered***: a storage
+		// answers the documents it changed once it is mended and the documents it matched until
+		// then. Changed falls back on the answer only when nothing can be read back by key.
+		let selected = before.length;
+		let changed = answered;
 		let fields = await key_fields( Entry.DataSource, storage );
 		let criteria = Triggers.CriteriaForDocuments( before, fields );
 
