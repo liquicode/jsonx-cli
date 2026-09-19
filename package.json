@@ -1,6 +1,6 @@
 {
 	"name": "@liquicode/jsonx-cli",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "The jsonx application: read, validate, run and edit jsonx files over jsongin, jsonstor and jsonproc.",
 	"license": "MIT",
 	"engines": {
