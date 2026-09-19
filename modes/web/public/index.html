@@ -23,6 +23,7 @@
 	<span class="jsonx-spacer"></span>
 
 	<!-- What only the host can do: shown when it lists the capability (the desktop, cut 6). -->
+	<button type="button" class="btn btn-sm btn-outline-secondary" id="jsonx-new-file" ng-if="Main.Host.Has( 'NewFile' )" ng-click="Main.Host.NewFile()">New file</button>
 	<button type="button" class="btn btn-sm btn-outline-secondary" id="jsonx-open-file" ng-if="Main.Host.Has( 'OpenFile' )" ng-click="Main.Host.OpenFile()">Open file</button>
 	<button type="button" class="btn btn-sm btn-outline-secondary" id="jsonx-open-terminal" ng-if="Main.Host.Has( 'OpenTerminal' )" ng-click="Main.Host.OpenTerminal()">Terminal</button>
 

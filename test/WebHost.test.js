@@ -45,7 +45,7 @@ describe( 'The host interface', function ()
 	it( 'is implemented by the browser host as the declaration says', function ()
 	{
 		let members = contract();
-		LIB_ASSERT.deepStrictEqual( members.map( function ( Each ) { return Each.Name; } ), [ 'Kind', 'Capabilities', 'Notify', 'CopyText', 'SaveText', 'OpenFile', 'OpenPath', 'RecentFiles', 'OpenTerminal' ] );
+		LIB_ASSERT.deepStrictEqual( members.map( function ( Each ) { return Each.Name; } ), [ 'Kind', 'Capabilities', 'Notify', 'CopyText', 'SaveText', 'OpenFile', 'NewFile', 'OpenPath', 'RecentFiles', 'OpenTerminal' ] );
 		let host = Host.BrowserHost( {} );
 
 		// Every member which is not optional is there, a method as a function.
@@ -64,7 +64,7 @@ describe( 'The host interface', function ()
 		} );
 		// Every declared capability is a member, and the desktop's are optional and absent in a browser.
 		declared.forEach( function ( Name ) { LIB_ASSERT.ok( members.some( function ( Each ) { return Each.Name === Name; } ), Name ); } );
-		[ 'OpenFile', 'OpenPath', 'RecentFiles', 'OpenTerminal' ].forEach( function ( Name )
+		[ 'OpenFile', 'NewFile', 'OpenPath', 'RecentFiles', 'OpenTerminal' ].forEach( function ( Name )
 		{
 			LIB_ASSERT.ok( members.find( function ( Each ) { return Each.Name === Name; } ).Optional, Name );
 			LIB_ASSERT.strictEqual( host[ Name ], undefined, Name );

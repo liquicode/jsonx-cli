@@ -649,7 +649,7 @@ describe( 'The Web UI in a browser', function ()
 		{
 			await ready( page, 12 );
 			// A browser lists no desktop capability.
-			LIB_ASSERT.strictEqual( await page.Evaluate( '!!document.getElementById( "jsonx-open-file" ) || !!document.getElementById( "jsonx-open-terminal" )' ), false );
+			LIB_ASSERT.strictEqual( await page.Evaluate( '!!document.getElementById( "jsonx-new-file" ) || !!document.getElementById( "jsonx-open-file" ) || !!document.getElementById( "jsonx-open-terminal" )' ), false );
 
 			await send( page, 'run "Prepare the season"' );
 			await page.WaitFor( count_of( '.jsonx-row' ) + ' === 1' );
@@ -694,12 +694,14 @@ describe( 'The Web UI in a browser', function ()
 		let desktop = await browser.OpenPage();
 		try
 		{
-			await desktop.Send( 'Page.addScriptToEvaluateOnNewDocument', { source: 'window.JsonxHost = { Kind: "desktop", Opened: 0, Capabilities: function () { return [ "Notify", "CopyText", "SaveText", "OpenFile", "OpenTerminal" ]; }, Notify: function () { return Promise.resolve( true ); }, CopyText: function () { return Promise.resolve( true ); }, SaveText: function () { return Promise.resolve( true ); }, OpenFile: function () { this.Opened++; return Promise.resolve( null ); }, OpenTerminal: function () { return Promise.resolve( true ); } };' } );
+			await desktop.Send( 'Page.addScriptToEvaluateOnNewDocument', { source: 'window.JsonxHost = { Kind: "desktop", Opened: 0, Created: 0, Capabilities: function () { return [ "Notify", "CopyText", "SaveText", "OpenFile", "NewFile", "OpenTerminal" ]; }, Notify: function () { return Promise.resolve( true ); }, CopyText: function () { return Promise.resolve( true ); }, SaveText: function () { return Promise.resolve( true ); }, OpenFile: function () { this.Opened++; return Promise.resolve( null ); }, NewFile: function () { this.Created++; return Promise.resolve( null ); }, OpenTerminal: function () { return Promise.resolve( true ); } };' } );
 			await desktop.Navigate( served.Base + '/ui/' );
 			await ready( desktop, 12 );
-			await desktop.WaitFor( '!!document.getElementById( "jsonx-open-file" ) && !!document.getElementById( "jsonx-open-terminal" )' );
+			await desktop.WaitFor( '!!document.getElementById( "jsonx-new-file" ) && !!document.getElementById( "jsonx-open-file" ) && !!document.getElementById( "jsonx-open-terminal" )' );
 			await desktop.Click( '#jsonx-open-file' );
 			await desktop.WaitFor( 'window.JsonxHost.Opened === 1' );
+			await desktop.Click( '#jsonx-new-file' );
+			await desktop.WaitFor( 'window.JsonxHost.Created === 1 && window.JsonxHost.Opened === 1' );
 			LIB_ASSERT.deepStrictEqual( desktop.Errors, [] );
 		}
 		finally { await served.Close(); }

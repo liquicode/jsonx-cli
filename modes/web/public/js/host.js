@@ -13,7 +13,7 @@
 		Notify( Title, Text )           the Notification API, once the person has allowed it; else nothing
 		CopyText( Text )                the clipboard
 		SaveText( SuggestedName, Text ) a download of the text
-	Desktop only, absent here: OpenFile(), RecentFiles(), OpenTerminal().
+	Desktop only, absent here: OpenFile(), NewFile(), OpenPath(), RecentFiles(), OpenTerminal().
 */
 
 ( function ( Root )
