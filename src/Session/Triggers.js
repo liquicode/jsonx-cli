@@ -34,8 +34,10 @@
 		filter asks an update, a replace or a delete for its documents (`ReturnDocuments`) and hands
 		the caller the count it asked for. Nothing is captured and read back, so a document an
 		update moved out of its own criteria is still seen. ***What "touched" means is the
-		storage's answer***: jsonstor's UpdateMany answers the documents it matched, changed or
-		not (its story, open since 2026-09-13), and this filter inherits that until it is mended.
+		storage's answer***, and since 2026-09-19 every jsonstor adapter answers the documents an
+		update changed, never one it matched and left as it was - so an After trigger on an Update
+		runs for the documents which changed, with nothing done here. Until then it ran for every
+		document the criteria matched (jsonx/.plans/update-answers-changed.md).
 	-	***An After trigger cannot refuse***: the write was made and stands (6.7), so its failure
 		fails the object which made the call and says that the write was made.
 	-	***A triggered Process which fails fails the storage call*** that fired it, so the object

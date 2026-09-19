@@ -111,6 +111,30 @@ describe( 'Triggers', function ()
 		LIB_ASSERT.deepStrictEqual( log, [ '1 confirmed', '2 other' ] );
 	} );
 
+	// A storage answers the documents an update changed (jsonstor, 2026-09-19), and an After trigger
+	// runs for what the storage answers - so a document the update selects and leaves as it was
+	// fires nothing. Until jsonstor was mended it fired for every document the criteria matched.
+	it( 'run an After update trigger for the documents the update changed, not for one it left as it was', async function ()
+	{
+		let session = session_for(
+			[
+				{ Kind: 'Insert', Name: 'Seed', DataSource: 'S', Documents: [ { _id: 1, Status: 'confirmed' }, { _id: 2, Status: 'requested' } ] },
+				{ Kind: 'Update', Name: 'Confirm all', DataSource: 'S', Criteria: {}, Update: { $set: { Status: 'confirmed' } } },
+				{ Kind: 'Process', Name: 'Log status', DataSource: 'S', Into: 'Log', Steps: [ { $return: { Id: '$Document._id' } } ] },
+			],
+			[ { Name: 'After update', On: [ 'Update' ], Process: 'Log status' } ] );
+
+		await session.Run( 'Seed' );
+		let report = await session.Run( 'Confirm all' );
+		LIB_ASSERT.deepStrictEqual( report.Result, { Selected: 2, Changed: 1 } );
+		LIB_ASSERT.deepStrictEqual( ( await all( session, 'Log' ) ).map( function ( Row ) { return Row.Id; } ), [ 2 ] );
+
+		// And an update which changes nothing fires nothing at all.
+		report = await session.Run( 'Confirm all' );
+		LIB_ASSERT.deepStrictEqual( report.Result, { Selected: 2, Changed: 0 } );
+		LIB_ASSERT.strictEqual( ( await all( session, 'Log' ) ).length, 1 );
+	} );
+
 	it( 'fire on an operation whichever of its functions makes the call: a first-only Delete and an every-match Delete alike', async function ()
 	{
 		let session = session_for(
