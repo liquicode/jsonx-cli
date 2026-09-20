@@ -13,6 +13,12 @@
 	***A verb without a kind makes one storage call*** (`find-one`, `count`, `replace`, `flush`,
 	`drop`, `refresh-index`, `ping`) under a report of its own.
 
+	***`join` and `union` read two data sources***, and are the only verbs which do. jsonstor's
+	interface spans one collection, so the reading is two ordinary `FindMany2` calls and jsongin
+	matches what comes back - the same two functions `jsonx engine join` and `jsonx engine union`
+	run over documents given on the command line. `--criteria` keeps the meaning it has in every
+	other verb here, which documents to read; the join criteria is `--on`.
+
 	***The guard*** (F3.7): an `update` or `delete` whose criteria selects everything - `{}`, `null`,
 	or absent, which jsonstor reads as everything too - and every `drop`, is refused without `--yes`.
 
@@ -20,6 +26,8 @@
 	never deletes and the guard is not asked. Only a verb with a kind can be saved: `find-one` is not
 	a Query of one, because a Query answers an array and FindOne a document.
 */
+
+const jsongin = require( '@liquicode/jsongin' );
 
 const Draft = require( '../File/Draft.js' );
 
@@ -32,6 +40,8 @@ const VERBS = {
 	'find': { Kind: 'Query', Functions: [ 'FindMany2' ], Guard: null, Describe: 'Read documents: a Query run once.' },
 	'find-one': { Kind: null, Functions: [ 'FindOne' ], Guard: null, Describe: 'Read the first document the criteria selects, or null.' },
 	'count': { Kind: null, Functions: [ 'Count' ], Guard: null, Describe: 'Count the documents the criteria selects.' },
+	'join': { Kind: null, Functions: [ 'FindMany2' ], Guard: null, Describe: 'Read two data sources and answer each document with what it matched in the other.' },
+	'union': { Kind: null, Functions: [ 'FindMany2' ], Guard: null, Describe: 'Read two data sources, one set of documents after the other.' },
 	'insert': { Kind: 'Insert', Functions: [ 'InsertMany' ], Guard: null, Describe: 'Insert one document or an array of them: an Insert run once.' },
 	'update': { Kind: 'Update', Functions: [ 'UpdateMany', 'UpdateOne' ], Guard: 'criteria', Describe: 'Change the documents the criteria selects: an Update run once.' },
 	'replace': { Kind: null, Functions: [ 'ReplaceOne' ], Guard: null, Describe: 'Replace the first document the criteria selects.' },
@@ -184,6 +194,56 @@ function call_parameters( Verb, Values )
 
 
 //---------------------------------------------------------------------
+// The FindMany2 parameters for one side of a join or a union: a criteria and nothing else.
+// Whole documents, because a join criteria reads their fields and a projection ahead of the match
+// could quietly empty the answer.
+
+function read_parameters( Criteria )
+{
+	return [ ( typeof Criteria === 'undefined' ) ? {} : Criteria, null, null, null ];
+}
+
+
+//---------------------------------------------------------------------
+// join and union: two reads, then jsongin. A failed read is the report, as it is for any verb.
+
+async function run_two( Session, Verb, DataSource, Values )
+{
+	let values = is_object( Values ) ? Values : {};
+
+	// ***The second report is nested by hand, because the first has already been popped.***
+	// RunCall attaches its report to whatever is on the runner's stack, and at the top of an ad
+	// hoc command there is nothing there - so without this the second read would be a report the
+	// run never mentions. Under a stack which already has a parent, RunCall has attached it.
+	let nest = ( Session.Runner.Stack.length === 0 );
+
+	let report = await Session.Runner.RunCall( DataSource, 'FindMany2', read_parameters( values.criteria ) );
+	if ( !report.Ok ) { return report; }
+
+	let second = await Session.Runner.RunCall( values[ 'with' ], 'FindMany2', read_parameters( values[ 'with-criteria' ] ) );
+	if ( nest ) { report.Calls.push( second ); }
+	if ( !second.Ok ) { return second; }
+
+	try
+	{
+		let answered = null;
+		if ( Verb === 'union' ) { answered = jsongin.Union( report.Result, second.Result ); }
+		else { answered = jsongin.Join( report.Result, second.Result, values.on, values.type, values.as ); }
+		report.Result = answered;
+		report.Summary = ( ( Verb === 'union' ) ? 'united ' : 'joined ' ) + answered.length
+			+ ( ( answered.length === 1 ) ? ' document' : ' documents' );
+	}
+	catch ( error )
+	{
+		report.Ok = false;
+		report.Result = undefined;
+		report.Error = { Code: 'RunFailed', Message: error.message };
+	}
+	return report;
+}
+
+
+//---------------------------------------------------------------------
 // Runs a verb against a session. Returns a run report; the caller has already checked the guard,
 // and for a verb with a kind, validated the object.
 
@@ -194,6 +254,11 @@ async function Run( Session, Verb, DataSource, Values )
 	if ( verb.Kind !== null )
 	{
 		return await Session.Runner.RunEntry( BuildObject( Verb, DataSource, Values ) );
+	}
+
+	if ( ( Verb === 'join' ) || ( Verb === 'union' ) )
+	{
+		return await run_two( Session, Verb, DataSource, Values );
 	}
 
 	let started = Date.now();

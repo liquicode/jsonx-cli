@@ -162,6 +162,85 @@ describe( 'jsonx datasource <storage verb>', function ()
 		LIB_ASSERT.match( refused.Stderr, /Nothing ran/ );
 	} );
 
+	// ***join and union are the only verbs which read two data sources.*** The second is named by
+	// --with, --criteria keeps the meaning it has everywhere else on each side, and the join
+	// criteria is --on.
+
+	function seed_palette()
+	{
+		let seeded = run( [ 'data', 'insert', 'Copies', '--documents', JSON.stringify( [
+			{ _id: 'p1', Color: 'blue', Hex: '#0000ff' },
+			{ _id: 'p2', Color: 'green', Hex: '#00ff00' },
+		] ) ] );
+		LIB_ASSERT.strictEqual( seeded.Code, 0, seeded.Stderr );
+	}
+
+	it( 'join matches two data sources, and reports the second read under the first', function ()
+	{
+		seed_palette();
+		let result = run( [ 'data', 'join', 'Items', '--with', 'Copies',
+			'--on', '{"$expr":{"$eq":["$Color","$$Left.Color"]}}', '--as', 'Palette' ] );
+		LIB_ASSERT.strictEqual( result.Code, 0, result.Stderr );
+
+		let answer = JSON.parse( result.Stdout );
+		LIB_ASSERT.deepStrictEqual( answer.map( function ( Item ) { return Item._id; } ), [ 'a', 'b', 'c' ] );
+		LIB_ASSERT.strictEqual( answer[ 0 ].Palette[ 0 ].Hex, '#0000ff' );
+		LIB_ASSERT.deepStrictEqual( answer[ 1 ].Palette, [], 'a Left join keeps a document which matched nothing' );
+
+		// Two reads, the second under the first, so the run says where both sets came from.
+		LIB_ASSERT.match( result.Stderr, /joined 3 documents/ );
+		let nested = result.Stderr.split( String.fromCharCode( 10 ) )
+			.filter( function ( Line ) { return Line.startsWith( '  (ad hoc)  FindMany2' ); } );
+		LIB_ASSERT.strictEqual( nested.length, 1, result.Stderr );
+	} );
+
+	it( 'join takes a type, and without --as merges the matches in', function ()
+	{
+		seed_palette();
+		let inner = run( [ 'data', 'join', 'Items', '--with', 'Copies',
+			'--on', '{"$expr":{"$eq":["$Color","$$Left.Color"]}}', '--as', 'Palette', '--type', 'Inner', '--quiet' ] );
+		LIB_ASSERT.strictEqual( inner.Code, 0, inner.Stderr );
+		LIB_ASSERT.deepStrictEqual( JSON.parse( inner.Stdout ).map( function ( Item ) { return Item._id; } ), [ 'a', 'c' ] );
+
+		// ***Without --as the match is merged in, and a field both carry takes the match's value.***
+		// Here that is the identifier, which is the reason to give --as a name of its own.
+		let merged = run( [ 'data', 'join', 'Items', '--with', 'Copies', '--criteria', '{"_id":"a"}',
+			'--on', '{"$expr":{"$eq":["$Color","$$Left.Color"]}}', '--quiet' ] );
+		LIB_ASSERT.strictEqual( merged.Code, 0, merged.Stderr );
+		let one = JSON.parse( merged.Stdout )[ 0 ];
+		LIB_ASSERT.strictEqual( one.Hex, '#0000ff' );
+		LIB_ASSERT.strictEqual( one._id, 'p1', 'the match wins a field both documents carry' );
+	} );
+
+	it( 'union puts one data source after the other, and each side takes its own criteria', function ()
+	{
+		seed_palette();
+		let united = run( [ 'data', 'union', 'Items', '--with', 'Copies', '--quiet' ] );
+		LIB_ASSERT.strictEqual( united.Code, 0, united.Stderr );
+		LIB_ASSERT.strictEqual( JSON.parse( united.Stdout ).length, 5 );
+
+		let narrowed = run( [ 'data', 'union', 'Items', '--with', 'Copies',
+			'--criteria', '{"Color":"red"}', '--with-criteria', '{"Color":"green"}', '--quiet' ] );
+		LIB_ASSERT.strictEqual( narrowed.Code, 0, narrowed.Stderr );
+		LIB_ASSERT.deepStrictEqual( JSON.parse( narrowed.Stdout ).map( function ( Row ) { return Row._id; } ), [ 'b', 'p2' ] );
+	} );
+
+	it( 'refuses an unknown second data source, a missing --with, and a criteria jsongin refuses', function ()
+	{
+		let unknown = run( [ 'data', 'join', 'Items', '--with', 'Nowhere', '--on', '{}' ] );
+		LIB_ASSERT.strictEqual( unknown.Code, 2 );
+		LIB_ASSERT.ok( unknown.Stderr.includes( 'No data source is named [Nowhere]' ), unknown.Stderr );
+
+		let missing = run( [ 'data', 'union', 'Items' ] );
+		LIB_ASSERT.strictEqual( missing.Code, 2 );
+		LIB_ASSERT.match( missing.Stderr, /--with/ );
+
+		// The read runs and the join refuses, so this is a failed report rather than a usage mistake.
+		let refused = run( [ 'data', 'join', 'Items', '--with', 'Copies', '--on', '{"$bogus":1}' ] );
+		LIB_ASSERT.strictEqual( refused.Code, 1 );
+		LIB_ASSERT.match( refused.Stderr, /FAILED/ );
+	} );
+
 	it( 'pings a data source', function ()
 	{
 		let result = run( [ 'data', 'ping', 'Items', '--quiet' ] );

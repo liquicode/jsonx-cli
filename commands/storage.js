@@ -35,6 +35,11 @@ const CRITERIA_REQUIRED = { 'criteria': { Type: 'json', JsonType: 'object', Requ
 const PROJECTION = { 'projection': { Type: 'json', JsonType: 'object', Describe: 'Which fields to keep or drop.' } };
 const FIRST_ONLY = { 'first-only': { Type: 'boolean', Describe: 'Only the first document the criteria selects.' } };
 const YES = { 'yes': { Type: 'boolean', Describe: 'Confirm a call which touches every document, or removes the store.' } };
+// The second data source a join or a union reads, and which of its documents.
+const WITH_SOURCE = {
+	'with': { Type: 'string', Required: true, Describe: 'The second data source, by the name the file gives it.' },
+	'with-criteria': { Type: 'json', JsonType: 'object', Describe: 'Which of its documents to read; absent reads every one.' },
+};
 const SAVE = {
 	'save': { Type: 'string', Describe: 'Store the command in the file as an object of this name, and run nothing.' },
 	'force': { Type: 'boolean', Describe: 'With --save: store it even when it adds an error.' },
@@ -50,6 +55,12 @@ const VERB_OPTIONS = {
 	}, SAVE ),
 	'find-one': Object.assign( {}, CRITERIA_OPTIONAL, PROJECTION ),
 	'count': Object.assign( {}, CRITERIA_OPTIONAL ),
+	'join': Object.assign( {}, CRITERIA_OPTIONAL, WITH_SOURCE, {
+		'on': { Type: 'json', JsonType: 'object', Required: true, Describe: 'How a pair matches, reading the document as $$Left and the one it is tested against as $$Right.' },
+		'type': { Type: 'string', Choices: [ 'Left', 'Inner', 'Right', 'Outer' ], Describe: 'Which join; absent means Left.' },
+		'as': { Type: 'string', Describe: 'The field the matches are written to, as an array; absent merges them into the document.' },
+	} ),
+	'union': Object.assign( {}, CRITERIA_OPTIONAL, WITH_SOURCE ),
 	'insert': Object.assign( { 'documents': { Type: 'json', JsonType: [ 'object', 'array' ], Required: true, Describe: 'One document, or an array of them.' } }, SAVE ),
 	'update': Object.assign( {}, CRITERIA_REQUIRED, { 'update': { Type: 'json', JsonType: 'object', Required: true, Describe: 'The update document, such as { "$set": { ... } }.' } }, FIRST_ONLY, YES, SessionCommand.CHANGES_OPTION, SAVE ),
 	'replace': Object.assign( { 'criteria': { Type: 'json', JsonType: 'object', Required: true, Describe: 'The criteria.' }, 'document': { Type: 'json', JsonType: 'object', Required: true, Describe: 'The document which replaces the first one selected.' } } ),
@@ -105,6 +116,9 @@ function handler_for( Verb )
 			try
 			{
 				session.DataSources.Definition( data_source );
+				// join and union name a second one, and it is checked here so an unknown name is
+				// a usage mistake rather than a failed run.
+				if ( typeof values[ 'with' ] === 'string' ) { session.DataSources.Definition( values[ 'with' ] ); }
 			}
 			catch ( error )
 			{

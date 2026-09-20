@@ -132,6 +132,8 @@ takes its values as options; a JSON value is inline, `@file`, or `-` for standar
 | `find` | `--criteria`, `--projection`, `--sort`, `--skip`, `--max`, `--into` | Read documents. |
 | `find-one` | `--criteria`, `--projection` | Read the first document, or `null`. |
 | `count` | `--criteria` | Count documents. |
+| `join` | `--with`, `--on`, `--type`, `--as`, `--criteria`, `--with-criteria` | Match two data sources against each other. |
+| `union` | `--with`, `--criteria`, `--with-criteria` | Read two data sources, one set after the other. |
 | `insert` | `--documents` | Insert one document or an array of them. |
 | `update` | `--criteria`, `--update`, `--first-only`, `--changes` | Change documents. |
 | `replace` | `--criteria`, `--document` | Replace the first document selected. |
@@ -147,6 +149,26 @@ jsonx data count Bookings --criteria @long-nights.json
 ```
 
 `--max 0` reads every document.
+
+`join` and `union` are the only verbs which read two data sources. `--with` names the second one.
+`--criteria` keeps the meaning it has in every other verb here — which documents to read — on the
+first side, and `--with-criteria` does the same for the second. The join criteria is `--on`, where
+`$$Left` is the document being joined from and a field path such as `$Name` is a field of the
+document it is tested against.
+
+```
+jsonx data join Readings --with Domes --on @by-dome.json --as Dome
+jsonx data union Readings --with Archive --criteria @this-season.json
+```
+
+`--type` is `Left`, `Inner`, `Right` or `Outer`. `--as` names the field the matches are written
+to, as an array; without it they are merged into the document instead, and ***a field both
+documents carry takes the match's value*** — including `_id`, which is the reason to give `--as` a
+name of its own. Either way one document in is one document out, and `union` removes nothing.
+
+The report names both reads: the join is the outer line and the second data source's read sits
+under it. `jsonx engine join` and `jsonx engine union` do the same two things over documents given
+on the command line, with no file and no data source.
 
 `find`, `insert`, `update` and `delete` run exactly as a Query, Insert, Update or Delete in the file
 would: the same result, the same report line (named `(ad hoc)`), and the same triggers fire. The
