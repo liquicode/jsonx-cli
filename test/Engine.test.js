@@ -26,6 +26,18 @@ function plants()
 	];
 }
 
+function beds()
+{
+	return [
+		{ Row: 1, Soil: 'loam' },
+		{ Row: 2, Soil: 'sand' },
+	];
+}
+
+// A plant is matched to its bed by the row it sits in. '$Row' is a field of the bed, the way a
+// field path always means the document being tested; '$$Left' is the plant.
+const BY_ROW = { $expr: { $eq: [ '$Row', '$$Left.Bed.Row' ] } };
+
 function run( Verb, Values )
 {
 	return Engine.Run( Verb, Values );
@@ -94,6 +106,57 @@ describe( 'Engine: each verb agrees with jsongin', function ()
 		LIB_ASSERT.deepStrictEqual( run( 'merge', { document: { Bed: { Row: 1 } }, with: { Bed: { Shade: true } } } ).Result, { Bed: { Row: 1, Shade: true } } );
 	} );
 
+	it( 'join answers one document for each document, matched or not', function ()
+	{
+		let joined = run( 'join', { documents: plants(), with: beds(), criteria: BY_ROW, as: 'Beds' } ).Result;
+		LIB_ASSERT.deepStrictEqual( joined, jsongin.Join( plants(), beds(), BY_ROW, undefined, 'Beds' ) );
+		LIB_ASSERT.deepStrictEqual( joined.map( function ( Plant ) { return Plant.Beds[ 0 ].Soil; } ), [ 'sand', 'loam', 'loam' ] );
+
+		// Without an --as, the matches are merged into the document.
+		let merged = run( 'join', { documents: plants()[ 0 ], with: beds(), criteria: BY_ROW } ).Result;
+		LIB_ASSERT.strictEqual( merged.length, 1, 'a join answers a set, given one document or many' );
+		LIB_ASSERT.strictEqual( merged[ 0 ].Soil, 'sand' );
+
+		// ***A join criteria is accepted although nothing has bound '$$Left' yet.*** Every other verb
+		// validates a criteria against an empty document first, which would refuse this one.
+		LIB_ASSERT.deepStrictEqual( run( 'join', { documents: plants(), with: beds(), criteria: BY_ROW } ).Findings, [] );
+
+		// Left keeps a plant whose row has no bed; Inner drops it.
+		let unrooted = plants().concat( [ { _id: 'p4', Genus: 'Yucca', Height: 60, Bed: { Row: 9 } } ] );
+		LIB_ASSERT.strictEqual( run( 'join', { documents: unrooted, with: beds(), criteria: BY_ROW, as: 'Beds' } ).Result.length, 4 );
+		LIB_ASSERT.strictEqual( run( 'join', { documents: unrooted, with: beds(), criteria: BY_ROW, as: 'Beds', type: 'Inner' } ).Result.length, 3 );
+
+		// A bed nobody sits in comes back alone under Outer.
+		let outer = run( 'join', { documents: [ plants()[ 0 ] ], with: beds(), criteria: BY_ROW, as: 'Beds', type: 'Outer' } ).Result;
+		LIB_ASSERT.deepStrictEqual( outer.map( function ( Document ) { return Document._id; } ), [ 'p1', undefined ] );
+	} );
+
+	it( 'union puts one set after another and removes nothing', function ()
+	{
+		let united = run( 'union', { documents: plants(), with: beds() } ).Result;
+		LIB_ASSERT.deepStrictEqual( united, jsongin.Union( plants(), beds() ) );
+		LIB_ASSERT.strictEqual( united.length, 5 );
+
+		let twice = run( 'union', { documents: plants(), with: plants() } ).Result;
+		LIB_ASSERT.strictEqual( twice.length, 6, 'a concatenation, not a set union' );
+
+		LIB_ASSERT.strictEqual( run( 'union', { documents: plants(), with: beds()[ 0 ] } ).Result.length, 4, 'one document is a set of one' );
+	} );
+
+	it( 'aggregate reads a set of documents bound as a variable', function ()
+	{
+		let lookup = function ( From ) { return [ { $lookup: { from: From, localField: 'Bed.Row', foreignField: 'Row', as: 'Beds' } } ]; };
+
+		let scoped = run( 'aggregate', { documents: plants(), pipeline: lookup( '$$Beds' ), scope: { Beds: beds() } } ).Result;
+		LIB_ASSERT.deepStrictEqual( scoped.map( function ( Plant ) { return Plant.Beds[ 0 ].Soil; } ), [ 'sand', 'loam', 'loam' ] );
+
+		// The documents written into the stage answer the same, with no scope at all.
+		LIB_ASSERT.deepStrictEqual( run( 'aggregate', { documents: plants(), pipeline: lookup( beds() ) } ).Result, scoped );
+
+		// ***The name is refused when nothing bound it***, rather than answering an empty join.
+		refused( 'aggregate', { documents: plants(), pipeline: lookup( '$$Beds' ) }, /is not defined/ );
+	} );
+
 	it( 'operators lists one family or all of them', function ()
 	{
 		LIB_ASSERT.deepStrictEqual( run( 'operators', { family: 'update' } ).Result, Object.keys( jsongin.UpdateOperators ) );
@@ -150,6 +213,9 @@ describe( 'Engine: refusals', function ()
 		LIB_ASSERT.throws( function () { run( 'sort', { documents: [ 1 ], sort: {} } ); }, /Document 0 is not a JSON object/ );
 		LIB_ASSERT.throws( function () { run( 'aggregate', { documents: [], pipeline: {} } ); }, /must be a JSON array/ );
 		LIB_ASSERT.throws( function () { run( 'filter', { documents: [], criteria: [] } ); }, /must be a JSON object/ );
+		LIB_ASSERT.throws( function () { run( 'union', { documents: [], with: 7 } ); }, /must be a JSON object or an array of them/ );
+		LIB_ASSERT.throws( function () { run( 'join', { documents: [], with: [ 7 ], criteria: {} } ); }, /is not a JSON object/ );
+		LIB_ASSERT.throws( function () { run( 'aggregate', { documents: [], pipeline: [], scope: [] } ); }, /must be a JSON object/ );
 	} );
 
 } );
@@ -186,6 +252,17 @@ describe( 'jsonx engine', function ()
 		LIB_ASSERT.strictEqual( result.Code, 0, result.Stderr );
 		LIB_ASSERT.deepStrictEqual( result.Stdout.trim().split( '\n' ).map( function ( Line ) { return JSON.parse( Line )._id; } ), [ 'p1', 'p3' ] );
 		LIB_ASSERT.strictEqual( result.Stderr, '' );
+	} );
+
+	it( 'joins JSON Lines from a file with a set given on the command line', function ()
+	{
+		let result = cli( [ 'engine', 'join',
+			'--documents-jsonl', '@plants.jsonl',
+			'--with', JSON.stringify( beds() ),
+			'--criteria', JSON.stringify( BY_ROW ),
+			'--as', 'Beds', '--type', 'Inner' ] );
+		LIB_ASSERT.strictEqual( result.Code, 0, result.Stderr );
+		LIB_ASSERT.deepStrictEqual( JSON.parse( result.Stdout ).map( function ( Plant ) { return Plant.Beds[ 0 ].Soil; } ), [ 'sand', 'loam', 'loam' ] );
 	} );
 
 	it( 'reads documents from standard input', function ()

@@ -15,6 +15,10 @@
 	***A verb given one document answers for one document***, and given an array answers an array:
 	`project`, `update`, `flatten`, `expand` and `get` apply to each document in turn.
 
+	***A verb which reads a second set of documents takes it as `--with`***, one document or an array:
+	`join` and `union` do, as does `merge` with one document. `aggregate` binds a set for `$lookup`,
+	`$unionWith` and `$graphLookup` with `--scope`, where MongoDB would name a collection.
+
 	***What jsongin refuses is a finding, not a crash.*** Run answers `{ Result, Findings }`; a throw
 	from jsongin becomes one error finding naming the function, and the command exits 3.
 	`validate-query` and `schema validate` answer their findings as the result as well, so a caller
@@ -127,6 +131,32 @@ function object_input( Values, Name )
 // document, so filtering no documents accepted any criteria at all (found 2026-09-13 by the smoke
 // run). A criteria is validated, and an update document or projection is applied to {} as a trial,
 // before any document is read.
+// A second set of documents, given as one document or an array of them - the shape jsongin's
+// Join() and Union() take. It is read here so the refusal names the option a person typed.
+function documents_input( Values, Name )
+{
+	let value = Values[ Name ];
+	if ( is_object( value ) ) { return value; }
+	if ( !Array.isArray( value ) ) { throw new EngineError( 'Option [--' + Name + '] must be a JSON object or an array of them.' ); }
+	for ( let index = 0; index < value.length; index++ )
+	{
+		if ( !is_object( value[ index ] ) ) { throw new EngineError( 'Option [--' + Name + '] [' + index + '] is not a JSON object.' ); }
+	}
+	return value;
+}
+
+
+// ***The variables a pipeline can read.*** $lookup, $unionWith and $graphLookup take the documents
+// they join with written into the stage or bound as a '$$name', which is where MongoDB names a
+// collection. Given none, Aggregate() makes its own frame - and makes it once, which is what gives
+// $$NOW one instant for the whole run.
+function scope_input( Values )
+{
+	if ( typeof Values.scope === 'undefined' ) { return undefined; }
+	return jsongin.Scope.NewPipeline().Child( object_input( Values, 'scope' ) );
+}
+
+
 function criteria_input( Values )
 {
 	let criteria = object_input( Values, 'criteria' );
@@ -238,6 +268,40 @@ const ENGINE_VERBS = {
 		Run: function ( Values ) { return jsongin.Distinct( documents_of( Values ).Documents, object_input( Values, 'fields' ) ); },
 	},
 
+	'join': {
+		Describe: 'Each document with the documents of a second set it matched.',
+		Inputs: Object.assign( {}, DOCUMENTS,
+			required_json( 'with', 'The documents to join with: one document or an array.', [ 'object', 'array' ] ),
+			required_json( 'criteria', 'How a pair matches, reading the document as $$Left and the one it is tested against as $$Right.', 'object' ),
+			{
+				'type': { Type: 'string', Choices: [ 'Left', 'Inner', 'Right', 'Outer' ], Describe: 'Which join; absent means Left.' },
+				'as': { Type: 'string', Describe: 'The field the matches are written to, as an array; absent merges them into the document.' },
+			} ),
+		Library: [ 'Join' ],
+		// ***A join criteria is not checked the way every other criteria is.*** ValidateQuery reads a
+		// criteria against an empty document, and a join criteria names '$$Left' and '$$Right', which
+		// nothing has bound before the join runs - so criteria_input() would refuse the very criteria
+		// this verb exists for. Join() makes the same check itself, with both names bound.
+		Run: function ( Values )
+		{
+			return jsongin.Join(
+				documents_of( Values ).Documents,
+				documents_input( Values, 'with' ),
+				object_input( Values, 'criteria' ),
+				Values.type, Values.as );
+		},
+	},
+
+	'union': {
+		Describe: 'One set of documents after another, with nothing removed.',
+		Inputs: Object.assign( {}, DOCUMENTS, required_json( 'with', 'The documents to add after them: one document or an array.', [ 'object', 'array' ] ) ),
+		Library: [ 'Union' ],
+		Run: function ( Values )
+		{
+			return jsongin.Union( documents_of( Values ).Documents, documents_input( Values, 'with' ) );
+		},
+	},
+
 	'evaluate': {
 		Describe: 'The value of an expression against a document.',
 		Inputs: Object.assign(
@@ -253,12 +317,15 @@ const ENGINE_VERBS = {
 
 	'aggregate': {
 		Describe: 'The documents through an aggregation pipeline.',
-		Inputs: Object.assign( {}, DOCUMENTS, { 'pipeline': { Type: 'json', JsonType: 'array', Required: true, Describe: 'The pipeline, an array of stages.' } } ),
-		Library: [ 'Aggregate', 'StageOperators', 'AccumulatorOperators' ],
+		Inputs: Object.assign( {}, DOCUMENTS, {
+			'pipeline': { Type: 'json', JsonType: 'array', Required: true, Describe: 'The pipeline, an array of stages.' },
+			'scope': { Type: 'json', JsonType: 'object', Describe: 'Documents and values the pipeline reads as $$name, such as { "Beds": [ ... ] } for a $lookup.' },
+		} ),
+		Library: [ 'Aggregate', 'StageOperators', 'AccumulatorOperators', 'Scope' ],
 		Run: function ( Values )
 		{
 			if ( !Array.isArray( Values.pipeline ) ) { throw new EngineError( 'Option [--pipeline] must be a JSON array of stages.' ); }
-			return jsongin.Aggregate( documents_of( Values ).Documents, Values.pipeline );
+			return jsongin.Aggregate( documents_of( Values ).Documents, Values.pipeline, scope_input( Values ) );
 		},
 	},
 

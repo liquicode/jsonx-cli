@@ -158,6 +158,10 @@ describe( 'MCP, the protocol', function ()
 			LIB_ASSERT.strictEqual( tools.query_add.inputSchema.properties.json.type, 'object' );
 			LIB_ASSERT.strictEqual( tools.engine_match.inputSchema.properties.criteria.type, 'object' );
 			LIB_ASSERT.strictEqual( tools.engine_aggregate.inputSchema.properties.pipeline.type, 'array' );
+			LIB_ASSERT.strictEqual( tools.engine_aggregate.inputSchema.properties.scope.type, 'object' );
+			LIB_ASSERT.deepStrictEqual( tools.engine_join.inputSchema.properties.with.type, [ 'object', 'array' ], 'a second set of documents is one or many' );
+			LIB_ASSERT.deepStrictEqual( tools.engine_join.inputSchema.properties.type.enum, [ 'Left', 'Inner', 'Right', 'Outer' ] );
+			LIB_ASSERT.deepStrictEqual( tools.engine_union.inputSchema.properties.with.type, [ 'object', 'array' ] );
 			LIB_ASSERT.strictEqual( 'type' in tools.engine_evaluate.inputSchema.properties.expression, false, 'an expression can be a string' );
 			LIB_ASSERT.strictEqual( 'type' in tools.engine_schema_validate.inputSchema.properties.schema, false, 'a JSON Schema can be a boolean' );
 			LIB_ASSERT.ok( tools[ 'datasource_find-one' ], 'a hyphen is kept' );

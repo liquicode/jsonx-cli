@@ -31,7 +31,6 @@ const NOT_COMMANDS = {
 	'jsongin.OpLog': 'engine machinery: a logging hook',
 	'jsongin.OpError': 'engine machinery: an error hook',
 	'jsongin.Text': 'engine machinery: string helpers the operators use',
-	'jsongin.Scope': 'engine machinery: expression variable frames',
 	'jsongin.Clone': 'identity on the command line: a value read is already a copy',
 	'jsongin.SafeClone': 'identity on the command line',
 	'jsongin.Parse': 'every command\'s input: the parser reads JSON already',

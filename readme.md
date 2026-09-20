@@ -278,8 +278,10 @@ standard input. Documents are `--documents <json>` (one document or an array) or
 | `diff --before --after` | The update that turns one document into the other. |
 | `invert --before --patch` | The update that undoes a patch. |
 | `distinct --fields` | The distinct combinations of some fields. |
+| `join --with --criteria [--type] [--as]` | Each document with what it matched in a second set. |
+| `union --with` | One set of documents after another. |
 | `evaluate --expression [--document]` | The value of an expression. |
-| `aggregate --pipeline` | The documents through an aggregation pipeline. |
+| `aggregate --pipeline [--scope]` | The documents through an aggregation pipeline. |
 | `validate-query --criteria` | The findings for a criteria: `[]` when it is accepted. |
 | `flatten`, `expand` | Each document with dotted field names, or nested again. |
 | `merge --document --with` | One document merged over another. |
@@ -293,6 +295,23 @@ standard input. Documents are `--documents <json>` (one document or an array) or
 ```
 jsonx engine filter --documents-jsonl @rows.jsonl --criteria @long-nights.json --output jsonl
 jsonx engine schema infer --documents - < rows.json
+jsonx engine join --documents-jsonl @rows.jsonl --with @domes.json --criteria @by-dome.json --as Dome
+```
+
+`join` and `union` read the second set of documents from `--with`, which is one document or an
+array of them. A join criteria is matched against each pair: `$$Left` is the document being joined
+from, and a field path such as `$Name` is a field of the document it is tested against, so
+`{ "$expr": { "$eq": [ "$Name", "$$Left.Dome" ] } }` reads "the dome whose name this row names".
+`--type` is `Left`, `Inner`, `Right` or `Outer`; `--as` names the field the matches are written
+to, as an array, and without it they are merged into the document instead. Either way one document
+in is one document out. `union` removes nothing, so two identical documents both come back.
+
+`$lookup`, `$unionWith` and `$graphLookup` take the documents they join with rather than the name
+of a collection, since jsongin has no collections. Write them into the stage, or bind them with
+`--scope` and name them there:
+
+```
+jsonx engine aggregate --documents-jsonl @rows.jsonl --scope @domes-named.json --pipeline @with-dome.json
 ```
 
 Given one document, a verb answers for one document; given an array, it answers an array. A criteria,
