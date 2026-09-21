@@ -58,7 +58,8 @@ function declares_changes( Parsed, Context )
 
 
 //---------------------------------------------------------------------
-// Opens a session for a command. Returns { Session, Path } or { ExitCode } when it cannot.
+// Opens a session for a command. Returns { Session, Path, Label } or { ExitCode } when it cannot;
+// Label is what a report calls the file (Report.FileLabel).
 //
 // Extra.Statistics measures every storage call the session's runner makes; Extra.Trace records
 // each one with jsonstor-oplog.
@@ -75,9 +76,9 @@ async function OpenSession( Parsed, Context, Extra )
 	if ( Context.Held )
 	{
 		let held = Context.Held;
-		if ( refuse_errors( out, held.Path, held.Session.Document, io, held.Session.Catalog ) ) { return { ExitCode: 3 }; }
+		if ( refuse_errors( out, held.Label, held.Session.Document, io, held.Session.Catalog ) ) { return { ExitCode: 3 }; }
 		held.Session.SetRunOptions( { Statistics: ( extra.Statistics === true ), Trace: ( extra.Trace === true ), Changes: ( extra.Changes === true ) } );
-		return { Session: held.Lease(), Path: held.Path };
+		return { Session: held.Lease(), Path: held.Path, Label: held.Label };
 	}
 
 	let resolved = null;
@@ -98,7 +99,7 @@ async function OpenSession( Parsed, Context, Extra )
 	if ( typeof read.Document === 'undefined' || read.Document === null || typeof read.Document !== 'object' || Array.isArray( read.Document ) )
 	{
 		let findings = read.Findings.length > 0 ? read.Findings : Validate.ValidateFile( read.Document, {} );
-		write_findings( out, resolved.Path, findings );
+		write_findings( out, Report.FileLabel( resolved.Path, value( 'report-paths' ) ), findings );
 		return { ExitCode: 3 };
 	}
 
@@ -124,32 +125,33 @@ async function OpenSession( Parsed, Context, Extra )
 		return { ExitCode: 2 };
 	}
 
-	if ( refuse_errors( out, resolved.Path, read.Document, io, session.Catalog ) ) { return { ExitCode: 3 }; }
+	let label = Report.FileLabel( resolved.Path, value( 'report-paths' ) );
+	if ( refuse_errors( out, label, read.Document, io, session.Catalog ) ) { return { ExitCode: 3 }; }
 
-	return { Session: session, Path: resolved.Path };
+	return { Session: session, Path: resolved.Path, Label: label };
 }
 
 
 //---------------------------------------------------------------------
 // Validates the file; when it has errors, writes them and answers true.
 
-function refuse_errors( Out, Path, Document, Io, Catalog )
+function refuse_errors( Out, Label, Document, Io, Catalog )
 {
 	let findings = Validate.ValidateFile( Document, {
 		jsongin: jsongin, jsonproc: jsonproc, Env: Io.Env, CheckSettings: Catalog.ValidateSettings,
 	} );
 	if ( Validate.Summarize( findings ).Errors === 0 ) { return false; }
-	write_findings( Out, Path, findings.filter( function ( Finding ) { return Finding.Severity === 'error'; } ) );
+	write_findings( Out, Label, findings.filter( function ( Finding ) { return Finding.Severity === 'error'; } ) );
 	Out.Log( 'Nothing ran: the file has errors. Run jsonx validate for every finding.\n' );
 	return true;
 }
 
 
 //---------------------------------------------------------------------
-function write_findings( Out, Path, Findings )
+function write_findings( Out, Label, Findings )
 {
 	for ( let index = 0; index < Findings.length; index++ ) { Out.Finding( Findings[ index ] ); }
-	Out.Log( Report.FormatSummary( Path, Validate.Summarize( Findings ) ) );
+	Out.Log( Report.FormatSummary( Label, Validate.Summarize( Findings ) ) );
 	return;
 }
 

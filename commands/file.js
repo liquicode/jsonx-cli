@@ -12,12 +12,14 @@ const jsongin = require( '@liquicode/jsongin' );
 const jsonproc = require( '@liquicode/jsonproc' );
 
 const Reader = require( '../src/File/Reader.js' );
+const Report = require( '../src/Report.js' );
 const Validate = require( '../src/Validate/Validate.js' );
 const AdapterCatalog = require( '../src/Session/AdapterCatalog.js' );
 
 
 //---------------------------------------------------------------------
-// Returns { Document, Path, Catalog, ValidateOptions, Binds, Sets } or { ExitCode }. Binds and Sets
+// Returns { Document, Path, Label, Catalog, ValidateOptions, Binds, Sets } or { ExitCode }. Label is
+// what a report calls the file (Report.FileLabel). Binds and Sets
 // are the held session's overrides when a served command loads, and absent otherwise.
 //
 // ***A served command reads the document the session holds***, not the disk, so an edit changes
@@ -33,6 +35,7 @@ function LoadFile( Parsed, Context )
 		return {
 			Document: held.Session.Document,
 			Path: held.Path,
+			Label: held.Label,
 			Catalog: held.Session.Catalog,
 			ValidateOptions: { jsongin: jsongin, jsonproc: jsonproc, Env: io.Env, CheckSettings: held.Session.Catalog.ValidateSettings },
 			Binds: held.Binds,
@@ -70,6 +73,7 @@ function LoadFile( Parsed, Context )
 	return {
 		Document: document,
 		Path: resolved.Path,
+		Label: Report.FileLabel( resolved.Path, Context.Parser.Value( Context.Tree, Parsed, 'report-paths' ) ),
 		Catalog: catalog,
 		ValidateOptions: { jsongin: jsongin, jsonproc: jsonproc, Env: io.Env, CheckSettings: catalog.ValidateSettings },
 	};

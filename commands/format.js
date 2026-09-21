@@ -38,13 +38,13 @@ async function handler( Parsed, Context )
 	if ( value( 'check' ) )
 	{
 		Context.Out.Result( { Path: loaded.Path, Changed: changed } );
-		if ( changed && !quiet ) { Context.Out.Log( loaded.Path + ' is not formatted. Run jsonx format to rewrite it.\n' ); }
+		if ( changed && !quiet ) { Context.Out.Log( loaded.Label + ' is not formatted. Run jsonx format to rewrite it.\n' ); }
 		return changed ? 1 : 0;
 	}
 
 	if ( changed ) { Writer.WriteFile( loaded.Path, formatted, io.WriteFile ? io : null ); }
 	Context.Out.Result( { Path: loaded.Path, Changed: changed } );
-	if ( !quiet ) { Context.Out.Log( loaded.Path + ( changed ? ' formatted.\n' : ' is already formatted.\n' ) ); }
+	if ( !quiet ) { Context.Out.Log( loaded.Label + ( changed ? ' formatted.\n' : ' is already formatted.\n' ) ); }
 	return 0;
 }
 

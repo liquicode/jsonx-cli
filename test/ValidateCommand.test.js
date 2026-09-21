@@ -74,6 +74,19 @@ describe( 'jsonx validate', function ()
 		LIB_ASSERT.ok( result.Stderr.endsWith( 'observatory.jsonx: 0 errors, 0 warnings, 0 notes\n' ), result.Stderr );
 	} );
 
+	it( 'names the file by its file name alone in a report, and by its full path with --report-paths', function ()
+	{
+		let plain = run( [ 'validate' ], good );
+		LIB_ASSERT.strictEqual( plain.Stderr, 'observatory.jsonx: 0 errors, 0 warnings, 0 notes\n' );
+		LIB_ASSERT.ok( !plain.Stderr.includes( good ), plain.Stderr );
+
+		let full = run( [ 'validate', '--report-paths' ], good );
+		LIB_ASSERT.strictEqual( full.Stderr, LIB_PATH.join( good, 'observatory.jsonx' ) + ': 0 errors, 0 warnings, 0 notes\n' );
+
+		let missing = run( [ 'validate', 'No such entry' ], good );
+		LIB_ASSERT.strictEqual( missing.Stderr, 'No entry is named [No such entry] in observatory.jsonx.\n' );
+	} );
+
 	it( 'exits 3 on an error, with the finding on stdout and a block on stderr', function ()
 	{
 		let result = run( [ 'validate', '--file', 'observatory.jsonx' ], broken );

@@ -78,6 +78,9 @@ report go to standard error, so a result can be piped or redirected.
 - `--output table` writes a list of documents as columns. A cell longer than 40 characters is cut
   short. Anything that is not a list of documents is written as text.
 - `--quiet` writes nothing to standard error.
+- `--report-paths` names the jsonx file by its full path in the report. Without it, the report
+  uses the file name only. Give it to `serve`, `mcp` or `tui` when you start them. A request to
+  a running server can't give it.
 - `--verbose`, on a command that runs something, adds what each storage call measured: the rows
   the data source returned and the rows kept.
 - `--trace`, on a command that runs something, adds every storage call with its parameters and its

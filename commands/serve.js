@@ -76,6 +76,7 @@ async function handler( Parsed, Context )
 	{
 		held = Held.NewHeld( {
 			Tree: Context.Tree, File: value( 'file' ), Binds: value( 'bind' ), Sets: value( 'set' ), Io: io,
+			ReportPaths: value( 'report-paths' ),
 			// The profile (cut 7): absent, a person's own front end gets everything.
 			Profile: value( 'profile' ) || Profiles.DEFAULT_SERVE,
 			// A reload, and what it found, is reported as it happens (plan F2.5).
@@ -97,7 +98,7 @@ async function handler( Parsed, Context )
 		{
 			if ( findings[ index ].Severity !== 'note' ) { out.Finding( findings[ index ] ); }
 		}
-		out.Log( Report.FormatSummary( held.Path, summary ) );
+		out.Log( Report.FormatSummary( held.Label, summary ) );
 		if ( summary.Errors > 0 ) { out.Log( 'The file has errors: it is served, and runs nothing until they are repaired.\n' ); }
 	}
 
@@ -120,7 +121,7 @@ async function handler( Parsed, Context )
 	let ready = { File: held.Path, Url: url, Ws: url.replace( /^http:/, 'ws:' ) + Ws.ROUTE, Pid: process.pid };
 	if ( ui ) { ready.Ui = url + Web.ROUTE; }
 	out.Line( ready );
-	out.Log( 'Serving ' + held.Path + ' at ' + url + ( token ? ' (token required)' : '' ) + '. ' + ( ui ? 'The Web UI is at ' + ready.Ui + '. ' : '' ) + ( value( 'attached' ) ? 'The end of standard input, or Ctrl+C, stops it.' : 'Ctrl+C stops it.' ) + '\n' );
+	out.Log( 'Serving ' + held.Label + ' at ' + url + ( token ? ' (token required)' : '' ) + '. ' + ( ui ? 'The Web UI is at ' + ready.Ui + '. ' : '' ) + ( value( 'attached' ) ? 'The end of standard input, or Ctrl+C, stops it.' : 'Ctrl+C stops it.' ) + '\n' );
 
 	let stops = [ io.WaitForStop() ];
 	if ( value( 'attached' ) && typeof io.WaitForStdinEnd === 'function' ) { stops.push( io.WaitForStdinEnd() ); }

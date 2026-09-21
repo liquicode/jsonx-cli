@@ -83,6 +83,7 @@ const REFUSED_OPTIONS = {
 	'bind': 'data source overrides are given when the session is held',
 	'set': 'data source overrides are given when the session is held',
 	'quiet': 'a served answer always carries its whole report',
+	'report-paths': 'how a report names the file is chosen when the session is held',
 };
 
 
@@ -192,7 +193,7 @@ function NewHeld( Options )
 	if ( read.Document === null || typeof read.Document !== 'object' || Array.isArray( read.Document ) )
 	{
 		let messages = read.Findings.map( function ( Finding ) { return Finding.Message; } );
-		throw new HeldError( resolved.Path + ' cannot be held: it is not a jsonx file. ' + messages.join( ' ' ), 3 );
+		throw new HeldError( Report.FileLabel( resolved.Path, options.ReportPaths === true ) + ' cannot be held: it is not a jsonx file. ' + messages.join( ' ' ), 3 );
 	}
 
 	let session = null;
@@ -222,6 +223,8 @@ function NewHeld( Options )
 		Tree: options.Tree,
 		Io: io,
 		Path: resolved.Path,
+		// What a report calls the file: its name alone, or its full path under --report-paths.
+		Label: Report.FileLabel( resolved.Path, options.ReportPaths === true ),
 		Session: session,
 		Binds: options.Binds,
 		Sets: options.Sets,
@@ -754,7 +757,7 @@ function NewHeld( Options )
 			if ( read.Document === null || typeof read.Document !== 'object' || Array.isArray( read.Document ) )
 			{
 				let findings = read.Findings.length > 0 ? read.Findings : Validate.ValidateFile( read.Document, {} );
-				let message = held.Path + ' changed and cannot be read as a jsonx file; the session keeps the file as it was.';
+				let message = held.Label + ' changed and cannot be read as a jsonx file; the session keeps the file as it was.';
 				for ( let index = 0; index < findings.length; index++ ) { log( Report.FormatFinding( findings[ index ] ) ); }
 				log( 'Not reloaded: ' + message + '\n' );
 				return { Reloaded: false, Reason: 'kept', Message: message, Findings: findings };
@@ -780,7 +783,7 @@ function NewHeld( Options )
 				if ( findings[ index ].Severity === 'error' ) { log( Report.FormatFinding( findings[ index ] ) ); }
 			}
 			let reopened = ( changed.length > 0 ) ? '; opened again on next use: ' + changed.join( ', ' ) : '';
-			log( 'Reloaded ' + Report.FormatSummary( held.Path, summary ).trim() + reopened + '.\n' );
+			log( 'Reloaded ' + Report.FormatSummary( held.Label, summary ).trim() + reopened + '.\n' );
 			return { Reloaded: true, Changed: changed, Findings: findings };
 		} );
 	}

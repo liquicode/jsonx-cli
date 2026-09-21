@@ -198,7 +198,7 @@ function save( Verb, DataSource, Values, Parsed, Context )
 	}
 
 	Writer.WriteFile( loaded.Path, loaded.Document, io.WriteFile ? io : null );
-	if ( !quiet ) { out.Log( 'saved ' + entry.Kind + ' [' + Values.save + ']: ' + loaded.Path + ' written. Nothing ran.\n' ); }
+	if ( !quiet ) { out.Log( 'saved ' + entry.Kind + ' [' + Values.save + ']: ' + loaded.Label + ' written. Nothing ran.\n' ); }
 	out.Result( outcome.Result );
 	return 0;
 }

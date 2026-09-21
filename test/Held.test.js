@@ -201,6 +201,7 @@ describe( 'A held session', function ()
 				[ { Command: 'data count', name: 'Left', bind: [ 'Left=jsonstor-memory' ] }, /\[--bind\] cannot be given/ ],
 				[ { Command: 'data count', name: 'Left', set: [ 'Left.Settings.X=1' ] }, /\[--set\] cannot be given/ ],
 				[ { Command: 'validate', quiet: true }, /\[--quiet\] cannot be given/ ],
+				[ { Command: 'validate', 'report-paths': true }, /\[--report-paths\] cannot be given/ ],
 				[ { Command: 'validate', output: 'table' }, /\[--output\] cannot be \[table\]/ ],
 				[ { Command: 'debug', process: 'Fill Left' }, /^\[debug\] is not served: / ],
 				[ { Command: 'completion', shell: 'bash' }, /^\[completion\] is not served: / ],

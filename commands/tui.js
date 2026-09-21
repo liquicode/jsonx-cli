@@ -40,7 +40,7 @@ async function handler( Parsed, Context )
 	let url = value( 'url' );
 	if ( typeof url === 'string' )
 	{
-		let beside = [ 'file', 'bind', 'set' ].filter( function ( Name ) { return Parsed.Given[ Name ] === true; } );
+		let beside = [ 'file', 'bind', 'set', 'report-paths' ].filter( function ( Name ) { return Parsed.Given[ Name ] === true; } );
 		if ( beside.length > 0 )
 		{
 			out.Log( 'Option [--' + beside[ 0 ] + '] has no effect with --url: the process there already holds its file.\n' );
@@ -58,7 +58,7 @@ async function handler( Parsed, Context )
 	{
 		try
 		{
-			launched = await Launch.Start( { File: value( 'file' ), Binds: value( 'bind' ), Sets: value( 'set' ), Env: io.Env, Cwd: io.Cwd } );
+			launched = await Launch.Start( { File: value( 'file' ), Binds: value( 'bind' ), Sets: value( 'set' ), ReportPaths: value( 'report-paths' ), Env: io.Env, Cwd: io.Cwd } );
 		}
 		catch ( error )
 		{

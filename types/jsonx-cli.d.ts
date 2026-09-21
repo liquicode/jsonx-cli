@@ -607,6 +607,8 @@ declare module '@liquicode/jsonx-cli'
 		Tree: any;
 		Io: Io;
 		Path: string;
+		/** What a report calls the file: its name alone, or Path when held with ReportPaths. */
+		Label: string;
 		Session: Session;
 		Binds?: string[];
 		Sets?: string[];
@@ -645,7 +647,7 @@ declare module '@liquicode/jsonx-cli'
 		/** The commands a held session answers, as data, for the served modes to route and list. */
 		ServedCommands( Tree: any ): Array<{ Path: string[]; Command: string; Describe: string; Concurrent: boolean; Positionals: any[]; Options: { [ Name: string ]: any } }>;
 		/** Throws HeldError when there is no file to hold, or it is not a JSON object. */
-		NewHeld( Options: { Tree: any; File?: string; Binds?: string[]; Sets?: string[]; Io?: Io; Log?: ( Text: string ) => void; OnReload?: ( Outcome: any ) => void; jsonstor?: any; Require?: ( Name: string ) => any; MaxSteps?: number; MaxCalls?: number } ): HeldSession;
+		NewHeld( Options: { Tree: any; File?: string; Binds?: string[]; Sets?: string[]; ReportPaths?: boolean; Io?: Io; Log?: ( Text: string ) => void; OnReload?: ( Outcome: any ) => void; jsonstor?: any; Require?: ( Name: string ) => any; MaxSteps?: number; MaxCalls?: number } ): HeldSession;
 	}
 
 	export interface DebuggerModule
@@ -668,6 +670,8 @@ declare module '@liquicode/jsonx-cli'
 		FormatResult( Output: 'json' | 'jsonl' | 'text' | 'table', Value: any ): string;
 		WriteResult( Io: Io, Output: 'json' | 'jsonl' | 'text' | 'table', Value: any ): void;
 		FormatFinding( Finding: Finding ): string;
+		/** What a report calls the jsonx file: its file name alone, or its full path when ReportPaths is true (--report-paths). */
+		FileLabel( Path: string, ReportPaths?: boolean ): string;
 		FormatSummary( Label: string, Summary: { Errors: number; Warnings: number; Notes: number } ): string;
 		FormatRunReport( RunReport: RunReport, Depth?: number, Options?: { Statistics?: boolean; Trace?: boolean } ): string;
 		FormatPlan( Plan: Plan ): string;

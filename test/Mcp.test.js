@@ -252,6 +252,30 @@ describe( 'MCP, the protocol', function ()
 		finally { await held.Release(); }
 	} );
 
+	it( 'names the file by its file name alone in every report it serves, and by its full path only when held with ReportPaths', async function ()
+	{
+		let held = hold( observatory );
+		try
+		{
+			let mcp = Protocol.NewMcp( held );
+			let checked = await call( mcp, 'validate', { json: { Kind: 'Query', Name: 'A draft', DataSource: 'Nowhere' } } );
+			LIB_ASSERT.deepStrictEqual( checked.structuredContent.Log, [ 'observatory.jsonx [draft]: 2 errors, 0 warnings, 0 notes' ] );
+			let missing = await call( mcp, 'explain', { name: 'No such object' } );
+			LIB_ASSERT.deepStrictEqual( missing.structuredContent.Log, [ 'No entry is named [No such object] in observatory.jsonx.' ] );
+			LIB_ASSERT.ok( !JSON.stringify( [ checked, missing ] ).includes( LIB_PATH.basename( root ) ) );
+		}
+		finally { await held.Release(); }
+
+		let full = Held.NewHeld( { Tree: Commands.TREE, File: observatory, Io: io_for( observatory ), ReportPaths: true } );
+		try
+		{
+			let mcp = Protocol.NewMcp( full );
+			let checked = await call( mcp, 'validate', {} );
+			LIB_ASSERT.deepStrictEqual( checked.structuredContent.Log, [ observatory + ': 0 errors, 0 warnings, 0 notes' ] );
+		}
+		finally { await full.Release(); }
+	} );
+
 	it( 'serves the file and its entries as resources, as written (F6.4)', async function ()
 	{
 		let value = 'the-resolved-secret-value';

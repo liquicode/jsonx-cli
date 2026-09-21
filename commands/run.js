@@ -75,7 +75,7 @@ async function handler( Parsed, Context )
 		{
 			await opened.Session.Release();
 			let what = ( item === null ) ? 'No object is named [' + name + ']' : '[' + name + '] is not an object; it is in ' + item.Section;
-			Context.Out.Log( what + ' in ' + opened.Path + '.\n' );
+			Context.Out.Log( what + ' in ' + opened.Label + '.\n' );
 			return 2;
 		}
 		entry = item.Entry;

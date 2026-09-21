@@ -73,6 +73,7 @@ async function handler( Parsed, Context )
 	{
 		held = Held.NewHeld( {
 			Tree: Context.Tree, File: value( 'file' ), Binds: value( 'bind' ), Sets: value( 'set' ), Io: io,
+			ReportPaths: value( 'report-paths' ),
 			// The profile (cut 7): absent, a model gets run - build, and run what a person confirmed.
 			Profile: value( 'profile' ) || Profiles.DEFAULT_MCP,
 			Log: function ( Text ) { out.Log( Text ); },
@@ -92,7 +93,7 @@ async function handler( Parsed, Context )
 		{
 			if ( held.StartFindings[ index ].Severity !== 'note' ) { out.Finding( held.StartFindings[ index ] ); }
 		}
-		out.Log( Report.FormatSummary( held.Path, summary ) );
+		out.Log( Report.FormatSummary( held.Label, summary ) );
 		if ( summary.Errors > 0 ) { out.Log( 'The file has errors: it is served, and runs nothing until they are repaired.\n' ); }
 	}
 
@@ -100,7 +101,7 @@ async function handler( Parsed, Context )
 
 	if ( !over_http )
 	{
-		out.Log( 'MCP over stdio for ' + held.Path + ' (protocol ' + Protocol.PROTOCOL_VERSION + ', profile ' + held.Profile.Name + ').\n' );
+		out.Log( 'MCP over stdio for ' + held.Label + ' (protocol ' + Protocol.PROTOCOL_VERSION + ', profile ' + held.Profile.Name + ').\n' );
 		let mcp = Protocol.NewMcp( held, { Version: jsonx_cli.Version } );
 		try
 		{
@@ -127,7 +128,7 @@ async function handler( Parsed, Context )
 	}
 
 	let shown_host = ( host.indexOf( ':' ) >= 0 ) ? '[' + host + ']' : host;
-	out.Log( 'Serving MCP for ' + held.Path + ' at http://' + shown_host + ':' + server.address().port + Http.ENDPOINT + ' (protocol ' + Protocol.PROTOCOL_VERSION + ', profile ' + held.Profile.Name + ( token ? ', token required' : '' ) + '). Ctrl+C stops it.\n' );
+	out.Log( 'Serving MCP for ' + held.Label + ' at http://' + shown_host + ':' + server.address().port + Http.ENDPOINT + ' (protocol ' + Protocol.PROTOCOL_VERSION + ', profile ' + held.Profile.Name + ( token ? ', token required' : '' ) + '). Ctrl+C stops it.\n' );
 
 	await io.WaitForStop();
 

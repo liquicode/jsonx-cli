@@ -68,7 +68,7 @@ async function handler( Parsed, Context )
 	if ( plan === null )
 	{
 		if ( placed !== null ) { Context.Out.Log( 'The draft is not an object: plan takes a Query, an Insert, an Update, a Delete or a Process.\n' ); }
-		else { Context.Out.Log( 'No object is named [' + name + '] in ' + loaded.Path + '.\n' ); }
+		else { Context.Out.Log( 'No object is named [' + name + '] in ' + loaded.Label + '.\n' ); }
 		return 2;
 	}
 	if ( placed !== null )

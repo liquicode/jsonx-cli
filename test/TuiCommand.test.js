@@ -196,6 +196,7 @@ describe( 'jsonx tui', function ()
 		let cases = [
 			[ [ '--url', 'ws://127.0.0.1:1/ws', '--file', observatory ], /\[--file\] has no effect with --url/ ],
 			[ [ '--url', 'ws://127.0.0.1:1/ws', '--bind', 'Bookings=jsonstor-memory' ], /\[--bind\] has no effect with --url/ ],
+			[ [ '--url', 'ws://127.0.0.1:1/ws', '--report-paths' ], /\[--report-paths\] has no effect with --url/ ],
 			[ [ '--file', observatory, '--token', 'x' ], /\[--token\] has an effect only with --url/ ],
 		];
 		for ( let [ argv, pattern ] of cases )

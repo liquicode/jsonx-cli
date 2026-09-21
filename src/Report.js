@@ -11,6 +11,8 @@
 	per-object run lines join when the runner does.
 */
 
+const LIB_PATH = require( 'path' );
+
 
 //---------------------------------------------------------------------
 // ***`text` and `table` are for a person reading*** (cut 2), and are not for a program to parse;
@@ -166,6 +168,18 @@ function plural( Count, Word )
 
 
 //---------------------------------------------------------------------
+// How a report names the jsonx file. ***A report names the file by its file name alone***, unless
+// --report-paths asks for its full path: a report reaches whoever reads the envelope, a model served
+// over MCP included, and the folder a file sits in is neither theirs to know nor stable to learn.
+
+function FileLabel( Path, ReportPaths )
+{
+	if ( ReportPaths === true ) { return Path; }
+	return LIB_PATH.basename( Path );
+}
+
+
+//---------------------------------------------------------------------
 // `observatory.jsonx: 1 error, 0 warnings, 2 notes`
 
 function FormatSummary( Label, Summary )
@@ -300,6 +314,7 @@ module.exports = {
 	FormatResult: FormatResult,
 	WriteResult: WriteResult,
 	FormatFinding: FormatFinding,
+	FileLabel: FileLabel,
 	FormatSummary: FormatSummary,
 	FormatRunReport: FormatRunReport,
 	FormatPlan: FormatPlan,

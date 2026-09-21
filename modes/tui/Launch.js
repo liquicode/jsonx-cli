@@ -38,7 +38,7 @@ class LaunchError extends Error
 
 
 //---------------------------------------------------------------------
-// Options: File, Binds, Sets (as jsonx serve takes them), Env, Cwd, ReadyMs, Bin.
+// Options: File, Binds, Sets, ReportPaths (as jsonx serve takes them), Env, Cwd, ReadyMs, Bin.
 // Resolves with { Ready, Child, Stderr(), Stop() }; rejects with LaunchError.
 
 function Start( Options )
@@ -48,6 +48,7 @@ function Start( Options )
 	if ( typeof options.File === 'string' && options.File !== '' ) { argv.push( '--file', options.File ); }
 	( options.Binds || [] ).forEach( function ( Bind ) { argv.push( '--bind', Bind ); } );
 	( options.Sets || [] ).forEach( function ( Set ) { argv.push( '--set', Set ); } );
+	if ( options.ReportPaths === true ) { argv.push( '--report-paths' ); }
 
 	let child = LIB_CHILD_PROCESS.spawn( process.execPath, argv, {
 		cwd: options.Cwd || process.cwd(),

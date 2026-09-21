@@ -99,7 +99,7 @@ function edit_handler( Noun, Verb )
 		if ( outcome.Read !== true )
 		{
 			Writer.WriteFile( loaded.Path, loaded.Document, io.WriteFile ? io : null );
-			if ( !quiet ) { out.Log( Verb + ' ' + Noun + ': ' + loaded.Path + ' written.\n' ); }
+			if ( !quiet ) { out.Log( Verb + ' ' + Noun + ': ' + loaded.Label + ' written.\n' ); }
 		}
 		out.Result( outcome.Result );
 		return 0;

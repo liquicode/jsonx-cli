@@ -45,7 +45,7 @@ async function handler( Parsed, Context )
 	if ( Context.Held )
 	{
 		// A served validate reads the document the session holds (commands/file.js).
-		resolved = { Path: Context.Held.Path };
+		resolved = { Path: Context.Held.Path, Label: Context.Held.Label };
 		read = { Document: Context.Held.Session.Document, Findings: [] };
 	}
 	else
@@ -55,6 +55,7 @@ async function handler( Parsed, Context )
 		{
 			resolved = Reader.ResolvePath( value( 'file' ), io.Env, io.Cwd, io );
 			text = Reader.ReadText( resolved.Path, io );
+			resolved.Label = Report.FileLabel( resolved.Path, value( 'report-paths' ) );
 		}
 		catch ( error )
 		{
@@ -82,7 +83,7 @@ async function handler( Parsed, Context )
 			findings = Validate.ValidateEntry( read.Document, name, options );
 			if ( findings === null )
 			{
-				out.Log( 'No entry is named [' + name + '] in ' + resolved.Path + '.\n' );
+				out.Log( 'No entry is named [' + name + '] in ' + resolved.Label + '.\n' );
 				return 2;
 			}
 		}
@@ -98,9 +99,9 @@ async function handler( Parsed, Context )
 	if ( !quiet )
 	{
 		for ( let index = 0; index < findings.length; index++ ) { out.Finding( findings[ index ] ); }
-		let label = resolved.Path;
-		if ( typeof draft !== 'undefined' ) { label = resolved.Path + ' [draft]'; }
-		else if ( typeof name === 'string' ) { label = resolved.Path + ' [' + name + ']'; }
+		let label = resolved.Label;
+		if ( typeof draft !== 'undefined' ) { label = resolved.Label + ' [draft]'; }
+		else if ( typeof name === 'string' ) { label = resolved.Label + ' [' + name + ']'; }
 		out.Log( Report.FormatSummary( label, summary ) );
 	}
 

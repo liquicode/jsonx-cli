@@ -51,7 +51,7 @@ async function handler( Parsed, Context )
 	let explained = Explain.ExplainEntry( document, name );
 	if ( explained === null )
 	{
-		out.Log( 'No entry is named [' + name + '] in ' + loaded.Path + '.\n' );
+		out.Log( 'No entry is named [' + name + '] in ' + loaded.Label + '.\n' );
 		return 2;
 	}
 
