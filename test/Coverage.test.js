@@ -55,15 +55,12 @@ const NOT_COMMANDS = {
 
 
 //---------------------------------------------------------------------
-// ***`StorageInterface()` returns fourteen stubs and no FindMany2***, measured by jsonx-studio and
-// tracked in jsonstor's story (user, 2026-09-13). When that is fixed, drop the addition below, and
-// the count assertion says so.
+// The storage functions, as `StorageInterface()` lists them. It lists FindMany2 since jsonstor's
+// 3abfb8f (2026-09-12); the addition this test carried for it until then is gone (user, 2026-09-21).
 
 function storage_functions()
 {
-	let names = Object.keys( jsonstor().StorageInterface() ).filter( function ( Name ) { return /^[A-Z]/.test( Name ); } );
-	if ( !names.includes( 'FindMany2' ) ) { names.push( 'FindMany2' ); }
-	return names;
+	return Object.keys( jsonstor().StorageInterface() ).filter( function ( Name ) { return /^[A-Z]/.test( Name ); } );
 }
 
 

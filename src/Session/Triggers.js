@@ -362,8 +362,9 @@ function NewTriggerFilter()
 				return;
 			}
 
-			// The union of the interface and what the storage carries, so FindMany2 and any member an
-			// adapter adds is forwarded (Studio's measured correction to jsonstor-oplog's list).
+			// The union of the interface and what the storage carries, so any member an adapter adds
+			// beyond the interface is forwarded too (user, 2026-09-21: keep forwarding). FindMany2 was
+			// the first reason, and the interface has listed it since jsonstor's 3abfb8f.
 			let names = [];
 			let candidates = Object.keys( filter ).concat( Object.keys( Storage ) );
 			for ( let index = 0; index < candidates.length; index++ )
