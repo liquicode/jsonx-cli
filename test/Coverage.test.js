@@ -51,6 +51,7 @@ const NOT_COMMANDS = {
 	'jsongin.DeleteValue': 'path plumbing; engine update removes values',
 	'jsongin.Hybridize': 'a storage encoding for adapters, not for documents a person reads',
 	'jsongin.Unhybridize': 'a storage encoding for adapters',
+	'jsonstor.WithUndo': 'takes a handler function: a program\'s call, not a command\'s (user, 2026-09-21)',
 };
 
 
@@ -107,9 +108,9 @@ function coverage_problems( Exports, Declared, NotCommands )
 describe( 'Library coverage (F3.12)', function ()
 {
 
-	it( 'counts fifteen storage functions and jsonproc\'s four', function ()
+	it( 'counts sixteen storage functions and jsonproc\'s four', function ()
 	{
-		LIB_ASSERT.strictEqual( storage_functions().length, 15, storage_functions().join( ', ' ) );
+		LIB_ASSERT.strictEqual( storage_functions().length, 16, storage_functions().join( ', ' ) );
 		[ 'Start', 'Execute', 'Step', 'Resume' ].forEach( function ( Name ) { LIB_ASSERT.strictEqual( typeof jsonproc[ Name ], 'function', Name ); } );
 	} );
 
