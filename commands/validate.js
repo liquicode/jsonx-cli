@@ -114,6 +114,7 @@ async function handler( Parsed, Context )
 //---------------------------------------------------------------------
 module.exports = {
 	Command: 'validate',
+	Does: 'check',
 	Describe: 'Report the findings for the file, or for one entry of it.',
 	Concurrent: true,
 	Positionals: [

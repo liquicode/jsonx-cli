@@ -39,6 +39,7 @@ async function run_handler( Parsed, Context )
 module.exports = {
 	RunCommand: {
 		Command: 'run',
+		Does: 'run',
 		Describe: 'Run a trigger by hand: its Process over its data source.',
 		Positionals: [
 			{ Name: 'name', Type: 'string', Required: true, Complete: 'triggers', Describe: 'The trigger to run.' },

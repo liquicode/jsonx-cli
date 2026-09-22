@@ -59,6 +59,7 @@ const RESOURCE_NOT_FOUND = -32002;
 
 // Commands which may change or remove what is there, as a front end's action menu judges them too.
 // Every other command which is not read-only is additive: it inserts, adds or saves.
+const Capabilities = require( '../../src/Session/Capabilities.js' );
 const DESTRUCTIVE_WORDS = require( '../../src/Front/Inventory.js' ).DESTRUCTIVE_WORDS;
 
 // Commands which open a data source only to read it. A Concurrent command reads by declaration.
@@ -394,7 +395,9 @@ function NewMcp( HeldSession, Options )
 					// name rather than where it lies: `instructions` is read by a model, and a model which
 					// has read a profile's name or one machine's path in every session leans on it. The
 					// name is a front end's to know, and `jsonx/profile` answers it.
-					let about_profile = ( profile.Describe ? ' ' + profile.Describe : '' ) + ( profile.Instructions ? ' ' + profile.Instructions : '' );
+					// With --capabilities, the sentence made from the served tools stands in the Describe's place.
+					let describe = HeldSession.Capabilities ? Capabilities.Sentence( HeldSession.Served() ) : profile.Describe;
+					let about_profile = ( describe ? ' ' + describe : '' ) + ( profile.Instructions ? ' ' + profile.Instructions : '' );
 					return success( id, {
 						protocolVersion: mcp.ProtocolVersion,
 						capabilities: { tools: { listChanged: true }, resources: {} },

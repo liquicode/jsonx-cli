@@ -74,6 +74,7 @@ async function handler( Parsed, Context )
 		held = Held.NewHeld( {
 			Tree: Context.Tree, File: value( 'file' ), Binds: value( 'bind' ), Sets: value( 'set' ), Io: io,
 			ReportPaths: value( 'report-paths' ),
+			Capabilities: value( 'capabilities' ),
 			// The profile (cut 7): absent, a model gets run - build, and run what a person confirmed.
 			Profile: value( 'profile' ) || Profiles.DEFAULT_MCP,
 			Log: function ( Text ) { out.Log( Text ); },
@@ -153,6 +154,7 @@ module.exports = {
 		'port': { Type: 'integer', Default: DEFAULT_PORT, Describe: 'With --http: the port to bind; 0 picks a free one.' },
 		'token': { Type: 'string', Describe: 'With --http: the bearer token every request must carry. Absent: JSONX_TOKEN.' },
 		'profile': { Type: 'string', Describe: 'What the session serves: a built-in profile (' + Profiles.NAMES.join( ', ' ) + ') or a .json file. Absent: ' + Profiles.DEFAULT_MCP + '.' },
+		'capabilities': { Type: 'boolean', Describe: 'Say what the session does in a sentence made from the tools it serves, in place of the profile\'s own description.' },
 	}, SessionCommand.SESSION_OPTIONS ),
 	Handler: handler,
 };

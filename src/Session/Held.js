@@ -118,10 +118,12 @@ function ServedCommands( Tree )
 {
 	let commands = [];
 
-	function visit( Node, Path, Unserved, Concurrent )
+	function visit( Node, Path, Unserved, Concurrent, Does )
 	{
 		let unserved = Unserved || ( Node.Served === false );
 		let concurrent = Concurrent || ( Node.Concurrent === true );
+		// What the command does (src/Session/Capabilities.js): its own word, else its group's.
+		let does = ( typeof Node.Does === 'string' ) ? Node.Does : Does;
 		if ( typeof Node.Handler === 'function' && Path.length > 0 && !unserved )
 		{
 			let options = {};
@@ -138,6 +140,7 @@ function ServedCommands( Tree )
 				Command: Path.join( ' ' ),
 				Describe: Node.Describe || '',
 				Concurrent: concurrent,
+				Does: does || null,
 				Positionals: Array.isArray( Node.Positionals ) ? Node.Positionals.slice() : [],
 				Options: options,
 			} );
@@ -145,12 +148,12 @@ function ServedCommands( Tree )
 		let children = Array.isArray( Node.Commands ) ? Node.Commands : [];
 		for ( let index = 0; index < children.length; index++ )
 		{
-			visit( children[ index ], Path.concat( [ children[ index ].Command ] ), unserved, concurrent );
+			visit( children[ index ], Path.concat( [ children[ index ].Command ] ), unserved, concurrent, does );
 		}
 		return;
 	}
 
-	visit( Tree, [], false, false );
+	visit( Tree, [], false, false, null );
 	return commands;
 }
 
@@ -225,6 +228,9 @@ function NewHeld( Options )
 		Path: resolved.Path,
 		// What a report calls the file: its name alone, or its full path under --report-paths.
 		Label: Report.FileLabel( resolved.Path, options.ReportPaths === true ),
+		// Whether MCP's instructions say the generated sentence in place of the profile's Describe
+		// (src/Session/Capabilities.js); opt-in, and to be reconsidered.
+		Capabilities: options.Capabilities === true,
 		Session: session,
 		Binds: options.Binds,
 		Sets: options.Sets,

@@ -88,6 +88,7 @@ async function handler( Parsed, Context )
 //---------------------------------------------------------------------
 module.exports = {
 	Command: 'plan',
+	Does: 'check',
 	Describe: 'Show what running an object would do, opening nothing.',
 	Concurrent: true,
 	Positionals: [

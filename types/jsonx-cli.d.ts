@@ -155,6 +155,8 @@ declare module '@liquicode/jsonx-cli'
 		Options?: { [ Name: string ]: OptionDeclaration };
 		GlobalOptions?: { [ Name: string ]: OptionDeclaration };
 		Handler?: ( Parsed: ParsedArguments, Context: any ) => Promise<number>;
+		/** What the command does, for the capability sentence: read, adapters, list, check, compute, run, write or file. A group's is its commands' unless one says otherwise. */
+		Does?: string;
 		/** The library functions the command reaches, such as 'jsonstor.FindMany2' (plan F3.12). */
 		Library?: string[];
 	}
@@ -609,6 +611,8 @@ declare module '@liquicode/jsonx-cli'
 		Path: string;
 		/** What a report calls the file: its name alone, or Path when held with ReportPaths. */
 		Label: string;
+		/** Whether MCP says the sentence made from the served commands in place of the profile's Describe. */
+		Capabilities: boolean;
 		Session: Session;
 		Binds?: string[];
 		Sets?: string[];
@@ -645,9 +649,9 @@ declare module '@liquicode/jsonx-cli'
 		/** ExitCode is what the command line answers: 2 usage, 1 unreadable, 3 not a jsonx file. */
 		HeldError: new ( Message: string, ExitCode?: number ) => Error & { ExitCode: number };
 		/** The commands a held session answers, as data, for the served modes to route and list. */
-		ServedCommands( Tree: any ): Array<{ Path: string[]; Command: string; Describe: string; Concurrent: boolean; Positionals: any[]; Options: { [ Name: string ]: any } }>;
+		ServedCommands( Tree: any ): Array<{ Path: string[]; Command: string; Describe: string; Concurrent: boolean; Does: string | null; Positionals: any[]; Options: { [ Name: string ]: any } }>;
 		/** Throws HeldError when there is no file to hold, or it is not a JSON object. */
-		NewHeld( Options: { Tree: any; File?: string; Binds?: string[]; Sets?: string[]; ReportPaths?: boolean; Io?: Io; Log?: ( Text: string ) => void; OnReload?: ( Outcome: any ) => void; jsonstor?: any; Require?: ( Name: string ) => any; MaxSteps?: number; MaxCalls?: number } ): HeldSession;
+		NewHeld( Options: { Tree: any; File?: string; Binds?: string[]; Sets?: string[]; ReportPaths?: boolean; Capabilities?: boolean; Io?: Io; Log?: ( Text: string ) => void; OnReload?: ( Outcome: any ) => void; jsonstor?: any; Require?: ( Name: string ) => any; MaxSteps?: number; MaxCalls?: number } ): HeldSession;
 	}
 
 	export interface DebuggerModule

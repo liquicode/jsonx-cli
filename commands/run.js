@@ -107,6 +107,7 @@ async function handler( Parsed, Context )
 //---------------------------------------------------------------------
 module.exports = {
 	Command: 'run',
+	Does: 'run',
 	Describe: 'Run an object of the file by name.',
 	// A run drives jsonproc, and a Process reaches every host function through `$call` (spec 12.7).
 	Library: [ 'jsonproc.Start', 'jsonproc.Execute', 'jsonproc.Resume' ].concat( require( '../src/File/Names.js' ).HOST_FUNCTIONS.map( function ( Name ) { return 'jsonstor.' + Name; } ) ),

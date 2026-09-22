@@ -64,6 +64,7 @@ async function handler( Parsed, Context )
 //---------------------------------------------------------------------
 module.exports = {
 	Command: 'explain',
+	Does: 'check',
 	Describe: 'Say in English what a data source, object or trigger of the file does.',
 	Concurrent: true,
 	Positionals: [

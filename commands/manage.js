@@ -150,10 +150,12 @@ function noun_group( Noun )
 
 	let group = {
 		Command: Noun,
+		// Its list and show only read; add, set, remove and rename change the file.
+		Does: 'file',
 		Describe: 'List, show, add, change, remove and rename the file\'s ' + Edit.NOUNS[ Noun ].Plural + '.',
 		Commands: [
-			{ Command: 'list', Describe: 'List every ' + label + '.', Concurrent: true, Handler: edit_handler( Noun, 'list' ) },
-			{ Command: 'show', Describe: 'Show one ' + label + '.', Concurrent: true, Positionals: [ name_positional ], Handler: edit_handler( Noun, 'show' ) },
+			{ Command: 'list', Does: 'list', Describe: 'List every ' + label + '.', Concurrent: true, Handler: edit_handler( Noun, 'list' ) },
+			{ Command: 'show', Does: 'list', Describe: 'Show one ' + label + '.', Concurrent: true, Positionals: [ name_positional ], Handler: edit_handler( Noun, 'show' ) },
 			{ Command: 'add', Describe: 'Add a ' + label + '.', Options: Object.assign( {}, body, FORCE, CHECK ), Handler: edit_handler( Noun, 'add' ) },
 			{
 				Command: 'set', Describe: 'Change fields of a ' + label + '; a field set to null is removed.',
@@ -176,12 +178,12 @@ function noun_group( Noun )
 		// ***`data` reaches the same group*** (user, 2026-09-13), for the storage verbs of cut 2.
 		group.Aliases = [ 'data' ];
 		group.Commands.push( {
-			Command: 'info', Describe: 'What the data source says about itself: StorageInfo and the dialect boundary check.',
+			Command: 'info', Does: 'read', Describe: 'What the data source says about itself: StorageInfo and the dialect boundary check.',
 			Library: [ 'jsonstor.StorageInfo' ],
 			Positionals: [ name_positional ], Options: Object.assign( {}, SessionCommand.SESSION_OPTIONS ), Handler: inspect_handler( 'info' ),
 		} );
 		group.Commands.push( {
-			Command: 'describe', Describe: 'A JSON Schema inferred from the data source\'s first rows, and those rows.',
+			Command: 'describe', Does: 'read', Describe: 'A JSON Schema inferred from the data source\'s first rows, and those rows.',
 			Positionals: [ name_positional ],
 			Options: Object.assign( { 'rows': { Type: 'integer', Default: Inspect.DEFAULT_ROWS, Describe: 'How many rows to read.' } }, SessionCommand.SESSION_OPTIONS ),
 			Handler: inspect_handler( 'describe' ),

@@ -643,6 +643,10 @@ jsonx mcp --profile translate --file observatory.jsonx
 - Each command is a tool named by its words joined with `_`: `run`, `datasource_find`,
   `engine_schema_infer`. A tool's arguments are the command's JSON document without `Command`, and
   it answers the object above.
+- `--capabilities` puts a sentence made from the served tools in the instructions, where the profile's
+  own description would be: "This session reads data, lists the file's entries and checks drafts. It
+  does not run objects, write data or change the file." It follows a profile which takes tools away.
+  It is off by default while it is being compared with the descriptions.
 - `initialize` answers the profile's description and instructions in `instructions`, and declares
   `tools.listChanged`. The instructions are what a model reads, so they say what the session does and
   name the file without its folder; they never say the profile's name, which `jsonx/profile` answers. A tool the profile does not serve is unknown.

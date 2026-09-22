@@ -52,6 +52,7 @@ async function handler( Parsed, Context )
 //---------------------------------------------------------------------
 module.exports = {
 	Command: 'format',
+	Does: 'file',
 	Describe: 'Rewrite the file in canonical order, tab indented, keeping unknown fields and array order.',
 	Options: {
 		'check': { Type: 'boolean', Describe: 'Write nothing; exit 1 when the file would change.' },

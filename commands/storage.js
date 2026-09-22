@@ -204,6 +204,10 @@ function save( Verb, DataSource, Values, Parsed, Context )
 }
 
 
+// The storage verbs which change documents or the store (src/Session/Capabilities.js).
+const WRITING_VERBS = [ 'insert', 'update', 'replace', 'delete', 'flush', 'drop', 'refresh-index' ];
+
+
 //---------------------------------------------------------------------
 module.exports = {
 	VERB_OPTIONS: VERB_OPTIONS,
@@ -211,6 +215,9 @@ module.exports = {
 	{
 		return {
 			Command: Verb,
+			// A verb which changes documents or the store writes; the rest read (find's --into and --save
+			// write too, but only when asked, and a profile which serves find withholds them).
+			Does: WRITING_VERBS.includes( Verb ) ? 'write' : 'read',
 			Describe: Verbs.VERBS[ Verb ].Describe,
 			Library: Verbs.VERBS[ Verb ].Functions.map( function ( Name ) { return 'jsonstor.' + Name; } ),
 			Positionals: [ { Name: 'name', Type: 'string', Required: true, Complete: 'datasources', Describe: 'The data source.' } ],
