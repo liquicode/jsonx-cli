@@ -98,16 +98,17 @@ describe( 'The official MCP client against jsonx mcp', function ()
 		finally { await client.close(); }
 	} );
 
-	it( 'sees the translate profile\'s tools, switches with jsonx/profile, and is told the list changed', async function ()
+	// ***The profile is set once, when the server is launched*** (user, 2026-09-24): jsonx/profile answers it
+	// and what it serves, and refuses to change it.
+	it( 'sees the translate profile\'s tools, asks jsonx/profile for it, and cannot switch it', async function ()
 	{
-		const { ResultSchema, ToolListChangedNotificationSchema } = require( '@modelcontextprotocol/sdk/types.js' );
+		const { ResultSchema } = require( '@modelcontextprotocol/sdk/types.js' );
 		let transport = new StdioClientTransport( { command: process.execPath, args: [ BIN, 'mcp', '--profile', 'translate', '--file', observatory ], env: child_env(), stderr: 'pipe' } );
 		let client = new Client( { name: 'jsonx-interop', version: '0.0.0' } );
-		let changed = new Promise( function ( Resolve ) { client.setNotificationHandler( ToolListChangedNotificationSchema, function () { Resolve(); } ); } );
 		await client.connect( transport );
 		try
 		{
-			LIB_ASSERT.strictEqual( client.getServerCapabilities().tools.listChanged, true );
+			LIB_ASSERT.ok( !client.getServerCapabilities().tools.listChanged, 'the tools never change, so no list_changed is declared' );
 			LIB_ASSERT.match( client.getInstructions(), /Build the object; do not run it\./ );
 			LIB_ASSERT.doesNotMatch( client.getInstructions(), /translate/ );
 			let before = ( await client.listTools() ).tools.map( function ( Tool ) { return Tool.name; } );
@@ -117,14 +118,11 @@ describe( 'The official MCP client against jsonx mcp', function ()
 
 			let asked = await client.request( { method: 'jsonx/profile' }, ResultSchema );
 			LIB_ASSERT.strictEqual( asked.Name, 'translate' );
+			LIB_ASSERT.deepStrictEqual( asked.Commands.length, 13, 'the commands it serves are answered too' );
 
-			let switched = await client.request( { method: 'jsonx/profile', params: { profile: 'run' } }, ResultSchema );
-			LIB_ASSERT.strictEqual( switched.Name, 'run' );
-			await changed;
+			await LIB_ASSERT.rejects( client.request( { method: 'jsonx/profile', params: { profile: 'run' } }, ResultSchema ), /set once, when the server is launched/ );
 			let after = ( await client.listTools() ).tools.map( function ( Tool ) { return Tool.name; } );
-			LIB_ASSERT.ok( after.includes( 'run' ), after.join( ' ' ) );
-			let ran = await client.callTool( { name: 'run', arguments: { name: 'Prepare the season' } } );
-			LIB_ASSERT.strictEqual( ran.isError, false, JSON.stringify( ran ) );
+			LIB_ASSERT.deepStrictEqual( after, before, 'the tools changed' );
 		}
 		finally { await client.close(); }
 	} );

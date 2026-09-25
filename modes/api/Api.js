@@ -269,7 +269,7 @@ function NewApi( HeldSession, Options )
 	let commands = Held.ServedCommands( HeldSession.Tree );
 
 	// The served commands as a client reads them: GET / and the WebSocket's Hello answer this one list.
-	// ***It is the profile's list*** (cut 7), read each time, since the profile can switch; every served
+	// ***It is the profile's list*** (cut 7), set once at launch; every served
 	// command keeps its route, and the held session refuses one outside the profile.
 	function listed()
 	{

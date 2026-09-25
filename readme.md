@@ -586,7 +586,7 @@ types. These run nothing and answer at once, even while a debug is open:
 | `{ "Id": "7", "Complete": "run \"Prep" }` | Completions for the end of the text; each item says what to insert and how many characters it replaces. |
 | `{ "Id": "8", "Actions": "Bookings" }` | The commands an entry offers, each with its command `Line`. |
 | `{ "Id": "9", "Inventory": true }` | Every entry, with the worst finding in each. |
-| `{ "Id": "10", "Profile": "run" }` | Switch the [profile](#profiles) for every connection; `"Profile": null` asks. `Result` is the profile, in the shape of a profile file: `Name`, `Describe`, `Commands`, `Without`, `Defaults`, `Confirm` and `Instructions`. |
+| `{ "Id": "10", "Profile": null }` | Ask for the [profile](#profiles), which is set once, when the server is launched; anything but `null` is refused. `Result` is the profile, in the shape of a profile file: `Name`, `Describe`, `Commands`, `Without`, `Defaults`, `Confirm` and `Instructions`. |
 
 | Received | When |
 |---|---|
@@ -598,7 +598,6 @@ types. These run nothing and answer at once, even while a debug is open:
 | `{ "Event": "document" }` | The file changed. Read it again for what you need. |
 | `{ "Event": "reload", "Outcome" }` | The file was edited on disk; `Outcome` says whether it was picked up. |
 | `{ "Event": "queue", "HeldBy" }` | A debug started (`"debug"`) or ended (`null`). |
-| `{ "Event": "profile", "Profile" }` | The profile was switched, by any connection. |
 
 - ***A debug holds the file for as long as it is open.*** While it is open, every request from every
   program that opens a data source or changes the file waits, and the `queue` event says why.
@@ -647,13 +646,11 @@ jsonx mcp --profile translate --file observatory.jsonx
   own description would be: "This session reads data, lists the file's entries and checks drafts. It
   does not run objects, write data or change the file." It follows a profile which takes tools away.
   It is off by default while it is being compared with the descriptions.
-- `initialize` answers the profile's description and instructions in `instructions`, and declares
-  `tools.listChanged`. The instructions are what a model reads, so they say what the session does and
+- `initialize` answers the profile's description and instructions in `instructions`. The instructions are what a model reads, so they say what the session does and
   name the file without its folder; they never say the profile's name, which `jsonx/profile` answers. A tool the profile does not serve is unknown.
-- `jsonx/profile` with `{ "profile": "run" }` switches the profile for every connection, and with no
-  params asks; it answers the profile as the WebSocket does. After a switch, `notifications/tools/list_changed`
-  follows over standard input and output; over `--http`, which opens no stream, the next `tools/list`
-  shows the new list.
+- `jsonx/profile`, with no params, answers the profile as the WebSocket does, with the commands it
+  serves. The profile is set once, when the server is launched, so the tools never change during a
+  session; a request to change it is refused.
 - ***Under `full`, or a custom profile that serves them, `datasource_update`, `datasource_delete` and
   `datasource_drop` require `yes`.*** `yes: true` confirms a call that touches every document or removes
   the store; a call without `yes` is refused. Beside `save`, which runs nothing, `yes` is not needed.
@@ -665,8 +662,9 @@ jsonx mcp --profile translate --file observatory.jsonx
 A profile says what a served session answers: which commands, which options they are served
 without, what a request gets when it does not say, and which commands a front end should confirm
 with a person before sending. `--profile` on `jsonx serve` and `jsonx mcp` names one: a built-in,
-or a `.json` file of the same shape. Every served surface reads the same profile, and a front end
-switches it for all of them with the WebSocket's `Profile` request or MCP's `jsonx/profile`.
+or a `.json` file of the same shape. ***It is set once, when the server is launched***: every served
+surface reads the same profile, and a front end can ask for it with the WebSocket's `Profile` request
+or MCP's `jsonx/profile`, but not change it.
 
 | Profile | Serves | Confirm |
 |---|---|---|

@@ -2,7 +2,7 @@
 
 /*
 	Profiles (cut 7, decision 14): the built-ins, a custom file, the checks, and the held session enforcing
-	one on every request and switching it.
+	one on every request, set once when the session is held.
 */
 
 const LIB_ASSERT = require( 'assert' );
@@ -275,35 +275,27 @@ describe( 'A held session under a profile', function ()
 		finally { await held.Release(); }
 	} );
 
-	it( 'switches profile, tells every listener, and judges the next request under the new one; a bad switch changes nothing', async function ()
+	// ***The profile is set once, when the session is held*** (user, 2026-09-24: "setting the mode should
+	// happen only once, when the server is launched").
+	it( 'holds one profile for the whole session, with no way to switch it; a file carrying a built-in\'s name stands in for it', async function ()
 	{
 		let held = hold( observatory, { Profile: 'translate' } );
 		try
 		{
-			let heard = [];
-			held.OnEvent( function ( Event ) { if ( Event.Event === 'profile' ) { heard.push( Event.Profile ); } } );
-
-			let summary = held.SetProfile( 'run' );
-			LIB_ASSERT.strictEqual( summary.Name, 'run' );
-			LIB_ASSERT.deepStrictEqual( summary.Confirm, [ 'run' ] );
-			LIB_ASSERT.ok( summary.Commands.includes( 'run' ) );
-			LIB_ASSERT.strictEqual( heard.length, 1 );
-			LIB_ASSERT.strictEqual( heard[ 0 ].Name, 'run' );
-
-			let ran = await held.Invoke( { Command: 'run', name: 'Prepare the season' } );
-			LIB_ASSERT.strictEqual( ran.ExitCode, 0, ran.Log.join( '\n' ) );
-
-			LIB_ASSERT.throws( function () { held.SetProfile( 'broken.json' ); }, function ( error ) { return ( error instanceof Profiles.ProfileError ) && /datasource fly/.test( error.message ); } );
-			LIB_ASSERT.strictEqual( held.Profile.Name, 'run' );
-			LIB_ASSERT.strictEqual( heard.length, 1 );
-
-			// A file carrying a built-in's name stands in for it.
-			held.SetProfile( 'translate.json' );
-			LIB_ASSERT.strictEqual( held.Profile.Describe, 'Mine, standing in.' );
-			LIB_ASSERT.deepStrictEqual( names( held.Served() ), [ 'validate' ] );
-			LIB_ASSERT.strictEqual( heard.length, 2 );
+			LIB_ASSERT.strictEqual( typeof held.SetProfile, 'undefined' );
+			LIB_ASSERT.strictEqual( held.ProfileSummary().Name, 'translate' );
+			let refused = await held.Invoke( { Command: 'run', name: 'Prepare the season' } );
+			LIB_ASSERT.strictEqual( refused.ExitCode, 2, 'run is not the translate profile\'s' );
 		}
 		finally { await held.Release(); }
+
+		let standing = hold( observatory, { Profile: 'translate.json' } );
+		try
+		{
+			LIB_ASSERT.strictEqual( standing.Profile.Describe, 'Mine, standing in.' );
+			LIB_ASSERT.deepStrictEqual( names( standing.Served() ), [ 'validate' ] );
+		}
+		finally { await standing.Release(); }
 	} );
 
 	it( 'refuses to hold a session under a profile which does not check, with exit 2', function ()

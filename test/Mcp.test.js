@@ -88,7 +88,7 @@ describe( 'MCP, the protocol', function ()
 			let mcp = Protocol.NewMcp( held, { Version: '9.9.9' } );
 			let reply = await mcp.Handle( request( 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '0' } } ) );
 			LIB_ASSERT.strictEqual( reply.result.protocolVersion, '2025-06-18' );
-			LIB_ASSERT.deepStrictEqual( reply.result.capabilities, { tools: { listChanged: true }, resources: {} } );
+			LIB_ASSERT.deepStrictEqual( reply.result.capabilities, { tools: {}, resources: {} } );
 			LIB_ASSERT.deepStrictEqual( reply.result.serverInfo, { name: 'jsonx', title: 'jsonx', version: '9.9.9' } );
 
 			let other = Protocol.NewMcp( held );

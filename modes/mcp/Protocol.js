@@ -25,16 +25,14 @@
 	shows. An environment reference is never resolved (F6.4).
 
 	***The tools are the held session's profile*** (cut 7, decision 14): the commands it serves, each
-	without the options it withholds and with its defaults shown. `initialize` declares
-	`tools.listChanged` and carries the profile's instructions; ***`jsonx/profile`***, a request of this
-	server's own, answers the profile in force with no params and switches it with `{ profile }`. A
-	switch, made here or by any other surface, rebuilds the tools and sends
-	`notifications/tools/list_changed` through the transport's way out (OnNotify) - stdio has one, HTTP
-	does not, so an HTTP client lists again after its own switch.
+	without the options it withholds and with its defaults shown. `initialize` carries the profile's
+	instructions; ***`jsonx/profile`***, a request of this server's own, answers the profile in force and
+	the commands it serves. ***The profile is set once, when the server is launched*** (`--profile`;
+	user, 2026-09-24: "setting the mode should happen only once, when the server is launched"), so the
+	tools never change during a session and no `list_changed` is ever sent.
 */
 
 const Held = require( '../../src/Session/Held.js' );
-const Profiles = require( '../../src/Session/Profiles.js' );
 
 
 const PROTOCOL_VERSION = '2025-11-25';
@@ -224,7 +222,7 @@ function NewMcp( HeldSession, Options )
 		Initialized: false,
 	};
 
-	// The tools are the profile's served commands, rebuilt whole when it switches.
+	// The tools are the profile's served commands, built once: the profile is set at launch.
 	function build_tools()
 	{
 		tools = HeldSession.Served().map( tool_for );
@@ -236,35 +234,9 @@ function NewMcp( HeldSession, Options )
 	}
 	build_tools();
 
-	// A message the server starts goes out through the transport's Write, once it has given one.
-	let notify = null;
-	mcp.OnNotify = function ( Write )
-	{
-		notify = ( typeof Write === 'function' ) ? Write : null;
-		return;
-	};
-
-	let stop_events = HeldSession.OnEvent( function ( Event )
-	{
-		if ( Event.Event !== 'profile' ) { return; }
-		build_tools();
-		// The event fires inside the switch, before the reply to a jsonx/profile which caused it is
-		// written; the notification waits a turn, so the reply always goes out first.
-		if ( notify )
-		{
-			setImmediate( function ()
-			{
-				if ( notify ) { notify( { jsonrpc: '2.0', method: 'notifications/tools/list_changed' } ); }
-			} );
-		}
-		return;
-	} );
-
-	// The end of this connection: it stops listening to the session.
+	// The end of this connection. It holds nothing of the session's, so there is nothing to release.
 	mcp.Close = function ()
 	{
-		if ( stop_events ) { stop_events(); stop_events = null; }
-		notify = null;
 		return;
 	};
 
@@ -400,7 +372,7 @@ function NewMcp( HeldSession, Options )
 					let about_profile = ( describe ? ' ' + describe : '' ) + ( profile.Instructions ? ' ' + profile.Instructions : '' );
 					return success( id, {
 						protocolVersion: mcp.ProtocolVersion,
-						capabilities: { tools: { listChanged: true }, resources: {} },
+						capabilities: { tools: {}, resources: {} },
 						serverInfo: { name: SERVER_NAME, title: 'jsonx', version: options.Version || '0.0.0' },
 						instructions: 'Each tool is a jsonx command run against the file ' + require( 'path' ).basename( HeldSession.Path ) + '. A tool answers the envelope { Ok, ExitCode, Result, Findings, Log }: Result is the answer, Log the report. The resources are the file and each of its entries, as written.' + about_profile,
 					} );
@@ -409,18 +381,9 @@ function NewMcp( HeldSession, Options )
 					return success( id, {} );
 				case 'jsonx/profile':
 				{
-					// The profile in force, or a switch: a built-in name or a .json file the serving process reads.
-					if ( typeof params.profile === 'undefined' ) { return success( id, HeldSession.ProfileSummary() ); }
-					if ( typeof params.profile !== 'string' ) { return failure( id, INVALID_PARAMS, 'jsonx/profile takes { profile: <a built-in name, or the name of a .json file> }, or no params to ask.' ); }
-					try
-					{
-						return success( id, HeldSession.SetProfile( params.profile ) );
-					}
-					catch ( error )
-					{
-						if ( !( error instanceof Profiles.ProfileError ) ) { throw error; }
-						return failure( id, INVALID_PARAMS, error.message );
-					}
+					// The profile in force and what it serves. It is set once, when the server is launched.
+					if ( typeof params.profile !== 'undefined' ) { return failure( id, INVALID_PARAMS, 'The profile is set once, when the server is launched (jsonx mcp --profile); jsonx/profile takes no params and answers the one in force.' ); }
+					return success( id, HeldSession.ProfileSummary() );
 				}
 				case 'tools/list':
 					return success( id, { tools: mcp.Tools } );

@@ -1,8 +1,8 @@
 'use strict';
 
 /*
-	The profile on every surface (cut 7, step 3): the Web API's root, the WebSocket's Hello, Profile request
-	and profile event, MCP's tools, initialize, jsonx/profile and list_changed, and jsonx mcp's defaults.
+	The profile on every surface (cut 7, step 3): the Web API's root, the WebSocket's Hello and Profile request,
+	MCP's tools, initialize and jsonx/profile, and jsonx mcp's defaults. The profile is set once, at launch.
 	The profile itself and the held session's enforcement are Profiles.test.js.
 */
 
@@ -120,11 +120,6 @@ function request( Method, Params )
 	return message;
 }
 
-function tick()
-{
-	return new Promise( function ( Resolve ) { setImmediate( Resolve ); } );
-}
-
 function names( Tools )
 {
 	return Tools.map( function ( Tool ) { return Tool.name; } );
@@ -180,12 +175,6 @@ describe( 'The profile on every surface', function ()
 
 			let found = await post( served.Base, '/datasource/find', { name: 'Bookings', criteria: {} } );
 			LIB_ASSERT.strictEqual( found.Status, 200, JSON.stringify( found.Json ) );
-
-			// The list follows a switch.
-			served.Held.SetProfile( 'run' );
-			let again = await get( served.Base, '/' );
-			LIB_ASSERT.strictEqual( again.Json.Profile.Name, 'run' );
-			LIB_ASSERT.ok( again.Json.Commands.some( function ( Command ) { return Command.Command === 'run' && Command.Confirm === true; } ) );
 		}
 		finally { await served.Close(); }
 	} );
@@ -213,15 +202,15 @@ describe( 'The profile on every surface', function ()
 		finally { await served.Close(); }
 	} );
 
-	it( 'WebSocket: Hello carries the profile; Profile asks and switches; every connection hears the switch; a bad one is refused', async function ()
+	// ***The profile is set once, when the server is launched*** (user, 2026-09-24): Profile asks for it and
+	// what it serves, and a request to change it is refused with nothing changed.
+	it( 'WebSocket: Hello carries the profile; Profile asks for it; a request to change it is refused', async function ()
 	{
 		let served = await serve( observatory, 'translate' );
 		let first = null;
-		let second = null;
 		try
 		{
 			first = await connect( served.Url );
-			second = await connect( served.Url );
 			let hello = await first.Hello();
 			LIB_ASSERT.strictEqual( hello.Profile.Name, 'translate' );
 			LIB_ASSERT.deepStrictEqual( hello.Commands.map( function ( Command ) { return Command.Command; } ), TRANSLATE );
@@ -229,49 +218,28 @@ describe( 'The profile on every surface', function ()
 			let asked = await first.Send( { Id: 'a', Profile: null } );
 			LIB_ASSERT.strictEqual( asked.ExitCode, 0 );
 			LIB_ASSERT.strictEqual( asked.Result.Name, 'translate' );
+			LIB_ASSERT.deepStrictEqual( asked.Result.Commands, TRANSLATE );
 
-			let heard = second.Next( function ( Message ) { return Message.Event === 'profile'; } );
-			let switched = await first.Send( { Id: 'b', Profile: 'run' } );
-			LIB_ASSERT.strictEqual( switched.ExitCode, 0, JSON.stringify( switched ) );
-			LIB_ASSERT.strictEqual( switched.Result.Name, 'run' );
-			LIB_ASSERT.deepStrictEqual( switched.Result.Confirm, [ 'run' ] );
-			let event = await heard;
-			LIB_ASSERT.strictEqual( event.Profile.Name, 'run' );
-			LIB_ASSERT.strictEqual( typeof event.Id, 'undefined', 'a profile event belongs to the file, not a request' );
-
+			let refused = await first.Send( { Id: 'b', Profile: 'run' } );
+			LIB_ASSERT.strictEqual( refused.ExitCode, 2, JSON.stringify( refused ) );
+			LIB_ASSERT.match( refused.Log.join( '\n' ), /set once, when the server is launched/ );
 			let ran = await first.Send( { Id: 'c', Invoke: { Command: 'run', name: 'Prepare the season' } } );
-			LIB_ASSERT.strictEqual( ran.ExitCode, 0, ran.Log.join( '\n' ) );
-
-			let bad = await first.Send( { Id: 'd', Profile: 'nonsense' } );
-			LIB_ASSERT.strictEqual( bad.ExitCode, 2 );
-			LIB_ASSERT.match( bad.Log.join( '\n' ), /No profile is named \[nonsense\]/ );
-			let wrong = await first.Send( { Id: 'e', Profile: 5 } );
-			LIB_ASSERT.strictEqual( wrong.ExitCode, 2 );
-
-			// A file switches too, read by the serving process relative to its working directory.
-			let mine = await first.Send( { Id: 'f', Profile: 'mine.json' } );
-			LIB_ASSERT.strictEqual( mine.ExitCode, 0, JSON.stringify( mine ) );
-			LIB_ASSERT.strictEqual( mine.Result.Describe, 'Validate only.' );
-			let third = await connect( served.Url );
-			LIB_ASSERT.deepStrictEqual( ( await third.Hello() ).Commands.map( function ( Command ) { return Command.Command; } ), [ 'validate' ] );
-			await third.Close();
+			LIB_ASSERT.strictEqual( ran.ExitCode, 2, 'run is not the translate profile\'s' );
+			LIB_ASSERT.strictEqual( ( await first.Send( { Id: 'd', Profile: null } ) ).Result.Name, 'translate' );
 		}
 		finally
 		{
 			if ( first ) { await first.Close(); }
-			if ( second ) { await second.Close(); }
 			await served.Close();
 		}
 	} );
 
-	it( 'MCP: the tools are the profile\'s, initialize says so, jsonx/profile asks and switches, and a switch by anyone notifies', async function ()
+	it( 'MCP: the tools are the profile\'s, initialize says so, jsonx/profile asks for it, and a request to change it is refused', async function ()
 	{
 		let held = hold( observatory, 'translate' );
 		try
 		{
 			let mcp = Protocol.NewMcp( held, { Version: '1' } );
-			let notified = [];
-			mcp.OnNotify( function ( Message ) { notified.push( Message ); } );
 
 			LIB_ASSERT.deepStrictEqual( names( mcp.Tools ), TRANSLATE.map( function ( Command ) { return Command.replace( / /g, '_' ); } ) );
 			let find = mcp.Tools.find( function ( Tool ) { return Tool.name === 'datasource_find'; } );
@@ -280,7 +248,7 @@ describe( 'The profile on every surface', function ()
 			LIB_ASSERT.strictEqual( find.inputSchema.properties.max.description, 'The most documents to read. Set to 0 for all documents. Defaults to 5.' );
 
 			let initialized = await mcp.Handle( request( 'initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 't', version: '0' } } ) );
-			LIB_ASSERT.deepStrictEqual( initialized.result.capabilities, { tools: { listChanged: true }, resources: {} } );
+			LIB_ASSERT.deepStrictEqual( initialized.result.capabilities, { tools: {}, resources: {} } );
 			// What the session does, never what the profile is called, and the file by its name, not its path.
 			LIB_ASSERT.match( initialized.result.instructions, /as written\. Build objects from what the data says; run nothing\. Build the object; do not run it\./ );
 			LIB_ASSERT.doesNotMatch( initialized.result.instructions, /translate|profile/i );
@@ -294,41 +262,19 @@ describe( 'The profile on every surface', function ()
 			LIB_ASSERT.strictEqual( outside.error.code, Protocol.ERRORS.INVALID_PARAMS );
 			LIB_ASSERT.match( outside.error.message, /Unknown tool: run/ );
 
-			let switched = await mcp.Handle( request( 'jsonx/profile', { profile: 'run' } ) );
-			LIB_ASSERT.strictEqual( switched.result.Name, 'run', JSON.stringify( switched ) );
-			// The notification waits a turn, so a transport writes the reply first.
-			LIB_ASSERT.strictEqual( notified.length, 0 );
-			await tick();
-			LIB_ASSERT.strictEqual( notified.length, 1 );
-			LIB_ASSERT.strictEqual( notified[ 0 ].method, 'notifications/tools/list_changed' );
-			LIB_ASSERT.ok( names( mcp.Tools ).includes( 'run' ) );
-			LIB_ASSERT.strictEqual( mcp.Profile.Name, 'run' );
+			LIB_ASSERT.deepStrictEqual( asked.result.Commands, TRANSLATE, 'the commands it serves are answered too' );
 
-			let ran = await mcp.Handle( request( 'tools/call', { name: 'run', arguments: { name: 'Prepare the season' } } ) );
-			LIB_ASSERT.strictEqual( ran.result.isError, false, JSON.stringify( ran ) );
-
-			let bad = await mcp.Handle( request( 'jsonx/profile', { profile: 'nonsense' } ) );
-			LIB_ASSERT.strictEqual( bad.error.code, Protocol.ERRORS.INVALID_PARAMS );
-			LIB_ASSERT.match( bad.error.message, /No profile is named \[nonsense\]/ );
-			LIB_ASSERT.strictEqual( ( await mcp.Handle( request( 'jsonx/profile', { profile: 5 } ) ) ).error.code, Protocol.ERRORS.INVALID_PARAMS );
-			LIB_ASSERT.strictEqual( notified.length, 1 );
-
-			// Switched elsewhere - a front end over the WebSocket - this connection hears it too.
-			held.SetProfile( 'translate' );
-			await tick();
-			LIB_ASSERT.strictEqual( notified.length, 2 );
+			let refused = await mcp.Handle( request( 'jsonx/profile', { profile: 'run' } ) );
+			LIB_ASSERT.strictEqual( refused.error.code, Protocol.ERRORS.INVALID_PARAMS );
+			LIB_ASSERT.match( refused.error.message, /set once, when the server is launched/ );
 			LIB_ASSERT.ok( !names( mcp.Tools ).includes( 'run' ) );
-
-			// Closed, it hears nothing more.
+			LIB_ASSERT.strictEqual( mcp.Profile.Name, 'translate' );
 			mcp.Close();
-			held.SetProfile( 'run' );
-			await tick();
-			LIB_ASSERT.strictEqual( notified.length, 2 );
 		}
 		finally { await held.Release(); }
 	} );
 
-	it( 'MCP over stdio: the list_changed notification is one more line out, after the switch\'s reply', async function ()
+	it( 'MCP over stdio: a request to change the profile is answered with an error, and nothing else is ever sent unasked', async function ()
 	{
 		let held = hold( observatory, 'translate' );
 		try
@@ -339,13 +285,9 @@ describe( 'The profile on every surface', function ()
 				JSON.stringify( { jsonrpc: '2.0', id: 2, method: 'jsonx/profile', params: { profile: 'run' } } ),
 				JSON.stringify( { jsonrpc: '2.0', id: 3, method: 'tools/list' } ),
 			], function ( Text ) { written.push( JSON.parse( Text ) ); } );
-			let switched = written.findIndex( function ( Message ) { return Message.id === 2; } );
-			let notified = written.findIndex( function ( Message ) { return Message.method === 'notifications/tools/list_changed'; } );
-			LIB_ASSERT.ok( switched >= 0 && notified >= 0, JSON.stringify( written ) );
-			LIB_ASSERT.ok( notified > switched, 'the notification follows the reply' );
-			LIB_ASSERT.ok( !( 'id' in written[ notified ] ) );
-			let listed = written.find( function ( Message ) { return Message.id === 3; } );
-			LIB_ASSERT.ok( names( listed.result.tools ).includes( 'run' ) );
+			LIB_ASSERT.deepStrictEqual( written.map( function ( Message ) { return Message.id; } ), [ 1, 2, 3 ], JSON.stringify( written ) );
+			LIB_ASSERT.strictEqual( written[ 1 ].error.code, Protocol.ERRORS.INVALID_PARAMS );
+			LIB_ASSERT.ok( !names( written[ 2 ].result.tools ).includes( 'run' ) );
 		}
 		finally { await held.Release(); }
 	} );

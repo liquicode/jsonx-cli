@@ -20,12 +20,6 @@ async function ServeStdio( Mcp, Lines, Write )
 {
 	let pending = new Set();
 
-	// A message the server starts - a profile switch's list_changed - is one more line out.
-	if ( typeof Mcp.OnNotify === 'function' )
-	{
-		Mcp.OnNotify( function ( Message ) { Write( JSON.stringify( Message ) + '\n' ); } );
-	}
-
 	for await ( let line of Lines )
 	{
 		let text = String( line ).trim();

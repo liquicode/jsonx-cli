@@ -44,12 +44,11 @@
 		queue, `HeldBy` its command, and when it stops, `HeldBy` null.
 
 	***What the session serves is its profile*** (cut 7, decision 14): a built-in name or a `.json` file
-	(src/Session/Profiles.js), given when the session is held and switched by SetProfile. ***It is
+	(src/Session/Profiles.js), given once, when the session is held, and never switched *(user,
+	2026-09-24: "setting the mode should happen only once, when the server is launched")*. ***It is
 	enforced here, once, for every surface***: a request for a command the profile does not serve, or
 	giving an option it withholds, is refused with exit 2; a value it defaults is put into the request
-	when none was given. A switch tells every OnEvent listener `profile`, with the summary a surface
-	shows, and the next request is judged under the new profile; one already running finishes under
-	the profile it started in.
+	when none was given.
 */
 
 const LIB_FS = require( 'fs' );
@@ -245,7 +244,8 @@ function NewHeld( Options )
 	//---------------------------------------------------------------------
 	// The profile in force (cut 7): loaded and checked here, so a bad one is refused where it was named,
 	// as a bad override is. `served` is the command list the surfaces show, `profile` what request judges
-	// by. Both are replaced whole on a switch, so a request in flight keeps the pair it started with.
+	// by. ***Both are set once, when the session is held***: the profile is chosen at launch and never
+	// switched (user, 2026-09-24).
 
 	let profile = null;
 	let served = null;
@@ -280,16 +280,6 @@ function NewHeld( Options )
 	held.ProfileSummary = function ()
 	{
 		return Profiles.Summary( profile, served );
-	};
-
-	// Switches the profile, tells every listener, and answers the summary. Throws ProfileError, and the
-	// profile in force is unchanged then.
-	held.SetProfile = function ( NameOrPath )
-	{
-		set_profile( NameOrPath );
-		let summary = held.ProfileSummary();
-		tell_event( { Event: 'profile', Profile: summary } );
-		return summary;
 	};
 
 	// The file's text as the session last read or wrote it.
