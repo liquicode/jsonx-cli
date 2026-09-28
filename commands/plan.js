@@ -40,11 +40,19 @@ async function handler( Parsed, Context )
 		return 2;
 	}
 
-	// A draft is planned in a copy of the file, where it is found by name (src/File/Draft.js).
+	// A draft is planned in a copy of the file, where it is found by name (src/File/Draft.js); one which
+	// is not an object is refused first, exit 3, as run and validate refuse it.
 	let document = loaded.Document;
 	let placed = null;
 	if ( typeof draft !== 'undefined' )
 	{
+		let refused = Draft.Refusal( draft );
+		if ( refused !== null )
+		{
+			Context.Out.Finding( refused );
+			Context.Out.Log( 'The draft has 1 error; nothing was planned.\n' );
+			return 3;
+		}
 		placed = Draft.Place( loaded.Document, draft );
 		document = placed.Copy;
 		name = placed.Name;

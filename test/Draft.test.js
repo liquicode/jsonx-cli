@@ -157,4 +157,21 @@ describe( 'Draft, an entry evaluated as if it were in the file', function ()
 		LIB_ASSERT.deepStrictEqual( Verbs.ValidateObject( document, same, validate_options() ), [] );
 	} );
 
+	it( 'refuses a draft which is not an object with one finding saying so, not the empty object\'s missing Kind', function ()
+	{
+		let document = Spec.AppendixB();
+		let as_text = JSON.stringify( update_draft( 'Confirm now' ) );
+		let cases = [ [ as_text, 'a string' ], [ 7, 'a number' ], [ [ update_draft( 'X' ) ], 'an array' ], [ null, 'null' ], [ true, 'a boolean' ] ];
+		for ( let index = 0; index < cases.length; index++ )
+		{
+			let findings = Draft.ValidateDraft( document, cases[ index ][ 0 ], validate_options() );
+			LIB_ASSERT.strictEqual( findings.length, 1, JSON.stringify( findings ) );
+			LIB_ASSERT.strictEqual( findings[ 0 ].Severity, 'error' );
+			LIB_ASSERT.strictEqual( findings[ 0 ].Path, 'Draft' );
+			LIB_ASSERT.strictEqual( findings[ 0 ].Message, 'A draft must be a JSON object, not ' + cases[ index ][ 1 ] + '; pass the object itself, not text holding it.' );
+		}
+		LIB_ASSERT.strictEqual( Draft.Refusal( update_draft( 'Confirm now' ) ), null );
+		LIB_ASSERT.strictEqual( Draft.ValidateDraft( document, 'x', validate_options(), '(ad hoc)' )[ 0 ].Path, '(ad hoc)' );
+	} );
+
 } );

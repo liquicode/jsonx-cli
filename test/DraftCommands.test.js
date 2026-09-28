@@ -178,6 +178,24 @@ describe( 'A draft through validate, plan, explain and run', function ()
 		LIB_ASSERT.match( not_object.Stderr, /The draft is not an object/ );
 	} );
 
+	it( 'refuses a draft sent as text - even text holding a whole valid object - on all four commands, exit 3, saying so', function ()
+	{
+		let text = JSON.stringify( draft( { Name: 'Confirm now' } ) );
+		let said = /A draft must be a JSON object, not a string; pass the object itself, not text holding it\./;
+		let commands = [ 'validate', 'plan', 'explain', 'run' ];
+		for ( let index = 0; index < commands.length; index++ )
+		{
+			let refused = run( [ commands[ index ], '--json', text ], root );
+			LIB_ASSERT.strictEqual( refused.Code, 3, commands[ index ] + ': ' + refused.Stderr );
+			LIB_ASSERT.match( refused.Stderr, said, commands[ index ] );
+			LIB_ASSERT.doesNotMatch( refused.Stderr, /must carry a Kind/, commands[ index ] );
+		}
+		// The shape an MCP call takes: the input document's json is a string.
+		LIB_ASSERT.strictEqual( LIB_CHILD_PROCESS.spawnSync( process.execPath, [ BIN, '--input-json', '-' ], { cwd: root, input: JSON.stringify( { Command: 'validate', json: draft() } ), encoding: 'utf8' } ).status, 3 );
+		let numbered = run( [ 'validate', '--json', '7' ], root );
+		LIB_ASSERT.match( numbered.Stderr, /not a number/ );
+	} );
+
 	it( 'run --json honours --changes on an Update draft, and refuses it on another kind', function ()
 	{
 		let bind = 'Bookings=jsonstor-jsonfile:{"Path":"bookings.json"}';

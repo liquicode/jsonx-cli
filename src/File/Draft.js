@@ -45,6 +45,31 @@ function clone( Value )
 	return JSON.parse( JSON.stringify( Value ) );
 }
 
+function type_of( Value )
+{
+	if ( Value === null ) { return 'null'; }
+	if ( Array.isArray( Value ) ) { return 'an array'; }
+	return 'a ' + typeof Value;
+}
+
+
+//---------------------------------------------------------------------
+// ***A draft which is not a JSON object is refused before it is placed*** (2026-09-27). Place() turns it
+// into {}, so the file's rules then reported what the empty object lacks - "An object must carry a Kind
+// (5.1)" - for a string holding a whole valid object; a model reading that could not tell what to change,
+// and jsonx-llm's epoch4 sent the same string seven times. Answers the one finding, or null for an object.
+// The string is not parsed for the caller: text holding an object is still text.
+
+function Refusal( Draft )
+{
+	if ( is_object( Draft ) ) { return null; }
+	return {
+		Severity: 'error',
+		Path: DRAFT_PATH,
+		Message: 'A draft must be a JSON object, not ' + type_of( Draft ) + '; pass the object itself, not text holding it.',
+	};
+}
+
 
 //---------------------------------------------------------------------
 // The section a draft belongs to, by its shape.
@@ -159,6 +184,12 @@ function DropUncalledNote( Findings, Path )
 
 function ValidateDraft( Document, Draft, Options, Prefix )
 {
+	let refused = Refusal( Draft );
+	if ( refused !== null )
+	{
+		if ( typeof Prefix === 'string' ) { refused.Path = Prefix; }
+		return [ refused ];
+	}
 	let placed = Place( Document, Draft );
 	let findings = Validate.ValidateFile( placed.Copy, Options ).filter( function ( Finding )
 	{
@@ -181,6 +212,7 @@ module.exports = {
 	DRAFT_PATH: DRAFT_PATH,
 	AD_HOC: AD_HOC,
 	Section: Section,
+	Refusal: Refusal,
 	Place: Place,
 	Rewrite: Rewrite,
 	DropUncalledNote: DropUncalledNote,
