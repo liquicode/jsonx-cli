@@ -19,6 +19,12 @@
 	***Who may call is the Web API's rule***, by the same code (Api.UseGuards): a loopback bind
 	refuses a foreign Host or Origin with 403, another host needs a token, and a token is checked on
 	every request. A refusal here is a JSON-RPC error with no id, as the transport allows.
+
+	***The endpoint can ride on the Web API*** (cut 9, 2026-10-03): AttachMcp adds it to another app,
+	and `jsonx serve --mcp` adds it to the one which serves the Web UI, so a model and the window work on
+	one held session. There ***each MCP session names its profile when it begins***, as `?profile=<name>`
+	on the initialize request (a built-in, or the server's own by its Name; absent, run), and keeps it: the session is a view of the held
+	session through that profile (Held.ForProfile), while the Web API keeps its own.
 */
 
 const LIB_CRYPTO = require( 'crypto' );
@@ -42,26 +48,32 @@ function error_body( Code, Message )
 
 
 //---------------------------------------------------------------------
-// Options: Host, Token (as Api.UseGuards), Version (serverInfo).
+// The endpoint's routes, added to App behind whatever guards App already has. Answers the map of
+// open sessions.
+//
+// Options:
+//		Version          serverInfo
+//		DefaultProfile   when given, each session names its profile at initialize (?profile=), a
+//		                 built-in, and this one is taken when it names none; absent, every session is
+//		                 the held session's own profile
 
-function NewMcpHttp( HeldSession, Options )
+function AttachMcp( App, HeldSession, Options )
 {
 	let options = ( Options && typeof Options === 'object' ) ? Options : {};
-
-	let app = LIB_EXPRESS();
-	app.disable( 'x-powered-by' );
-	Api.UseGuards( app, {
-		Host: options.Host,
-		Token: options.Token,
-		Refuse: function ( Status, Message, Response )
-		{
-			Response.status( Status ).json( error_body( Protocol.ERRORS.INVALID_REQUEST, Message ) );
-			return;
-		},
-	} );
+	let app = App;
 
 	let sessions = new Map();
-	app.locals.Sessions = sessions;
+	let views = {};
+
+
+	// What one session is answered by: the held session, or its view through the profile it names.
+	function held_for( Request )
+	{
+		if ( typeof options.DefaultProfile !== 'string' ) { return HeldSession; }
+		let name = ( typeof Request.query.profile === 'string' && Request.query.profile !== '' ) ? Request.query.profile : options.DefaultProfile;
+		if ( !Object.prototype.hasOwnProperty.call( views, name ) ) { views[ name ] = HeldSession.ForProfile( name ); }
+		return views[ name ];
+	}
 
 
 	app.use( ENDPOINT, LIB_EXPRESS.json( { limit: BODY_LIMIT, strict: false } ) );
@@ -92,8 +104,17 @@ function NewMcpHttp( HeldSession, Options )
 
 		if ( initializing )
 		{
+			let held = null;
+			try
+			{
+				held = held_for( Request );
+			}
+			catch ( error )
+			{
+				return Response.status( 400 ).json( error_body( Protocol.ERRORS.INVALID_PARAMS, error.message ) );
+			}
 			session_id = LIB_CRYPTO.randomUUID();
-			mcp = Protocol.NewMcp( HeldSession, { Version: options.Version } );
+			mcp = Protocol.NewMcp( held, { Version: options.Version } );
 		}
 		else if ( typeof session_id !== 'string' || session_id === '' )
 		{
@@ -158,15 +179,8 @@ function NewMcpHttp( HeldSession, Options )
 	} );
 
 
-	app.use( function ( Request, Response )
-	{
-		Response.status( 404 ).json( error_body( Protocol.ERRORS.INVALID_REQUEST, 'The MCP endpoint is ' + ENDPOINT + '.' ) );
-		return;
-	} );
-
-
-	// A body which is not JSON is a JSON-RPC parse error.
-	app.use( function ( Error_, Request, Response, Next )
+	// A body which is not JSON is a JSON-RPC parse error, here and not in the app's own answer.
+	app.use( ENDPOINT, function ( Error_, Request, Response, Next )
 	{
 		if ( Error_ && Error_.type === 'entity.parse.failed' )
 		{
@@ -181,6 +195,39 @@ function NewMcpHttp( HeldSession, Options )
 	} );
 
 
+	return sessions;
+}
+
+
+//---------------------------------------------------------------------
+// The endpoint on an app of its own (`jsonx mcp --http`). Options: Host, Token (as Api.UseGuards),
+// Version (serverInfo).
+
+function NewMcpHttp( HeldSession, Options )
+{
+	let options = ( Options && typeof Options === 'object' ) ? Options : {};
+
+	let app = LIB_EXPRESS();
+	app.disable( 'x-powered-by' );
+	Api.UseGuards( app, {
+		Host: options.Host,
+		Token: options.Token,
+		Refuse: function ( Status, Message, Response )
+		{
+			Response.status( Status ).json( error_body( Protocol.ERRORS.INVALID_REQUEST, Message ) );
+			return;
+		},
+	} );
+	app.locals.Sessions = AttachMcp( app, HeldSession, { Version: options.Version } );
+
+
+	app.use( function ( Request, Response )
+	{
+		Response.status( 404 ).json( error_body( Protocol.ERRORS.INVALID_REQUEST, 'The MCP endpoint is ' + ENDPOINT + '.' ) );
+		return;
+	} );
+
+
 	return app;
 }
 
@@ -190,5 +237,6 @@ module.exports = {
 	ENDPOINT: ENDPOINT,
 	SESSION_HEADER: SESSION_HEADER,
 	VERSION_HEADER: VERSION_HEADER,
+	AttachMcp: AttachMcp,
 	NewMcpHttp: NewMcpHttp,
 };

@@ -15,7 +15,8 @@ export type JsonxHostCapability =
 	| 'NewFile'
 	| 'OpenPath'
 	| 'RecentFiles'
-	| 'OpenTerminal';
+	| 'OpenTerminal'
+	| 'OpenChat';
 
 /** A file the desktop has opened, or may open again. */
 export interface JsonxHostFile
@@ -57,6 +58,9 @@ export interface JsonxHost
 
 	/** Desktop only: a jsonx terminal on this file's process (O7), not an operating system shell. */
 	OpenTerminal?(): Promise<boolean>;
+
+	/** Desktop only: a chat on this file with the jsonx model, in its own window (cut 9). */
+	OpenChat?(): Promise<boolean>;
 }
 
 declare global

@@ -49,6 +49,12 @@
 	enforced here, once, for every surface***: a request for a command the profile does not serve, or
 	giving an option it withholds, is refused with exit 2; a value it defaults is put into the request
 	when none was given.
+
+	***One held session can be seen through another profile*** (cut 9, 2026-10-03): ForProfile answers a
+	view of the same session - the same file, data sources and queue - which serves and judges by a
+	built-in profile of its own, set once, when the view is made. `jsonx serve --mcp` gives each MCP
+	session one, so a model works on the window's own copy of the data: two processes on one file each
+	held their own copy of a JSON-file source, and one's write erased the other's (measured 2026-10-03).
 */
 
 const LIB_FS = require( 'fs' );
@@ -259,6 +265,31 @@ function NewHeld( Options )
 		held.Profile = checked;
 		return;
 	}
+
+	// The held session seen through a built-in profile of its own (the header): everything is the
+	// held session's except what it serves, what it tells a client about that, and how it judges a
+	// request. ***The session's own profile, by its Name, is the session itself***, so a server
+	// started with a profile file serves that file's profile to a client which names it - jsonx-llm's
+	// measurements play generated profiles that way. Any other name which is not a built-in throws
+	// HeldError, exit 2: a view is asked for by a client, and a client names no file to load.
+	held.ForProfile = function ( Name )
+	{
+		if ( Name === profile.Name ) { return held; }
+		if ( !Profiles.NAMES.includes( Name ) )
+		{
+			throw new HeldError( 'No profile is named [' + Name + ']: name one of ' + Profiles.NAMES.join( ', ' ) + ', or this server\'s own, [' + profile.Name + '].', 2 );
+		}
+		let commands = ServedCommands( held.Tree );
+		let lens = { Profile: Profiles.Check( Profiles.Load( Name, io ), commands ) };
+		lens.Served = Profiles.Apply( commands, lens.Profile );
+
+		let view = Object.create( held );
+		view.Profile = lens.Profile;
+		view.Served = function () { return lens.Served.slice(); };
+		view.ProfileSummary = function () { return Profiles.Summary( lens.Profile, lens.Served ); };
+		view.Invoke = function ( Invocation, Listen ) { return request( Invocation, Listen, null, lens ); };
+		return view;
+	};
 
 	try
 	{
@@ -544,9 +575,10 @@ function NewHeld( Options )
 
 
 	//---------------------------------------------------------------------
-	// A request or a conversation (Conversation is null for a request).
+	// A request or a conversation (Conversation is null for a request). Lens, when given, is a view's
+	// profile and served commands (ForProfile), judged by in place of the session's own.
 
-	async function request( Invocation, Listen, Conversation )
+	async function request( Invocation, Listen, Conversation, Lens )
 	{
 		let listen = ( typeof Listen === 'function' ) ? Listen : null;
 		let sinks = {};
@@ -626,8 +658,8 @@ function NewHeld( Options )
 
 		// The profile (cut 7): a command it does not serve, or an option it withholds, is refused; a value
 		// it defaults is put into the request when none was given, and the request is parsed again with it.
-		let in_force = profile;
-		let in_profile = served.find( function ( Each ) { return Each.Command === command; } );
+		let in_force = Lens ? Lens.Profile : profile;
+		let in_profile = ( Lens ? Lens.Served : served ).find( function ( Each ) { return Each.Command === command; } );
 		if ( !in_profile )
 		{
 			// A conversation (debug) is not a served command, so it is not on any profile's list: the full

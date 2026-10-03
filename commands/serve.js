@@ -1,7 +1,7 @@
 'use strict';
 
 /*
-	jsonx serve --api | --ui [--host <host>] [--port <port>] [--token <token>] [--bind ...] [--set ...]
+	jsonx serve --api | --ui [--mcp] [--host <host>] [--port <port>] [--token <token>] [--bind ...] [--set ...]
 
 	Holds the file and serves its commands over HTTP (plan F4.2, modes/api/Api.js) until it is
 	stopped (Ctrl+C). What it says for a person goes to standard error: the address, the file's
@@ -10,8 +10,15 @@
 	***`--ui` serves the Web UI's page too*** (plan F4.5, cut 5), at /ui/, and implies `--api`: the page
 	talks to the file over the API's WebSocket.
 
-	***Once it listens, it writes one JSON line to standard output***, `{ File, Url, Ws, Pid }` and `Ui`
-	with --ui, for a program which starts it (the TUI, the desktop) to read instead of the prose. It is
+	***`--mcp` answers MCP at /mcp as well*** (cut 9, 2026-10-03), on the same held session, behind the
+	same guards: a model and the window work on one copy of the data, where a second process on the
+	file would hold its own and overwrite the window's writes (measured 2026-10-03, a JSON-file source).
+	Each MCP session names a built-in profile when it begins, `/mcp?profile=<name>` (absent, run), or
+	the server's own by its Name - a profile file given to --profile - and keeps it; the Web API keeps
+	--profile's. It rides on --api or --ui.
+
+	***Once it listens, it writes one JSON line to standard output***, `{ File, Url, Ws, Pid }`, `Ui`
+	with --ui and `Mcp` with --mcp, for a program which starts it (the TUI, the desktop) to read instead of the prose. It is
 	written as one line whatever the result would be formatted as, because the reader reads a line.
 
 	***`--attached` also stops it when standard input ends***, so the program which started it can stop
@@ -38,6 +45,7 @@ const Report = require( '../src/Report.js' );
 const Api = require( '../modes/api/Api.js' );
 const Ws = require( '../modes/ws/Ws.js' );
 const Web = require( '../modes/web/Web.js' );
+const Http = require( '../modes/mcp/Http.js' );
 const SessionCommand = require( './session.js' );
 
 
@@ -57,6 +65,7 @@ async function handler( Parsed, Context )
 		return 2;
 	}
 	let ui = ( value( 'ui' ) === true );
+	let mcp = ( value( 'mcp' ) === true );
 	if ( value( 'api' ) !== true && !ui )
 	{
 		out.Log( 'Name what to serve: --api for the Web API, or --ui for the Web UI and the Web API it talks to.\n' );
@@ -79,6 +88,8 @@ async function handler( Parsed, Context )
 			ReportPaths: value( 'report-paths' ),
 			// The profile (cut 7): absent, a person's own front end gets everything.
 			Profile: value( 'profile' ) || Profiles.DEFAULT_SERVE,
+			// MCP's instructions, for an MCP session on --mcp, as jsonx mcp --capabilities says them.
+			Capabilities: value( 'capabilities' ),
 			// A reload, and what it found, is reported as it happens (plan F2.5).
 			Log: function ( Text ) { out.Log( Text ); },
 		} );
@@ -105,7 +116,7 @@ async function handler( Parsed, Context )
 	let server = null;
 	try
 	{
-		let app = Api.NewApi( held, { Host: host, Token: token, Version: jsonx_cli.Version, Ui: ui } );
+		let app = Api.NewApi( held, { Host: host, Token: token, Version: jsonx_cli.Version, Ui: ui, McpProfile: mcp ? Profiles.DEFAULT_MCP : undefined } );
 		server = await Api.Listen( app, host, value( 'port' ) );
 	}
 	catch ( error )
@@ -120,8 +131,9 @@ async function handler( Parsed, Context )
 	held.Watch();
 	let ready = { File: held.Path, Url: url, Ws: url.replace( /^http:/, 'ws:' ) + Ws.ROUTE, Pid: process.pid };
 	if ( ui ) { ready.Ui = url + Web.ROUTE; }
+	if ( mcp ) { ready.Mcp = url + Http.ENDPOINT; }
 	out.Line( ready );
-	out.Log( 'Serving ' + held.Label + ' at ' + url + ( token ? ' (token required)' : '' ) + '. ' + ( ui ? 'The Web UI is at ' + ready.Ui + '. ' : '' ) + ( value( 'attached' ) ? 'The end of standard input, or Ctrl+C, stops it.' : 'Ctrl+C stops it.' ) + '\n' );
+	out.Log( 'Serving ' + held.Label + ' at ' + url + ( token ? ' (token required)' : '' ) + '. ' + ( ui ? 'The Web UI is at ' + ready.Ui + '. ' : '' ) + ( mcp ? 'MCP is at ' + ready.Mcp + '. ' : '' ) + ( value( 'attached' ) ? 'The end of standard input, or Ctrl+C, stops it.' : 'Ctrl+C stops it.' ) + '\n' );
 
 	let stops = [ io.WaitForStop() ];
 	if ( value( 'attached' ) && typeof io.WaitForStdinEnd === 'function' ) { stops.push( io.WaitForStdinEnd() ); }
@@ -144,6 +156,8 @@ module.exports = {
 	Options: Object.assign( {
 		'api': { Type: 'boolean', Describe: 'Serve the Web API: one POST route per command.' },
 		'ui': { Type: 'boolean', Describe: 'Serve the Web UI at /ui/, and the Web API it talks to.' },
+		'mcp': { Type: 'boolean', Describe: 'Also answer MCP at /mcp, on the same held session; each MCP session names a built-in profile, or this server\'s own, as ?profile=, absent: ' + Profiles.DEFAULT_MCP + '.' },
+		'capabilities': { Type: 'boolean', Describe: 'With --mcp: say what an MCP session does in a sentence made from the tools it serves, as jsonx mcp --capabilities does.' },
 		'host': { Type: 'string', Default: '127.0.0.1', Describe: 'The address to bind. Anything but loopback needs a token.' },
 		'port': { Type: 'integer', Default: DEFAULT_PORT, Describe: 'The port to bind; 0 picks a free one.' },
 		'token': { Type: 'string', Describe: 'The bearer token every request must carry. Absent: JSONX_TOKEN.' },

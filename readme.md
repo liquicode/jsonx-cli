@@ -632,6 +632,18 @@ claude mcp add jsonx -- node <checkout>/bin/jsonx.js mcp --file <path>/observato
 `jsonx mcp --http` serves MCP at `http://127.0.0.1:3471/mcp` instead, with `--host`, `--port` and
 `--token` as for `serve`. It speaks MCP revision 2025-11-25, which the official MCP SDK speaks.
 
+***`jsonx serve --mcp` answers MCP at `/mcp` beside the Web API***, on the same address and behind the
+same guards, so a model and the Web UI work on one open file and see each other's changes. Two
+processes on one file would each keep their own copy of a JSON-file data source, and the second to
+write would overwrite the first's changes. Each MCP session names a built-in profile when it begins,
+`http://127.0.0.1:3470/mcp?profile=translate`, or the server's own `--profile` by its `Name`, and keeps
+it; a session that names none gets `run`. `--capabilities` works as it does for `jsonx mcp`. The
+Web API keeps the profile `jsonx serve` was given. The ready line carries the address as `Mcp`.
+
+```
+jsonx serve --ui --mcp --file observatory.jsonx
+```
+
 ***`jsonx mcp` serves the `run` [profile](#profiles) unless `--profile` says otherwise***: the reads, the
 draft checks and `run`. `--profile full` serves every command.
 
@@ -662,8 +674,9 @@ jsonx mcp --profile translate --file observatory.jsonx
 A profile says what a served session answers: which commands, which options they are served
 without, what a request gets when it does not say, and which commands a front end should confirm
 with a person before sending. `--profile` on `jsonx serve` and `jsonx mcp` names one: a built-in,
-or a `.json` file of the same shape. ***It is set once, when the server is launched***: every served
-surface reads the same profile, and a front end can ask for it with the WebSocket's `Profile` request
+or a `.json` file of the same shape. ***It is set once, when the server is launched***, and an MCP
+session on `jsonx serve --mcp` sets its own once, when it begins; every other served surface reads the
+server's, and a front end can ask for it with the WebSocket's `Profile` request
 or MCP's `jsonx/profile`, but not change it.
 
 | Profile | Serves | Confirm |

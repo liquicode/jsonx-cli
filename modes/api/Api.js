@@ -7,6 +7,8 @@
 		                          profile in force (cut 7) and the commands it serves, with their defaults
 		POST /<group>/<command>   the command; the body is its --input-json document without Command
 		GET  /ws                  the WebSocket (modes/ws/Ws.js), behind the same guards
+		/mcp                      MCP over Streamable HTTP when asked for (McpProfile; modes/mcp/Http.js),
+		                          behind the same guards
 
 	***The body is the `--input-json` shape***, `{ "name": "Bookings", "criteria": { ... } }`, so a
 	program writes the same document to the API as it would pass to `jsonx --input-json`, and a
@@ -253,7 +255,8 @@ function UseGuards( App, Options )
 
 //---------------------------------------------------------------------
 // Options: Host, Token (as UseGuards), Version, reported by GET /, and Ui: serve the Web UI's page under
-// /ui/ (modes/web/Web.js), and send a browser's GET / there.
+// /ui/ (modes/web/Web.js), and send a browser's GET / there; McpProfile: answer MCP at /mcp too, each
+// session under the built-in profile it names, this one when it names none.
 
 function NewApi( HeldSession, Options )
 {
@@ -265,6 +268,14 @@ function NewApi( HeldSession, Options )
 	let public_paths = [ CONFIG_ROUTE ].concat( options.Ui === true ? [ Web.ROUTE ] : [] ).concat( Array.isArray( options.Public ) ? options.Public : [] );
 	UseGuards( app, Object.assign( {}, options, { Tickets: tickets, Public: public_paths } ) );
 	let token_required = ( typeof options.Token === 'string' && options.Token !== '' );
+
+	// MCP at /mcp beside the API (cut 9), behind the same guards and ahead of the API's own body parser,
+	// each session under the profile it names (modes/mcp/Http.js). Required here, not at the top:
+	// Http.js requires this file for its guards.
+	if ( typeof options.McpProfile === 'string' )
+	{
+		app.locals.Mcp = require( '../mcp/Http.js' ).AttachMcp( app, HeldSession, { Version: options.Version, DefaultProfile: options.McpProfile } );
+	}
 
 	let commands = Held.ServedCommands( HeldSession.Tree );
 
